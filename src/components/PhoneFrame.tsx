@@ -127,13 +127,29 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
         >
           <div
             style={{
-              fontFamily: "'Inter', sans-serif",
-              fontWeight: 600,
-              fontSize: 20,
-              color: T.earth6,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
             }}
           >
-            NutriVision
+            <img
+              src="/icon-32.png"
+              alt=""
+              aria-hidden="true"
+              width={24}
+              height={24}
+              style={{ borderRadius: 6 }}
+            />
+            <span
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 600,
+                fontSize: 20,
+                color: T.earth6,
+              }}
+            >
+              NutriVision
+            </span>
           </div>
           {headerRight}
         </div>
@@ -289,6 +305,21 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
           >
             <div
               style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <img
+              src="/icon-32.png"
+              alt=""
+              aria-hidden="true"
+              width={24}
+              height={24}
+              style={{ borderRadius: 6 }}
+            />
+            <span
+              style={{
                 fontFamily: "'Inter', sans-serif",
                 fontWeight: 600,
                 fontSize: 20,
@@ -296,11 +327,12 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
               }}
             >
               NutriVision
-            </div>
-            {headerRight}
+            </span>
           </div>
+          {headerRight}
+        </div>
 
-          {/* Layer 3: screen content */}
+        {/* Layer 3: screen content */}
           <div
             style={{
               position: 'relative',
