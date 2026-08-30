@@ -4,3 +4,6 @@ dist
 .DS_Store
 *.log
 *.tsbuildinfo
+
+# Local AI onboarding brief (kept out of public repo)
+AI_CONTEXT.md

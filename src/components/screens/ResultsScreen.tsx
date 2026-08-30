@@ -12,6 +12,7 @@ import SortMenu, { SORT_OPTIONS } from '../SortMenu';
 import ExpandableRow from '../ExpandableRow';
 import BulkActionBar from '../BulkActionBar';
 import SmartActionSheet from '../SmartActionSheet';
+import AddCustomModal from '../AddCustomModal';
 
 const container = {
   hidden: {},
@@ -109,6 +110,7 @@ export default function ResultsScreen({
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<{ msg: string; action?: { label: string; onClick: () => void } } | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [addCustomOpen, setAddCustomOpen] = useState(false);
 
   const diabeticMode = !!profile?.goals.diabetic;
 
@@ -230,19 +232,23 @@ export default function ResultsScreen({
     triggerToast(`Added ${meta.name}`);
   };
 
-  const addCustom = () => {
-    const name = window.prompt('Add a custom item', 'Naan');
-    if (!name) return;
-    const grams = Number(window.prompt('Portion in grams', '60') || 60);
-    if (detected.some((d) => d.name === name)) {
+  const openAddCustom = () => setAddCustomOpen(true);
+  const closeAddCustom = () => setAddCustomOpen(false);
+
+  // Inline modal replaces window.prompt() — prompt() is blocked on many
+  // desktop browsers (Chrome 92+, embedded webviews, PWA contexts) and
+  // doesn't match the app's design language.
+  const submitAddCustom = (name: string, grams: number) => {
+    if (detected.some((d) => d.name.toLowerCase() === name.toLowerCase())) {
       triggerToast(`${name} already in list`);
       return;
     }
     updateDetected((rows) => [
       ...rows,
-      { name, confidence: 100, grams: Math.max(5, Math.min(800, grams)), note: null },
+      { name, confidence: 100, grams, note: null },
     ]);
     triggerToast(`Added ${name}`);
+    setAddCustomOpen(false);
   };
 
   const onLongPressRow = (name: string) => {
@@ -433,7 +439,7 @@ export default function ResultsScreen({
 
         <motion.button
           type="button"
-          onClick={addCustom}
+          onClick={openAddCustom}
           whileHover={{ scale: 1.08, rotate: 90 }}
           whileTap={{ scale: 0.92 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
@@ -580,7 +586,7 @@ export default function ResultsScreen({
             hasHighConf={hasHighConfSelected}
             onConfirmAll={onConfirmAllSelected}
             onReviewAll={onReviewAllSelected}
-            onAddCustom={addCustom}
+            onAddCustom={openAddCustom}
             onCancel={onCancelMulti}
           />
         )}
@@ -601,6 +607,13 @@ export default function ResultsScreen({
           setSheetOpen(false);
           setConfirmed({});
         }}
+      />
+
+      <AddCustomModal
+        open={addCustomOpen}
+        onClose={closeAddCustom}
+        onSubmit={submitAddCustom}
+        existingNames={detected.map((d) => d.name)}
       />
 
       <AnimatePresence>

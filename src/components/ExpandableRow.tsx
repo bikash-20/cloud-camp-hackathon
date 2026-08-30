@@ -6,6 +6,7 @@ import {
 import { T, NUTRITION_DB, CATEGORY_TILES } from '../data';
 import type { DetectedItem, FoodDescriptor } from '../types/schemas';
 import Chip from './Chip';
+import AddCustomModal from './AddCustomModal';
 
 interface ItemMeta {
   protein: number; carbs: number; fat: number; kcal: number;
@@ -79,7 +80,17 @@ export default function ExpandableRow({
   const [sliderOpen, setSliderOpen] = useState(false);
   const [ripple, setRipple] = useState<{ x: number; y: number } | null>(null);
   const [pulseHalo, setPulseHalo] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const longPressTimerRef = useRef<number>(0);
+
+  const openRename = () => setRenameOpen(true);
+  const closeRename = () => setRenameOpen(false);
+  const submitRename = (newName: string) => {
+    if (newName && newName !== item.name) {
+      onRename?.(item.name, newName);
+    }
+    setRenameOpen(false);
+  };
 
   const meta = itemNutrition(item);
   const badge = confidenceBadge(item.confidence);
@@ -699,8 +710,7 @@ export default function ExpandableRow({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      const next = window.prompt('Rename to:', item.name);
-                      if (next) onRename?.(item.name, next);
+                      openRename();
                     }}
                     whileHover={{ scale: 1.04 }}
                     whileTap={{ scale: 0.96 }}
@@ -730,6 +740,14 @@ export default function ExpandableRow({
           </motion.div>
         )}
       </AnimatePresence>
+      <AddCustomModal
+        mode="rename"
+        open={renameOpen}
+        onClose={closeRename}
+        onSubmit={submitRename}
+        defaultName={item.name}
+        defaultGrams={item.grams}
+      />
     </motion.div>
   );
 }
