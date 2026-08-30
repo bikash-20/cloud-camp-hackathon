@@ -31,7 +31,7 @@ const PREFS: DietaryPreference[] = [
 ];
 
 const ALLERGENS: Allergen[] = [
-  'Peanuts', 'Tree nuts', 'Tree shellfish' as Allergen, 'Soy', 'Eggs', 'Dairy', 'Gluten', 'Sesame',
+  'Peanuts', 'Tree nuts', 'Shell shellfish', 'Soy', 'Eggs', 'Dairy', 'Gluten', 'Sesame',
 ];
 
 const toggleIn = (setState: React.Dispatch<React.SetStateAction<Record<string, boolean>>>) =>

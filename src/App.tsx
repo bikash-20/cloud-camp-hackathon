@@ -17,6 +17,7 @@ export default function App() {
   const [tab, setTab] = useState(0);
   const [direction, setDirection] = useState(1);
   const [captured, setCaptured] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [detected, setDetected] = useState<DetectedItem[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [pipeline, setPipeline] = useState<PipelineTrace[]>([]);
@@ -38,14 +39,16 @@ export default function App() {
     setTab(next);
   };
 
-  const handleCapture = async () => {
+  const handleCapture = async (imageDataUrl?: string) => {
     setCaptured(true);
+    if (imageDataUrl) setCapturedImage(imageDataUrl);
     setDirection(1);
     setPipelineToast('Cache check · Vision ID · HF validate · Reconcile');
 
     // Fire the (mock) dual vision pipeline
+    const imageRef = imageDataUrl ? 'captured_photo.jpg' : 'chicken_biryani.jpg';
     try {
-      const { detected: next, pipeline: trace } = await analyzeMeal('chicken_biryani.jpg');
+      const { detected: next, pipeline: trace } = await analyzeMeal(imageRef);
       setDetected(next);
       setPipeline(trace);
       // Briefly surface the pipeline trace for the demo, then advance
@@ -64,6 +67,7 @@ export default function App() {
 
   const handleRetake = () => {
     setCaptured(false);
+    setCapturedImage(null);
     setDetected([]);
     setPipeline([]);
   };
@@ -116,9 +120,11 @@ export default function App() {
         >
           {tab === 0 && (
             <CaptureScreen
-              onClick={handleCapture}
+              onCapture={(dataUrl) => handleCapture(dataUrl)}
+              onClick={() => handleCapture()}
               onReset={handleRetake}
               captured={captured}
+              previewUrl={capturedImage}
             />
           )}
           {tab === 1 && (
@@ -127,6 +133,7 @@ export default function App() {
               onChangeDetected={setDetected}
               onViewNutrients={() => goToTab(2)}
               profile={profile}
+              capturedImage={capturedImage}
             />
           )}
           {tab === 2 && <NutrientsScreen detected={detected} profile={profile} />}

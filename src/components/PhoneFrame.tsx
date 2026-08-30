@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { T } from '../data';
 
@@ -7,16 +8,154 @@ interface PhoneFrameProps {
 }
 
 /**
- * Phone bezel for the demo.
+ * Responsive phone frame for the demo.
  *
- * Layer stack (bottom → top):
- *   0. Sage vertical gradient — fills the bezel
- *   1. Status bar (9:41 + signal + 5G + battery) — transparent
- *   2. App header strip ("NutriVision" + pagination dots) — transparent
- *   3. Screen content (sits over the gradient)
- *   4. Outer bezel border + multi-layer drop shadow + 3D tilt
+ * - Mobile (<768px): fills the viewport like a native app — no bezel, no shadow
+ * - Desktop (≥768px): centered phone mockup with bezel + 3D tilt entrance
  */
 export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  // ── Mobile: full-screen native-app feel ──────────────────────────────
+  if (isMobile) {
+    return (
+      <div
+        style={{
+          minHeight: '100dvh',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Gradient background */}
+        <div className="sage-bg" />
+
+        {/* Status bar (real on mobile, decorative) */}
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 3,
+            padding: 'env(safe-area-inset-top, 12px) 20px 4px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: 'transparent',
+          }}
+          aria-hidden="true"
+        >
+          <span
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              fontWeight: 600,
+              color: T.earth6,
+            }}
+          >
+            9:41
+          </span>
+          <div
+            style={{
+              display: 'flex',
+              gap: 6,
+              alignItems: 'center',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11,
+              fontWeight: 600,
+              color: T.earth6,
+            }}
+          >
+            <span style={{ letterSpacing: 1 }}>●●●</span>
+            <span>5G</span>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 2,
+              }}
+            >
+              <span
+                style={{
+                  width: 22,
+                  height: 11,
+                  borderRadius: 3,
+                  border: `1px solid ${T.earth6}`,
+                  padding: 1,
+                  display: 'inline-flex',
+                }}
+              >
+                <span
+                  style={{
+                    width: '85%',
+                    height: '100%',
+                    background: T.earth6,
+                    borderRadius: 1,
+                  }}
+                />
+              </span>
+              <span
+                style={{
+                  width: 2,
+                  height: 4,
+                  background: T.earth6,
+                  borderRadius: 1,
+                }}
+              />
+            </span>
+          </div>
+        </div>
+
+        {/* App header */}
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 3,
+            padding: '12px 22px 12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: 'transparent',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 600,
+              fontSize: 20,
+              color: T.earth6,
+            }}
+          >
+            NutriVision
+          </div>
+          {headerRight}
+        </div>
+
+        {/* Screen content */}
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 2,
+            flex: 1,
+            overflowY: 'auto',
+            paddingTop: 8,
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Desktop: phone mockup with bezel ────────────────────────────────
   return (
     <div
       style={{
@@ -39,6 +178,7 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
         }}
         style={{
           width: 360,
+          maxWidth: '100%',
           borderRadius: 44,
           background: 'transparent',
           boxShadow: 'var(--shadow-phone)',
@@ -80,7 +220,6 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
                 fontSize: 13,
                 fontWeight: 600,
                 color: T.earth6,
-                flex: '0 0 auto',
               }}
             >
               9:41
@@ -94,7 +233,6 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
                 fontSize: 11,
                 fontWeight: 600,
                 color: T.earth6,
-                flex: '0 0 auto',
               }}
             >
               <span style={{ letterSpacing: 1 }}>●●●</span>
@@ -155,7 +293,6 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
                 fontWeight: 600,
                 fontSize: 20,
                 color: T.earth6,
-                letterSpacing: 0,
               }}
             >
               NutriVision

@@ -587,9 +587,10 @@ export default function ExpandableRow({
                     Did you mean?
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {(meta.alternatives ?? []).map((alt) => {
+                    {(meta.alternatives ?? []).map((alt, idx) => {
                       const altMeta = NUTRITION_DB[alt] || { emoji: '🍽️', category: 'other', kcal: 100, protein: 5, carbs: 10, fat: 3 };
-                      const altConf = Math.max(60, Math.min(95, item.confidence + Math.floor(Math.random() * 25)));
+                      // Stable confidence: offset varies by index, not random
+                      const altConf = Math.max(60, Math.min(95, item.confidence + 8 + idx * 5));
                       return (
                         <Chip
                           key={alt}

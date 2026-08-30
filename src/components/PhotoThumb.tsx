@@ -3,10 +3,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ScanLine } from 'lucide-react';
 import { T } from '../data';
 
+interface PhotoThumbProps {
+  /** Data URL or image URL of the captured photo. */
+  src?: string | null;
+}
+
 /**
- * Sticky top-right circular thumbnail of the captured photo (placeholder).
+ * Sticky top-right circular thumbnail of the captured photo.
+ * Shows the real image when a src is provided, otherwise a placeholder.
  */
-export default function PhotoThumb() {
+export default function PhotoThumb({ src }: PhotoThumbProps) {
   const [pulsing, setPulsing] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -75,26 +81,43 @@ export default function PhotoThumb() {
           overflow: 'visible',
         }}
       >
-        <span
-          aria-hidden="true"
-          style={{
-            position: 'absolute',
-            inset: 4,
-            borderRadius: '50%',
-            background:
-              'radial-gradient(circle at 50% 45%, rgba(249, 242, 228, 0.30), transparent 60%)',
-          }}
-        />
-        <span
-          style={{
-            position: 'relative',
-            zIndex: 1,
-            display: 'inline-flex',
-            color: T.earth6,
-          }}
-        >
-          <ScanLine size={18} strokeWidth={1.8} />
-        </span>
+        {src ? (
+          <img
+            src={src}
+            alt="Captured meal"
+            style={{
+              position: 'absolute',
+              inset: 2,
+              width: 'calc(100% - 4px)',
+              height: 'calc(100% - 4px)',
+              borderRadius: '50%',
+              objectFit: 'cover',
+            }}
+          />
+        ) : (
+          <>
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                inset: 4,
+                borderRadius: '50%',
+                background:
+                  'radial-gradient(circle at 50% 45%, rgba(249, 242, 228, 0.30), transparent 60%)',
+              }}
+            />
+            <span
+              style={{
+                position: 'relative',
+                zIndex: 1,
+                display: 'inline-flex',
+                color: T.earth6,
+              }}
+            >
+              <ScanLine size={18} strokeWidth={1.8} />
+            </span>
+          </>
+        )}
 
         {pulsing && (
           <motion.span

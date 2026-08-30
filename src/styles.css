@@ -368,3 +368,43 @@ p { margin: 0; }
     scroll-behavior: auto !important;
   }
 }
+
+/* === RESPONSIVE ========================================================= */
+
+/* Mobile: allow body scroll, remove phone-frame centering */
+@media (max-width: 767px) {
+  body {
+    background: linear-gradient(180deg, var(--bg-gradient-mid) 0%, var(--bg-gradient-end) 100%);
+  }
+
+  /* Macro donuts: stack vertically on very narrow screens */
+  .glass-card .tnum {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+}
+
+/* Tablet+: constrain content width for readability */
+@media (min-width: 768px) {
+  .glass-card {
+    max-width: 100%;
+  }
+}
+
+/* Landscape phones */
+@media (max-height: 500px) and (orientation: landscape) {
+  .sage-bg {
+    background: linear-gradient(
+      90deg,
+      var(--bg-gradient-start) 0%,
+      var(--bg-gradient-mid) 50%,
+      var(--bg-gradient-end) 100%
+    );
+  }
+}
+
+/* High-DPI: sharpen text */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .tnum {
+    -webkit-font-smoothing: antialiased;
+  }
+}

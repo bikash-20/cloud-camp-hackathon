@@ -1,25 +1,109 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Camera, Sparkles, ScanLine, RotateCcw, X } from 'lucide-react';
+import { Camera, Sparkles, ScanLine, RotateCcw, X, Upload } from 'lucide-react';
 import { T, USER_NAME } from '../../data';
 
+type CapturePhase = 'idle' | 'camera' | 'captured';
+
 interface CaptureScreenProps {
+  /** Called with the captured image data URL when the user takes a photo. */
+  onCapture?: (dataUrl: string) => void;
+  /** Legacy: called to trigger the analysis pipeline. */
   onClick: () => void;
   onReset?: () => void;
   captured: boolean;
+  /** Optional preview URL to show after capture (e.g. from parent state). */
+  previewUrl?: string | null;
 }
 
 /**
- * Home / Capture screen — spec §4B + §4C.
+ * Home / Capture screen — real camera integration.
+ *
+ * Flow:
+ *   idle  → tap card → request camera → camera
+ *   camera → tap shutter → capture frame → captured (calls onCapture + onClick)
+ *   camera → tap "Use photo" button (file) → file picker → captured
+ *   captured → retake → idle
  */
-export default function CaptureScreen({ onClick, onReset, captured }: CaptureScreenProps) {
+export default function CaptureScreen({
+  onCapture,
+  onClick,
+  onReset,
+  captured,
+  previewUrl,
+}: CaptureScreenProps) {
   const reduceMotion = useReducedMotion();
-  const [rippling, setRippling] = useState(false);
-  const [pressed, setPressed] = useState(false);
+  const [phase, setPhase] = useState<CapturePhase>('idle');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
   const [analyzeProgress, setAnalyzeProgress] = useState(0);
+  const [rippled, setRippled] = useState(false);
+  const [pressed, setPressed] = useState(false);
 
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Camera lifecycle ──────────────────────────────────────────────────
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    setCameraError(null);
+    try {
+      // Prefer rear camera on mobile, fall back to any
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setPhase('camera');
+    } catch (err: unknown) {
+      const msg =
+        err instanceof DOMException && err.name === 'NotAllowedError'
+          ? 'Camera permission denied'
+          : err instanceof DOMException && err.name === 'NotFoundError'
+            ? 'No camera found'
+            : 'Camera unavailable';
+      setCameraError(msg);
+      // Fall back to file picker immediately
+      fileInputRef.current?.click();
+    }
+  }, []);
+
+  // Clean up camera on unmount or reset
+  useEffect(() => {
+    return () => stopCamera();
+  }, [stopCamera]);
+
+  // When parent resets, stop camera and return to idle
   useEffect(() => {
     if (!captured) {
+      stopCamera();
+      setPhase('idle');
+      setAnalyzing(false);
+      setAnalyzeProgress(0);
+      setCameraError(null);
+    }
+  }, [captured, stopCamera]);
+
+  // ── Analyze progress animation ────────────────────────────────────────
+
+  useEffect(() => {
+    if (!analyzing) {
       setAnalyzeProgress(0);
       return;
     }
@@ -37,19 +121,90 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [captured, reduceMotion]);
+  }, [analyzing, reduceMotion]);
 
-  const handleTap = () => {
-    if (captured) return;
-    setPressed(true);
-    setRippling(true);
-    setTimeout(() => setRippling(false), 600);
-    setTimeout(() => setPressed(false), 200);
+  // ── Capture frame from video ──────────────────────────────────────────
+
+  const captureFrame = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState < 2) return null;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.drawImage(video, 0, 0);
+    return canvas.toDataURL('image/jpeg', 0.92);
+  }, []);
+
+  const handleShutter = useCallback(() => {
+    const dataUrl = captureFrame();
+    if (!dataUrl) return;
+
+    stopCamera();
+    setPhase('captured');
+    setAnalyzing(true);
+    onCapture?.(dataUrl);
     onClick();
+  }, [captureFrame, stopCamera, onCapture, onClick]);
+
+  // ── File upload fallback ──────────────────────────────────────────────
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        stopCamera();
+        setPhase('captured');
+        setAnalyzing(true);
+        onCapture?.(dataUrl);
+        onClick();
+      };
+      reader.readAsDataURL(file);
+      // Reset input so the same file can be re-selected
+      e.target.value = '';
+    },
+    [stopCamera, onCapture, onClick],
+  );
+
+  // ── Tap to start ──────────────────────────────────────────────────────
+
+  const handleTapCard = () => {
+    if (phase !== 'idle' || captured) return;
+    setPressed(true);
+    setRippled(true);
+    setTimeout(() => setRippled(false), 600);
+    setTimeout(() => setPressed(false), 200);
+    startCamera();
   };
+
+  // ── Determine what image to show ──────────────────────────────────────
+
+  const displayUrl = previewUrl ?? null;
+
+  // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <div style={{ padding: '20px 24px 0' }}>
+      {/* Hidden elements */}
+      <canvas ref={canvasRef} style={{ display: 'none' }} aria-hidden="true" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -98,11 +253,18 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
         Snap your plate — we'll do the rest.
       </motion.p>
 
+      {/* ── Capture card ──────────────────────────────────────────── */}
       <motion.button
         type="button"
-        onClick={handleTap}
+        onClick={phase === 'idle' && !captured ? handleTapCard : undefined}
         disabled={captured}
-        aria-label={captured ? 'Photo captured, analyzing' : 'Tap to snap a photo'}
+        aria-label={
+          captured
+            ? 'Photo captured, analyzing'
+            : phase === 'camera'
+              ? 'Tap shutter to take a photo'
+              : 'Tap to open camera'
+        }
         whileHover={!captured && !reduceMotion ? { scale: 1.005 } : {}}
         whileTap={!captured && !reduceMotion ? { scale: 0.98 } : {}}
         transition={{ type: 'spring', stiffness: 380, damping: 26 }}
@@ -118,19 +280,23 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
           alignItems: 'center',
           justifyContent: 'center',
           cursor: captured ? 'default' : 'pointer',
-          background: captured
-            ? 'linear-gradient(160deg, #77574A, #4A3A34)'
-            : T.cardBg,
-          border: pressed || captured
-            ? `2px solid ${T.primary}`
-            : `2px dashed ${T.cardBorder}`,
-          boxShadow: pressed || captured
-            ? `0 14px 36px -14px rgba(46,37,34,0.55)`
-            : '0 8px 32px rgba(46, 37, 34, 0.08)',
+          background:
+            phase === 'camera' || phase === 'captured'
+              ? 'linear-gradient(160deg, #77574A, #4A3A34)'
+              : T.cardBg,
+          border:
+            pressed || captured
+              ? `2px solid ${T.primary}`
+              : `2px dashed ${T.cardBorder}`,
+          boxShadow:
+            pressed || captured
+              ? '0 14px 36px -14px rgba(46,37,34,0.55)'
+              : '0 8px 32px rgba(46, 37, 34, 0.08)',
         }}
       >
+        {/* Ripple effect on tap */}
         <AnimatePresence>
-          {rippling && (
+          {rippled && (
             <motion.span
               key="ripple"
               initial={{ width: 0, height: 0, opacity: 0.45 }}
@@ -142,20 +308,16 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
                 borderRadius: '50%',
                 background: T.primary,
                 pointerEvents: 'none',
+                zIndex: 10,
               }}
               aria-hidden="true"
             />
           )}
         </AnimatePresence>
 
-        {!captured ? (
-          <div
-            style={{
-              textAlign: 'center',
-              position: 'relative',
-              padding: '0 20px',
-            }}
-          >
+        {/* ── Phase: idle — show CTA ─────────────────────────────── */}
+        {phase === 'idle' && !captured && (
+          <div style={{ textAlign: 'center', position: 'relative', padding: '0 20px' }}>
             <motion.div
               whileHover={!reduceMotion ? { scale: 1.04 } : {}}
               whileTap={!reduceMotion ? { scale: 0.92 } : {}}
@@ -174,29 +336,207 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
             >
               <Camera size={26} color="#FFFFFF" strokeWidth={2} />
             </motion.div>
-            <div
-              style={{
-                fontFamily: 'Inter',
-                fontWeight: 600,
-                fontSize: 18,
-                color: T.ink,
-              }}
-            >
-              Tap to snap a photo
+            <div style={{ fontFamily: 'Inter', fontWeight: 600, fontSize: 18, color: T.ink }}>
+              Tap to open camera
             </div>
-            <div
-              style={{
-                fontFamily: 'Inter',
-                fontSize: 14,
-                color: T.inkSoft,
-                marginTop: 6,
-              }}
-            >
+            <div style={{ fontFamily: 'Inter', fontSize: 14, color: T.inkSoft, marginTop: 6 }}>
               Plate, ingredients, or a menu — all work
             </div>
+
+            {/* Upload fallback button */}
+            <motion.button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+              style={{
+                marginTop: 16,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                borderRadius: 14,
+                background: 'rgba(74, 58, 52, 0.08)',
+                border: '1px solid rgba(74, 58, 52, 0.18)',
+                fontFamily: 'Inter',
+                fontSize: 12,
+                fontWeight: 600,
+                color: T.inkSoft,
+                cursor: 'pointer',
+              }}
+            >
+              <Upload size={12} /> Or upload a photo
+            </motion.button>
           </div>
-        ) : (
+        )}
+
+        {/* ── Phase: camera — live preview + shutter ─────────────── */}
+        {phase === 'camera' && (
           <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                borderRadius: 22,
+              }}
+            />
+
+            {/* Viewfinder overlay */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                borderRadius: 22,
+                boxShadow: 'inset 0 0 60px rgba(0,0,0,0.25)',
+                pointerEvents: 'none',
+              }}
+              aria-hidden="true"
+            />
+
+            {/* Shutter button */}
+            <motion.button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleShutter();
+              }}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.88 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+              aria-label="Take photo"
+              style={{
+                position: 'absolute',
+                bottom: 20,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 64,
+                height: 64,
+                borderRadius: '50%',
+                border: '4px solid rgba(249, 242, 228, 0.9)',
+                background: 'rgba(249, 242, 228, 0.25)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                cursor: 'pointer',
+                padding: 0,
+                zIndex: 5,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+              }}
+            >
+              <motion.div
+                whileTap={{ scale: 0.85 }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: '50%',
+                  background: '#FFFFFF',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)',
+                }}
+              />
+            </motion.button>
+
+            {/* Cancel / switch to upload */}
+            <motion.button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                stopCamera();
+                setPhase('idle');
+              }}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+              aria-label="Close camera"
+              style={{
+                position: 'absolute',
+                top: 14,
+                left: 14,
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                background: 'rgba(0, 0, 0, 0.35)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                padding: 0,
+                zIndex: 5,
+              }}
+            >
+              <X size={16} color="#FFFFFF" strokeWidth={2} />
+            </motion.button>
+
+            {/* Upload from gallery */}
+            <motion.button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+              aria-label="Upload from gallery"
+              style={{
+                position: 'absolute',
+                top: 14,
+                right: 14,
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                background: 'rgba(0, 0, 0, 0.35)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                padding: 0,
+                zIndex: 5,
+              }}
+            >
+              <Upload size={14} color="#FFFFFF" strokeWidth={2} />
+            </motion.button>
+
+            {/* Camera error fallback */}
+            {cameraError && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 90,
+                  left: 16,
+                  right: 16,
+                  padding: '8px 12px',
+                  borderRadius: 12,
+                  background: 'rgba(201, 98, 45, 0.9)',
+                  color: '#FFFFFF',
+                  fontFamily: 'Inter',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textAlign: 'center',
+                  zIndex: 5,
+                }}
+              >
+                {cameraError} — using file picker
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Phase: captured — analyzing animation ──────────────── */}
+        {(phase === 'captured' || captured) && (
+          <>
+            {/* Background gradient */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -210,6 +550,26 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
               aria-hidden="true"
             />
 
+            {/* Preview image (if available) */}
+            {displayUrl && (
+              <motion.img
+                src={displayUrl}
+                alt="Captured meal"
+                initial={{ opacity: 0, scale: 1.05 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4 }}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  borderRadius: 22,
+                }}
+              />
+            )}
+
+            {/* Filename label */}
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -222,11 +582,13 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
                 fontFamily: "'Inter', sans-serif",
                 fontSize: 12,
                 fontWeight: 500,
+                zIndex: 2,
               }}
             >
-              chicken_biryani.jpg
+              captured_photo.jpg
             </motion.div>
 
+            {/* Progress ring */}
             <motion.div
               initial={{ scale: 0.6, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -237,6 +599,7 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
                 right: 16,
                 width: 56,
                 height: 56,
+                zIndex: 2,
               }}
             >
               <svg width={56} height={56} style={{ transform: 'rotate(-90deg)' }}>
@@ -274,6 +637,7 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
               </div>
             </motion.div>
 
+            {/* Retake button */}
             <motion.button
               type="button"
               onClick={(e) => {
@@ -298,6 +662,7 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
                 justifyContent: 'center',
                 cursor: 'pointer',
                 padding: 0,
+                zIndex: 2,
               }}
             >
               <X size={16} color={T.earth6} strokeWidth={2} />
@@ -306,6 +671,7 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
         )}
       </motion.button>
 
+      {/* ── Status / hint area ───────────────────────────────────── */}
       <AnimatePresence mode="wait">
         {captured ? (
           <motion.div
@@ -361,6 +727,23 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
               <RotateCcw size={12} /> Retake
             </motion.button>
           </motion.div>
+        ) : phase === 'camera' ? (
+          <motion.div
+            key="camera-hint"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            style={{
+              marginTop: 16,
+              fontFamily: 'Inter',
+              fontSize: 12,
+              color: T.inkSoft,
+              textAlign: 'center',
+            }}
+          >
+            Line up your plate and tap the shutter
+          </motion.div>
         ) : (
           <motion.div
             key="hint"
@@ -376,7 +759,7 @@ export default function CaptureScreen({ onClick, onReset, captured }: CaptureScr
               textAlign: 'center',
             }}
           >
-            Tap anywhere in the card to capture
+            Tap the card to open your camera
           </motion.div>
         )}
       </AnimatePresence>

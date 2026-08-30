@@ -37,7 +37,7 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
         position: 'absolute',
         left: 0,
         right: 0,
-        bottom: 16,
+        bottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
         padding: '0 20px',
         zIndex: 50,
         pointerEvents: 'auto',

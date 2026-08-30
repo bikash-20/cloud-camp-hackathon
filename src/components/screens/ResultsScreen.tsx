@@ -90,6 +90,7 @@ interface ResultsScreenProps {
   onChangeDetected?: (next: DetectedItem[]) => void;
   onViewNutrients?: () => void;
   profile?: UserProfile;
+  capturedImage?: string | null;
 }
 
 export default function ResultsScreen({
@@ -97,6 +98,7 @@ export default function ResultsScreen({
   onChangeDetected,
   onViewNutrients,
   profile,
+  capturedImage,
 }: ResultsScreenProps) {
   const [detected, setDetected] = useState(detectedProp ?? []);
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
@@ -304,7 +306,7 @@ export default function ResultsScreen({
           paddingInline: 16,
         }}
       >
-        <PhotoThumb />
+        <PhotoThumb src={capturedImage} />
         <StepIndicator step={step} onStep={setStep} />
       </div>
 
