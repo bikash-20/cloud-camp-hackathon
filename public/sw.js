@@ -1,6 +1,6 @@
 // Bump this on every deploy so the SW invalidates old precached assets.
 // Convention: nutrision-v{N} where N increments per push.
-const CACHE_NAME = 'nutrivision-v2';
+const CACHE_NAME = 'nutrivision-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -27,7 +27,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: network-first for HTML/API, cache-first for static assets
+// Fetch: network-first for HTML/API/sw.js, cache-first for static assets
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -37,6 +37,10 @@ self.addEventListener('fetch', (event) => {
 
   // Skip chrome-extension and other non-http(s) schemes
   if (!url.protocol.startsWith('http')) return;
+
+  // Always network-first for the SW file itself so a new deployment is
+  // picked up on the next page load (without requiring a hard refresh).
+  if (url.pathname === '/sw.js') return;
 
   // API calls: network-first with cache fallback
   if (url.pathname.startsWith('/api/')) {
@@ -52,7 +56,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets (JS/CSS/images): cache-first
+  // Static assets (JS/CSS/images): cache-first, but revalidate in the
+  // background so the next visit picks up new bundles (the old bundle
+  // remains in cache for one extra visit, which is fine — no broken state).
   if (
     url.pathname.startsWith('/assets/') ||
     url.pathname.endsWith('.js') ||
@@ -63,12 +69,12 @@ self.addEventListener('fetch', (event) => {
   ) {
     event.respondWith(
       caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
+        const networkFetch = fetch(request).then((response) => {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           return response;
-        });
+        }).catch(() => cached);
+        return cached || networkFetch;
       })
     );
     return;
