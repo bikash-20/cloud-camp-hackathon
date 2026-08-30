@@ -57,6 +57,7 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(profile.name);
   const [stats, setStats] = useState<UserStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
   const statsLoadedRef = useRef(false);
   // Track the previous values so we can re-sync only when the *parent's*
   // profile diverges from our local state — not on every local edit.
@@ -97,7 +98,10 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
     statsLoadedRef.current = true;
     let cancelled = false;
     getUserStats().then((s) => {
-      if (!cancelled) setStats(s);
+      if (!cancelled) {
+        setStats(s);
+        setStatsLoading(false);
+      }
     });
     return () => { cancelled = true; };
   }, []);
@@ -334,8 +338,35 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
         </div>
       </motion.div>
 
+      {/* ── User Statistics Skeleton ──────────────────────────── */}
+      {statsLoading && (
+        <>
+          <SectionLabel>Your Stats</SectionLabel>
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.08 }}
+            className="glass-card"
+            style={{
+              borderRadius: 18,
+              padding: '14px 16px',
+              marginBottom: 22,
+              display: 'flex',
+              gap: 16,
+            }}
+          >
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+                <div className="skeleton" style={{ width: 40, height: 22, margin: '0 auto 6px' }} />
+                <div className="skeleton" style={{ width: 60, height: 10, margin: '0 auto' }} />
+              </div>
+            ))}
+          </motion.div>
+        </>
+      )}
+
       {/* ── User Statistics ─────────────────────────────────────── */}
-      {stats && stats.totalMeals > 0 && (
+      {!statsLoading && stats && stats.totalMeals > 0 && (
         <>
           <SectionLabel>Your Stats</SectionLabel>
           <motion.div
