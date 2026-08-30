@@ -151,13 +151,14 @@ export async function resolveNutrition(
       nutrient: 'sugar',
       threshold: MOCK_TARGETS.sugar,
       reasonIfHigh: (n, a) => `${n} brings ${a.toFixed(1)}g of sugar — a notable spike for a prediabetic-friendly plate.`,
-      reasonIfLow: (n, a) => `${n} is naturally low in sugar (~${a.toFixed(1)}g) — fine in moderation.`,
+      reasonIfLow: (n, a) => `${n} contributes only ~${a.toFixed(1)}g of sugar — well within your prediabetic-friendly target.`,
+      lowThreshold: MOCK_TARGETS.sugar * 0.6, // emit low-sugar chips when total ≤ 60% of cap
     },
     {
       nutrient: 'fiber',
       threshold: MOCK_TARGETS.fiber,
       reasonIfHigh: (n, a) => `${n} is a solid fiber source at ${a.toFixed(1)}g — pulls the meal toward target.`,
-      reasonIfLow: (n, a) => `${n} is low in fiber (~${a.toFixed(1)}g) — swap in raita or salad to balance the plate.`,
+      reasonIfLow: (n, a) => `${n} contributes only ~${a.toFixed(1)}g fiber — the whole meal falls short of your 30g daily target. Add whole grains or legumes next time.`,
       lowThreshold: 12,
     },
     {
@@ -170,27 +171,38 @@ export async function resolveNutrition(
 
   for (const rule of flagRules) {
     const total = totals[rule.nutrient];
-    const flagged = profile?.goals.diabetic
+    // The nutrient is "in play" for the user's profile if it's tracked for
+    // their goals. We emit explanations for two reasons:
+    //   (a) the meal is OVER target — flag the top contributor(s) as 'warn'
+    //   (b) the meal is UNDER target by a lot (≤ lowThreshold) — call out
+    //       the *low* contribution so the user sees what's missing
+    // Both paths populate the verdict chip list so the panel never appears
+    // empty for a non-trivial meal.
+    const nutrientIsFlaggedForProfile = profile?.goals.diabetic
       ? rule.nutrient === 'sugar' || rule.nutrient === 'fiber'
       : rule.nutrient === 'sodium' || rule.nutrient === 'fiber';
+    if (!nutrientIsFlaggedForProfile) continue;
+    const mealOverTarget = total > rule.threshold;
+    const mealUnderTarget = rule.lowThreshold != null && total < rule.lowThreshold;
+    if (!mealOverTarget && !mealUnderTarget) continue;
     for (const r of resolved) {
       if (!r.nutrition) continue;
       const amount = r.nutrition[rule.nutrient] * (r.grams / 100);
       const share = total > 0 ? amount / total : 0;
-      if (share < 0.05) continue; // skip negligible contributions
-      const localFlag = flagged && (rule.nutrient === 'sodium' ? amount > 300 : rule.nutrient === 'sugar' ? amount > 15 : false);
-      const tone: 'good' | 'warn' = localFlag ? 'warn' : 'good';
-      const reason = localFlag
+      if (share < 0.10) continue;
+      const tone: 'good' | 'warn' = mealOverTarget && share >= 0.30 ? 'warn' : 'good';
+      const reason = tone === 'warn'
         ? rule.reasonIfHigh(r.name, amount)
         : rule.reasonIfLow
           ? rule.reasonIfLow(r.name, amount)
           : undefined;
+      if (!reason) continue;
       contributions.push({
         nutrient: rule.nutrient,
         itemName: r.name,
         amount,
         share,
-        flagged: localFlag,
+        flagged: tone === 'warn',
         reason,
         tone,
       });

@@ -109,7 +109,12 @@ export default function AddCustomModal({
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop — bounded by the phone frame via position: absolute,
+              NOT position: fixed. Fixed would expand to the viewport width
+              and overflow the 360px phone-frame bezel on desktop browsers.
+              Absolute resolves to the nearest positioned ancestor, which is
+              the PhoneFrame container in both the mobile (full-bleed) and
+              desktop (bezel) branches. */}
           <motion.div
             initial={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -118,7 +123,7 @@ export default function AddCustomModal({
             onClick={onClose}
             aria-hidden="true"
             style={{
-              position: 'fixed',
+              position: 'absolute',
               inset: 0,
               background: 'rgba(46, 37, 34, 0.35)',
               backdropFilter: 'blur(2px)',
@@ -144,12 +149,13 @@ export default function AddCustomModal({
             key={`shake-${shake}`}
             className="glass-card"
             style={{
-              position: 'fixed',
+              position: 'absolute',
               left: '50%',
               top: '50%',
               transform: 'translate(-50%, -50%)',
-              width: 'calc(100vw - 32px)',
+              width: 'calc(100% - 32px)',
               maxWidth: 320,
+              boxSizing: 'border-box',
               borderRadius: 20,
               padding: '20px 18px 18px',
               boxShadow:

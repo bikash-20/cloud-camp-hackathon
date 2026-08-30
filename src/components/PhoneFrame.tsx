@@ -44,11 +44,17 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
           style={{
             position: 'relative',
             zIndex: 3,
-            padding: '12px 22px 12px',
+            // Reserve space for the iOS status bar / browser URL bar so the
+            // header doesn't slide under the device chrome.
+            paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+            paddingBottom: 12,
+            paddingLeft: 22,
+            paddingRight: 22,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             background: 'transparent',
+            flexShrink: 0,
           }}
         >
           <div
@@ -148,11 +154,17 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
             style={{
               position: 'relative',
               zIndex: 3,
-              padding: '12px 22px 12px',
+              // Reserve safe-area top so the header doesn't get clipped by
+              // the browser URL bar on mobile or any OS chrome.
+              paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+              paddingBottom: 12,
+              paddingLeft: 22,
+              paddingRight: 22,
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               background: 'transparent',
+              flexShrink: 0,
             }}
           >
             <div
@@ -191,6 +203,7 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
               zIndex: 2,
               minHeight: 540,
               paddingTop: 8,
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
               flex: 1,
             }}
           >
