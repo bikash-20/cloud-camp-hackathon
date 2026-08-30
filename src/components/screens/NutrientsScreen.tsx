@@ -1,0 +1,602 @@
+import { useEffect, useMemo, useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { AlertTriangle, Info, Sparkles } from 'lucide-react';
+import { T, NUTRITION_DB } from '../../data';
+import { resolveNutrition } from '../../lib/api';
+import type { DetectedItem, NutrientContribution, UserProfile } from '../../types/schemas';
+import Bar from '../Bar';
+import useCountUp from '../useCountUp';
+
+const TARGETS = {
+  kcal: 720,
+  protein: 50,
+  carbs: 40,
+  fat: 65,
+  fiber: 30,
+  sodium: 1200,
+  sugar: 25,
+};
+
+interface MacroDonutProps {
+  value: number;
+  target: number;
+  color: string;
+  label: string;
+  size?: number;
+  stroke?: number;
+  delay?: number;
+}
+
+function MacroDonut({ value, target, color, label, size = 88, stroke = 8, delay = 0 }: MacroDonutProps) {
+  const reduceMotion = useReducedMotion();
+  const pct = Math.min(100, Math.round((value / target) * 100));
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const overTarget = value > target;
+  return (
+    <motion.div
+      whileHover={{ y: -2, scale: 1.02 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 6,
+        flex: 1,
+        padding: 4,
+        borderRadius: 14,
+        cursor: 'default',
+      }}
+    >
+      <div
+        style={{
+          position: 'relative',
+          width: size,
+          height: size,
+          flexShrink: 0,
+        }}
+      >
+        <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            stroke="rgba(74, 58, 52, 0.10)"
+            strokeWidth={stroke}
+            fill="none"
+          />
+          <motion.circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            stroke={color}
+            strokeWidth={stroke}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={c}
+            initial={{ strokeDashoffset: c }}
+            animate={{ strokeDashoffset: c - (pct / 100) * c }}
+            transition={
+              reduceMotion
+                ? { duration: 0 }
+                : { type: 'spring', stiffness: 80, damping: 18, delay }
+            }
+            style={{
+              filter: overTarget
+                ? `drop-shadow(0 0 4px ${color}88)`
+                : undefined,
+            }}
+          />
+        </svg>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            lineHeight: 1.1,
+          }}
+        >
+          <div
+            className="tnum"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 18,
+              fontWeight: 700,
+              color: overTarget ? T.accentWarn : T.ink,
+              transition: 'color 200ms ease',
+            }}
+          >
+            {value}
+            <span style={{ fontSize: 10, fontWeight: 500, color: T.inkSoft }}>
+              g
+            </span>
+          </div>
+          <div
+            className="tnum"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 10,
+              fontWeight: 500,
+              color: T.inkSoft,
+              marginTop: 2,
+            }}
+          >
+            {pct}%
+          </div>
+        </div>
+      </div>
+      <div
+        style={{
+          fontFamily: 'Inter',
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.ink,
+        }}
+      >
+        {label}
+      </div>
+    </motion.div>
+  );
+}
+
+interface ExplainabilityStripProps {
+  contributions: NutrientContribution[];
+  flaggedNutrients: Array<{ nutrient: 'sodium' | 'sugar' | 'fiber'; threshold: number; }>;
+}
+
+/** SHAP-style "Why these flags?" panel — shows contributing items per flagged nutrient. */
+function ExplainabilityStrip({ contributions, flaggedNutrients }: ExplainabilityStripProps) {
+  const flagged = flaggedNutrients
+    .map((f) => ({
+      ...f,
+      contributions: contributions
+        .filter((c) => c.nutrient === f.nutrient)
+        .sort((a, b) => b.share - a.share),
+    }))
+    .filter((f) => f.contributions.length > 0);
+
+  if (flagged.length === 0) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay: 0.42 }}
+      className="explainability-strip glass-card"
+      style={{
+        borderRadius: 22,
+        padding: '14px 16px',
+        marginBottom: 18,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
+        <span
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: '50%',
+            background: T.primary,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Sparkles size={12} color="#FFFFFF" strokeWidth={2.4} />
+        </span>
+        <div
+          style={{
+            fontFamily: 'Inter',
+            fontSize: 13,
+            fontWeight: 600,
+            color: T.ink,
+          }}
+        >
+          Why these flags?
+        </div>
+        <div
+          style={{
+            marginLeft: 'auto',
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: 9,
+            fontWeight: 600,
+            color: T.inkSoft,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            background: 'rgba(74, 58, 52, 0.08)',
+            padding: '3px 6px',
+            borderRadius: 6,
+          }}
+        >
+          SHAP-style
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {flagged.map((f) => (
+          <div key={f.nutrient}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+                fontFamily: 'Inter',
+                fontSize: 11,
+                fontWeight: 600,
+                color: T.inkSoft,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginBottom: 6,
+              }}
+            >
+              <span>{f.nutrient}</span>
+              <span style={{ color: T.ink }}>
+                {f.contributions.reduce((s, c) => s + c.amount, 0).toFixed(0)}
+                {f.nutrient === 'sodium' ? 'mg' : 'g'} total
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {f.contributions.map((c) => (
+                <div
+                  key={`${f.nutrient}-${c.itemName}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <span
+                    style={{
+                      flex: 1,
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      color: T.ink,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {c.itemName}
+                  </span>
+                  <div
+                    style={{
+                      flex: 1.2,
+                      height: 5,
+                      borderRadius: 3,
+                      background: 'rgba(74, 58, 52, 0.08)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${c.share * 100}%` }}
+                      transition={{ type: 'spring', stiffness: 90, damping: 18, delay: 0.5 }}
+                      style={{
+                        height: '100%',
+                        background: c.flagged ? T.accentWarn : T.primary,
+                        borderRadius: 3,
+                      }}
+                    />
+                  </div>
+                  <span
+                    className="tnum"
+                    style={{
+                      width: 42,
+                      textAlign: 'right',
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: T.inkSoft,
+                    }}
+                  >
+                    {Math.round(c.share * 100)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+interface NutrientsScreenProps {
+  detected?: DetectedItem[];
+  profile?: UserProfile;
+}
+
+/**
+ * Nutrients screen — derives macros from current detected items,
+ * animates count-up, and recomputes when grams change.
+ */
+export default function NutrientsScreen({ detected = [], profile }: NutrientsScreenProps) {
+  // Synchronously derive totals so count-up animations feel responsive
+  const totals = useMemo(() => {
+    return detected.reduce(
+      (acc, it) => {
+        const n = NUTRITION_DB[it.name];
+        if (!n) return acc;
+        const factor = it.grams / 100;
+        return {
+          protein: acc.protein + n.protein * factor,
+          carbs: acc.carbs + n.carbs * factor,
+          fat: acc.fat + n.fat * factor,
+          fiber: acc.fiber + n.fiber * factor,
+          sodium: acc.sodium + n.sodium * factor,
+          sugar: acc.sugar + n.sugar * factor,
+          glycemic: acc.glycemic + (n.glycemic * factor) / Math.max(1, it.grams / 100),
+        };
+      },
+      { protein: 0, carbs: 0, fat: 0, fiber: 0, sodium: 0, sugar: 0, glycemic: 0 },
+    );
+  }, [detected]);
+
+  // Async nutrition resolution drives the explainability panel.
+  // Resolved in parallel with rendering — appears once the API "settles".
+  const [contributions, setContributions] = useState<NutrientContribution[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    resolveNutrition(detected, profile)
+      .then((res) => {
+        if (!cancelled) setContributions(res.contributions);
+      })
+      .catch(() => {
+        if (!cancelled) setContributions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detected, profile]);
+
+  const protein = useCountUp(Math.round(totals.protein));
+  const carbs = useCountUp(Math.round(totals.carbs));
+  const fat = useCountUp(Math.round(totals.fat));
+  const fiber = useCountUp(Math.round(totals.fiber));
+  const sodium = useCountUp(Math.round(totals.sodium));
+  const sugar = useCountUp(Math.round(totals.sugar));
+
+  const overCarbs = totals.carbs > TARGETS.carbs;
+  const glycemicHigh = totals.glycemic > 0.65;
+  const showWarning = overCarbs && glycemicHigh;
+
+  // Pick which nutrients get flagged based on user goal
+  const flaggedNutrients = profile?.goals.diabetic
+    ? [
+        { nutrient: 'sugar' as const, threshold: TARGETS.sugar },
+        { nutrient: 'fiber' as const, threshold: TARGETS.fiber },
+      ]
+    : [
+        { nutrient: 'sodium' as const, threshold: TARGETS.sodium },
+        { nutrient: 'fiber' as const, threshold: TARGETS.fiber },
+      ];
+
+  return (
+    <div style={{ padding: '20px 24px 0' }}>
+      <motion.h2
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        style={{
+          fontFamily: 'Inter',
+          fontSize: 24,
+          fontWeight: 600,
+          color: T.ink,
+          letterSpacing: '-0.02em',
+        }}
+      >
+        This meal, explained
+      </motion.h2>
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, delay: 0.08 }}
+        style={{
+          fontFamily: 'Inter',
+          fontSize: 13,
+          color: T.inkSoft,
+          margin: '4px 0 20px',
+          lineHeight: 1.4,
+        }}
+      >
+        {profile?.goals.diabetic
+          ? 'Filtered for your prediabetic-friendly goal.'
+          : 'Personalized against your active goals.'}
+      </motion.p>
+
+      {/* Macro donuts */}
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={{
+          hidden: {},
+          show: { transition: { staggerChildren: 0.08 } },
+        }}
+        className="glass-card"
+        style={{
+          display: 'flex',
+          gap: 8,
+          padding: '20px 16px',
+          borderRadius: 22,
+          marginBottom: 18,
+        }}
+      >
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 8 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+          }}
+          style={{ flex: 1 }}
+        >
+          <MacroDonut
+            value={Math.round(protein)}
+            target={TARGETS.protein}
+            color={T.primary}
+            label="Protein"
+            delay={0.1}
+          />
+        </motion.div>
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 8 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+          }}
+          style={{ flex: 1 }}
+        >
+          <MacroDonut
+            value={Math.round(carbs)}
+            target={TARGETS.carbs}
+            color={overCarbs ? T.accentWarn : T.primary}
+            label="Carbs"
+            delay={0.18}
+          />
+        </motion.div>
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 8 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+          }}
+          style={{ flex: 1 }}
+        >
+          <MacroDonut
+            value={Math.round(fat)}
+            target={TARGETS.fat}
+            color={T.accentGood}
+            label="Fat"
+            delay={0.26}
+          />
+        </motion.div>
+      </motion.div>
+
+      {/* Micronutrient bars */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, delay: 0.35 }}
+        className="glass-card"
+        style={{
+          borderRadius: 22,
+          padding: '16px 18px',
+          marginBottom: 18,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 8,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: 'Inter',
+              fontSize: 13,
+              fontWeight: 600,
+              color: T.ink,
+            }}
+          >
+            Micronutrients
+          </div>
+          <div
+            title="Daily reference values"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontFamily: 'Inter',
+              fontSize: 10,
+              color: T.inkSoft,
+            }}
+          >
+            <Info size={10} /> vs targets
+          </div>
+        </div>
+
+        <Bar
+          label="Fiber"
+          pct={Math.min(100, Math.round((totals.fiber / TARGETS.fiber) * 100))}
+          color={T.primary}
+          sub={`${Math.round(fiber)}g / target ${TARGETS.fiber}g`}
+          delay={0.4}
+        />
+        <Bar
+          label="Sodium"
+          pct={Math.min(100, Math.round((totals.sodium / TARGETS.sodium) * 100))}
+          color={T.accentAmber}
+          sub={`${Math.round(sodium)}mg / ${TARGETS.sodium}mg`}
+          delay={0.47}
+        />
+        <Bar
+          label="Sugar"
+          pct={Math.min(100, Math.round((totals.sugar / TARGETS.sugar) * 100))}
+          color={T.accentWarn}
+          sub={`${Math.round(sugar)}g / ${TARGETS.sugar}g`}
+          delay={0.54}
+        />
+      </motion.div>
+
+      {/* Blueprint Section 2: Explainability Layer */}
+      <AnimatePresence>
+        {contributions.length > 0 && (
+          <ExplainabilityStrip
+            contributions={contributions}
+            flaggedNutrients={flaggedNutrients}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Warning callout */}
+      <AnimatePresence>
+        {showWarning && (
+          <motion.div
+            key="warn"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="glass-tint"
+            style={{
+              borderRadius: 18,
+              padding: '14px 16px',
+              display: 'flex',
+              gap: 10,
+              marginBottom: 16,
+            }}
+            role="note"
+          >
+            <AlertTriangle
+              size={18}
+              color={T.accentWarn}
+              style={{ flexShrink: 0, marginTop: 1 }}
+              aria-hidden="true"
+            />
+            <div
+              style={{
+                fontFamily: 'Inter',
+                fontSize: 12,
+                color: T.ink,
+                lineHeight: 1.5,
+              }}
+            >
+              <b style={{ color: T.accentWarn }}>Why this is flagged:</b> the biryani rice
+              portion contributes the bulk of fast-digesting carbs — about{' '}
+              <b>{Math.round(totals.glycemic * 100)}%</b> of this meal's glycemic load.
+              Swapping half the rice for extra raita would bring carbs within your
+              target.
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

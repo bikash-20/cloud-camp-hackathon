@@ -1,0 +1,734 @@
+import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import {
+  Check, Flame, Minus, Plus, Trash2, Edit3, ChevronDown,
+} from 'lucide-react';
+import { T, NUTRITION_DB, CATEGORY_TILES } from '../data';
+import type { DetectedItem, FoodDescriptor } from '../types/schemas';
+import Chip from './Chip';
+
+interface ItemMeta {
+  protein: number; carbs: number; fat: number; kcal: number;
+  fiber: number; sodium: number; sugar: number;
+  emoji: string; category: string;
+  alternatives: string[]; pairings: string[];
+}
+
+function itemNutrition(item: DetectedItem): ItemMeta | null {
+  const n: FoodDescriptor | undefined = NUTRITION_DB[item.name];
+  if (!n) return null;
+  const factor = item.grams / 100;
+  return {
+    protein: n.protein * factor,
+    carbs: n.carbs * factor,
+    fat: n.fat * factor,
+    kcal: n.kcal * factor,
+    fiber: n.fiber * factor,
+    sodium: n.sodium * factor,
+    sugar: n.sugar * factor,
+    emoji: n.emoji,
+    category: n.category,
+    alternatives: n.alternatives,
+    pairings: n.pairings,
+  };
+}
+
+function confidenceBadge(conf: number) {
+  if (conf >= 80) return { tier: 'high' as const, label: `${conf}%`, dot: '🟢' };
+  if (conf >= 60) return { tier: 'medium' as const, label: `${conf}%`, dot: '🟡' };
+  return { tier: 'low' as const, label: `${conf}%`, dot: '🔴' };
+}
+
+const LONG_PRESS_MS = 450;
+const SWIPE_THRESHOLD = 80;
+
+interface ExpandableRowProps {
+  item: DetectedItem;
+  isConfirmed?: boolean;
+  isSelected?: boolean;
+  multiSelect?: boolean;
+  editMode?: boolean;
+  onConfirm?: (name: string) => void;
+  onRemove?: (name: string) => void;
+  onGramsChange?: (name: string, delta: number, absolute?: boolean) => void;
+  onLongPress?: (name: string) => void;
+  onRename?: (oldName: string, newName: string) => void;
+  onReplace?: (oldName: string, newName: string) => void;
+  onAddPairing?: (name: string, pairing: string) => void;
+}
+
+/**
+ * Expandable, swipeable, long-pressable row.
+ */
+export default function ExpandableRow({
+  item,
+  isConfirmed,
+  isSelected,
+  multiSelect,
+  editMode,
+  onConfirm,
+  onRemove,
+  onGramsChange,
+  onLongPress,
+  onRename,
+  onReplace,
+  onAddPairing,
+}: ExpandableRowProps) {
+  const reduceMotion = useReducedMotion();
+  const [expanded, setExpanded] = useState(false);
+  const [sliderOpen, setSliderOpen] = useState(false);
+  const [ripple, setRipple] = useState<{ x: number; y: number } | null>(null);
+  const [pulseHalo, setPulseHalo] = useState(false);
+  const longPressTimerRef = useRef<number>(0);
+
+  const meta = itemNutrition(item);
+  const badge = confidenceBadge(item.confidence);
+
+  useEffect(() => {
+    if (isConfirmed) {
+      setPulseHalo(true);
+      const t = setTimeout(() => setPulseHalo(false), 800);
+      return () => clearTimeout(t);
+    }
+  }, [isConfirmed, item.confidence]);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, [role="slider"]')) return;
+    longPressTimerRef.current = window.setTimeout(() => {
+      onLongPress?.(item.name);
+    }, LONG_PRESS_MS);
+  };
+  const onPointerUpLeave = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = 0;
+    }
+  };
+
+  const onClickRipple = (e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setRipple({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+    setTimeout(() => setRipple(null), 650);
+  };
+
+  const tileStyle = meta
+    ? { background: (CATEGORY_TILES as Record<string, string>)[meta.category] || CATEGORY_TILES.other }
+    : { background: CATEGORY_TILES.other };
+
+  const [draftName, setDraftName] = useState(item.name);
+  useEffect(() => setDraftName(item.name), [item.name]);
+
+  return (
+    <motion.div
+      layout
+      drag={multiSelect ? false : 'x'}
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.15}
+      onDragEnd={(_, info) => {
+        if (multiSelect) return;
+        if (info.offset.x < -SWIPE_THRESHOLD) {
+          onRemove?.(item.name);
+        } else if (
+          info.offset.x > SWIPE_THRESHOLD &&
+          badge.tier === 'low' &&
+          !isConfirmed
+        ) {
+          onConfirm?.(item.name);
+        }
+      }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -200, transition: { duration: 0.2 } }}
+      whileHover={!reduceMotion ? { y: -1 } : {}}
+      transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUpLeave}
+      onPointerLeave={onPointerUpLeave}
+      className={pulseHalo ? 'halo-pulse' : ''}
+      style={{
+        position: 'relative',
+        borderRadius: 18,
+        background: 'rgba(249, 242, 228, 0.78)',
+        border: isSelected
+          ? `1.5px solid ${T.primary}`
+          : `1px solid rgba(74, 58, 52, 0.10)`,
+        boxShadow: pulseHalo
+          ? undefined
+          : '0 6px 18px -8px rgba(46, 37, 34, 0.16)',
+        overflow: 'hidden',
+        touchAction: 'pan-y',
+        cursor: 'pointer',
+        marginBottom: 8,
+      }}
+    >
+      <div className="swipe-bg left"><Trash2 size={16} /></div>
+      <div className="swipe-bg right"><Check size={16} /></div>
+
+      <motion.div
+        layout="position"
+        onClick={(e) => {
+          onClickRipple(e);
+          if (!multiSelect) setExpanded((v) => !v);
+        }}
+        style={{
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '12px 14px',
+          background: 'transparent',
+        }}
+      >
+        <motion.div
+          className={`food-tile ${meta?.category || 'other'} ${isSelected ? 'selected' : ''}`}
+          style={tileStyle}
+          whileHover={{ scale: 1.05 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+        >
+          <span aria-hidden="true">{meta?.emoji || '🍽️'}</span>
+          {ripple && (
+            <span
+              className="ripple"
+              style={{ left: ripple.x, top: ripple.y }}
+            />
+          )}
+        </motion.div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {editMode ? (
+            <input
+              autoFocus
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              onBlur={() => onRename?.(item.name, draftName)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  onRename?.(item.name, draftName);
+                }
+                if (e.key === 'Escape') {
+                  setDraftName(item.name);
+                  onRename?.(item.name, item.name);
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Rename ${item.name}`}
+              style={{
+                width: '100%',
+                fontFamily: 'Inter',
+                fontSize: 15,
+                fontWeight: 600,
+                color: T.ink,
+                background: 'rgba(249, 242, 228, 0.9)',
+                border: `1px solid ${T.primary}`,
+                borderRadius: 8,
+                padding: '4px 8px',
+                outline: 'none',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                minWidth: 0,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: 'Inter',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: T.ink,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  flex: 1,
+                  minWidth: 0,
+                }}
+              >
+                {item.name}
+              </span>
+              {meta && (
+                <span className="kcal-chip" aria-label={`${Math.round(meta.kcal)} calories`}>
+                  <Flame size={10} /> {Math.round(meta.kcal)}
+                </span>
+              )}
+            </div>
+          )}
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginTop: 4,
+              fontFamily: 'Inter',
+              fontSize: 12,
+              color: T.inkSoft,
+            }}
+          >
+            <span className="tnum">~{item.grams}g</span>
+            {badge.tier === 'low' && (
+              <span style={{ color: T.accentWarn, fontWeight: 600 }}>
+                Tap to confirm
+              </span>
+            )}
+            {isConfirmed && (
+              <span style={{ color: T.accentGood, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                <Check size={11} strokeWidth={3} /> Confirmed
+              </span>
+            )}
+          </div>
+
+          {badge.tier !== 'high' && (
+            <div className="conf-meter" style={{ marginTop: 6 }}>
+              <motion.span
+                initial={{ width: 0 }}
+                animate={{ width: `${item.confidence}%` }}
+                transition={{ type: 'spring', stiffness: 80, damping: 18 }}
+              />
+            </div>
+          )}
+        </div>
+
+        <motion.span
+          className={`conf-badge ${badge.tier}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (badge.tier === 'low' && !isConfirmed) onConfirm?.(item.name);
+          }}
+          whileTap={{ scale: 0.92 }}
+          style={{ cursor: badge.tier === 'low' && !isConfirmed ? 'pointer' : 'default' }}
+        >
+          <span aria-hidden="true">{badge.dot}</span>
+          {badge.label}
+        </motion.span>
+
+        {!editMode && (
+          <motion.span
+            animate={{ rotate: expanded ? 180 : 0 }}
+            transition={{ duration: 0.2 }}
+            style={{
+              display: 'inline-flex',
+              color: T.inkSoft,
+              flexShrink: 0,
+            }}
+            aria-hidden="true"
+          >
+            <ChevronDown size={14} />
+          </motion.span>
+        )}
+      </motion.div>
+
+      <AnimatePresence initial={false}>
+        {expanded && !editMode && (
+          <motion.div
+            key="panel"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                padding: '0 14px 14px',
+                borderTop: '1px solid rgba(74, 58, 52, 0.10)',
+              }}
+            >
+              {meta && (
+                <div style={{ marginTop: 12, marginBottom: 14 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      color: T.inkSoft,
+                      marginBottom: 8,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      fontWeight: 600,
+                    }}
+                  >
+                    <span>Macros</span>
+                    <span className="tnum">{Math.round(meta.kcal)} kcal</span>
+                  </div>
+                  {[
+                    { label: 'Protein', value: meta.protein, color: T.primary, max: 50 },
+                    { label: 'Carbs',   value: meta.carbs,   color: T.accentAmber, max: 80 },
+                    { label: 'Fat',     value: meta.fat,     color: T.accentGood, max: 65 },
+                  ].map((m) => (
+                    <div
+                      key={m.label}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '60px 1fr 50px',
+                        gap: 8,
+                        alignItems: 'center',
+                        marginBottom: 4,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontFamily: 'Inter',
+                          fontSize: 11,
+                          color: T.ink,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {m.label}
+                      </span>
+                      <div
+                        style={{
+                          height: 5,
+                          borderRadius: 3,
+                          background: 'rgba(74, 58, 52, 0.10)',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min(100, (m.value / m.max) * 100)}%` }}
+                          transition={{ type: 'spring', stiffness: 100, damping: 18 }}
+                          style={{
+                            height: '100%',
+                            background: m.color,
+                            borderRadius: 3,
+                          }}
+                        />
+                      </div>
+                      <span
+                        className="tnum"
+                        style={{
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: T.ink,
+                          textAlign: 'right',
+                        }}
+                      >
+                        {Math.round(m.value)}g
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  marginBottom: 12,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: 'Inter',
+                    fontSize: 11,
+                    color: T.inkSoft,
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  Portion
+                </span>
+
+                <motion.button
+                  type="button"
+                  onClick={() => onGramsChange?.(item.name, -25)}
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.88 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                  aria-label={`Decrease ${item.name} by 25g`}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    border: '1px solid rgba(74, 58, 52, 0.18)',
+                    background: 'rgba(249, 242, 228, 0.8)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  <Minus size={13} color={T.ink} strokeWidth={2.2} />
+                </motion.button>
+
+                <motion.button
+                  type="button"
+                  onClick={() => onGramsChange?.(item.name, 25)}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    longPressTimerRef.current = window.setTimeout(() => {
+                      setSliderOpen(true);
+                    }, LONG_PRESS_MS);
+                  }}
+                  onPointerUp={() => clearTimeout(longPressTimerRef.current)}
+                  onPointerLeave={() => clearTimeout(longPressTimerRef.current)}
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.88 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                  aria-label={`Increase ${item.name} by 25g. Long-press for slider editor.`}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: T.primary,
+                    color: '#FFFFFF',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    padding: 0,
+                    boxShadow: `0 4px 10px -3px ${T.primary}55`,
+                  }}
+                >
+                  <Plus size={14} color="#FFFFFF" strokeWidth={2.5} />
+                </motion.button>
+
+                <span
+                  className="tnum"
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: T.ink,
+                    minWidth: 50,
+                    textAlign: 'right',
+                  }}
+                >
+                  {item.grams}g
+                </span>
+              </div>
+
+              <AnimatePresence>
+                {sliderOpen && (
+                  <motion.div
+                    key="slider"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    style={{
+                      marginBottom: 12,
+                      padding: 10,
+                      borderRadius: 12,
+                      background: 'rgba(249, 242, 228, 0.9)',
+                      border: `1px solid ${T.primary}`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontFamily: 'Inter',
+                        fontSize: 11,
+                        color: T.inkSoft,
+                        marginBottom: 6,
+                      }}
+                    >
+                      <span>Portion editor</span>
+                      <button
+                        type="button"
+                        onClick={() => setSliderOpen(false)}
+                        aria-label="Close portion editor"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: T.primary,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Done
+                      </button>
+                    </div>
+                    <input
+                      type="range"
+                      min={5}
+                      max={800}
+                      step={5}
+                      value={item.grams}
+                      onChange={(e) => onGramsChange?.(item.name, Number(e.target.value) - item.grams, true)}
+                      aria-label={`Portion size in grams for ${item.name}`}
+                      style={{ width: '100%', accentColor: T.primary }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {badge.tier === 'low' && meta && (meta.alternatives?.length ?? 0) > 0 && (
+                <div style={{ marginBottom: 10 }}>
+                  <div
+                    style={{
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      color: T.inkSoft,
+                      fontWeight: 600,
+                      marginBottom: 6,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                    }}
+                  >
+                    Did you mean?
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {(meta.alternatives ?? []).map((alt) => {
+                      const altMeta = NUTRITION_DB[alt] || { emoji: '🍽️', category: 'other', kcal: 100, protein: 5, carbs: 10, fat: 3 };
+                      const altConf = Math.max(60, Math.min(95, item.confidence + Math.floor(Math.random() * 25)));
+                      return (
+                        <Chip
+                          key={alt}
+                          label={`${altMeta.emoji} ${alt} · ${altConf}%`}
+                          size="sm"
+                          onClick={() => onReplace?.(item.name, alt)}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {meta && (meta.pairings?.length ?? 0) > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div
+                    style={{
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      color: T.inkSoft,
+                      fontWeight: 600,
+                      marginBottom: 6,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                    }}
+                  >
+                    You usually eat this with…
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {(meta.pairings ?? []).map((p) => (
+                      <Chip
+                        key={p}
+                        label={`+ ${p}`}
+                        size="sm"
+                        onClick={() => onAddPairing?.(item.name, p)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <motion.button
+                  type="button"
+                  onClick={() => onRemove?.(item.name)}
+                  whileHover={{ x: 1, scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                  aria-label={`Remove ${item.name}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '6px 10px',
+                    borderRadius: 10,
+                    background: 'rgba(201, 98, 45, 0.12)',
+                    border: '1px solid rgba(201, 98, 45, 0.30)',
+                    fontFamily: 'Inter',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: T.accentWarn,
+                    cursor: 'pointer',
+                    minHeight: 32,
+                  }}
+                >
+                  <Trash2 size={11} /> Remove
+                </motion.button>
+
+                {badge.tier === 'low' && !isConfirmed && (
+                  <motion.button
+                    type="button"
+                    onClick={() => onConfirm?.(item.name)}
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                    aria-label={`Confirm ${item.name}`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '6px 10px',
+                      borderRadius: 10,
+                      background: T.accentGood,
+                      border: 'none',
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: '#FFFFFF',
+                      cursor: 'pointer',
+                      minHeight: 32,
+                      boxShadow: `0 4px 10px -3px ${T.accentGood}66`,
+                    }}
+                  >
+                    <Check size={11} strokeWidth={3} /> Confirm
+                  </motion.button>
+                )}
+
+                {editMode && (
+                  <motion.button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const next = window.prompt('Rename to:', item.name);
+                      if (next) onRename?.(item.name, next);
+                    }}
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                    aria-label={`Rename ${item.name}`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '6px 10px',
+                      borderRadius: 10,
+                      background: 'transparent',
+                      border: '1px solid rgba(74, 58, 52, 0.18)',
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: T.ink,
+                      cursor: 'pointer',
+                      minHeight: 32,
+                    }}
+                  >
+                    <Edit3 size={11} /> Rename
+                  </motion.button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
