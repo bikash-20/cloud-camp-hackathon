@@ -261,55 +261,58 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         >
           Your health profile
         </h2>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <motion.button
             type="button"
             onClick={resetAll}
-            whileHover={{ y: -1, scale: 1.05 }}
-            whileTap={{ scale: 0.94 }}
+            whileHover={{ y: -1, scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
             aria-label="Reset profile to defaults"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: 4,
-              background: 'none',
-              border: 'none',
-              padding: '4px 6px',
+              padding: '6px 10px',
+              borderRadius: 10,
+              background: 'rgba(74, 58, 52, 0.08)',
+              border: '1px solid rgba(74, 58, 52, 0.18)',
               fontFamily: 'Inter',
               fontSize: 11,
-              fontWeight: 600,
-              color: T.inkSoft,
+              fontWeight: 700,
+              color: T.ink,
               cursor: 'pointer',
               minHeight: 28,
             }}
           >
-            <RotateCcw size={11} /> Reset
+            <RotateCcw size={12} strokeWidth={2.5} /> Reset
           </motion.button>
           {onSignOut && (
             <motion.button
               type="button"
               onClick={handleSignOut}
-              whileHover={{ y: -1, scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
+              whileHover={{ y: -1, scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
               aria-label="Sign out of NutriVision"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 4,
-                background: 'none',
-                border: 'none',
-                padding: '4px 6px',
+                gap: 5,
+                padding: '6px 10px',
+                borderRadius: 10,
+                background: T.accentWarn,
+                border: `1px solid ${T.accentWarn}`,
+                color: '#FFFFFF',
                 fontFamily: 'Inter',
                 fontSize: 11,
-                fontWeight: 600,
-                color: T.accentWarn,
+                fontWeight: 700,
                 cursor: 'pointer',
                 minHeight: 28,
+                boxShadow: '0 4px 12px -4px rgba(201, 98, 45, 0.55)',
               }}
             >
-              <LogOut size={11} /> Sign out
+              <LogOut size={12} strokeWidth={2.5} /> Sign out
             </motion.button>
           )}
         </div>
