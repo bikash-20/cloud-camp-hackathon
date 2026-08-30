@@ -12,6 +12,7 @@ import ResultsScreen from './components/screens/ResultsScreen';
 import NutrientsScreen from './components/screens/NutrientsScreen';
 import ProfileScreen from './components/screens/ProfileScreen';
 import GroceryScreen from './components/screens/GroceryScreen';
+import PwaInstallBanner from './components/PwaInstallBanner';
 
 export default function App() {
   const [tab, setTab] = useState(0);
@@ -92,6 +93,8 @@ export default function App() {
   }
 
   return (
+    <>
+    <PwaInstallBanner />
     <PhoneFrame headerRight={<StepDots active={tab} onChange={goToTab} />}>
       <AnimatePresence mode="wait" custom={direction} initial={false}>
         <motion.div
@@ -225,5 +228,6 @@ export default function App() {
         Viewing {TABS[tab].label}
       </div>
     </PhoneFrame>
+    </>
   );
 }
