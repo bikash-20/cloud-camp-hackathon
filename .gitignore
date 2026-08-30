@@ -7,3 +7,13 @@ dist
 
 # Local AI onboarding brief (kept out of public repo)
 AI_CONTEXT.md
+
+# Backend (Python)
+app/__pycache__/
+app/**/__pycache__/
+app/.venv/
+app/state.json
+app/.env
+*.pyc
+.pytest_cache/
+.ruff_cache/
