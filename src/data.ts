@@ -4,22 +4,19 @@
  * The "data" module previously mixed runtime mock data with design tokens.
  * Mock data now lives in `src/mocks/fixtures.ts` (typed) and the API client
  * in `src/lib/api.ts`. This file:
- *   - Owns the `T` color/typography tokens (light theme default; dark
- *     variant lives in `src/theme/tokens.ts`)
+ *   - Re-exports the Proxy-backed `T` token object from `src/theme/tokens`
+ *     (the Proxy reads through a module-level pointer that ThemeProvider
+ *     swaps, so existing `T.foo` call sites react to the theme without
+ *     needing to be rewritten)
  *   - Re-exports the canonical fixture exports for any caller that still
  *     imports from the legacy path (preserves backward compatibility while
  *     the migration is in flight).
- *
- * Components that need to react to the theme should import `useTokens`
- * from `src/theme/useTokens` instead of `T`. The `T` constant here stays
- * frozen for backwards compatibility and for any non-themed caller (e.g.
- * the Login screen, the admin shell — which has its own dark surface).
  */
 
 import type { FoodCategory } from './types/schemas';
-import { lightTokens } from './theme/tokens';
+import { T } from './theme/tokens';
 
-export const T = lightTokens;
+export { T };
 
 export const FONT_LINK =
   'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap';

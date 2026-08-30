@@ -139,3 +139,49 @@ export const darkTokens: TokenShape = {
   gradientMid:    '#2A201B',
   gradientEnd:    '#1F1815',
 } as const;
+
+// ── Active-token reference (mutable, swapped by ThemeProvider) ──────────
+//
+// The codebase has 237+ call sites reading `T.ink`, `T.cardBg`, etc.
+// directly. Rewriting each to call `useTokens()` would be invasive and
+// risks subtle bugs. Instead we make `T` (re-exported by `data.ts`) a
+// Proxy that reads through this mutable reference, so swapping the
+// reference flips every existing `T.foo` site on the next render with
+// zero call-site changes.
+
+/** Mutable pointer to the active token set. Updated by ThemeProvider. */
+let _active: TokenShape = lightTokens;
+
+/** Set the active token set. Called by ThemeProvider on every change. */
+export function setActiveTokens(tokens: TokenShape): void {
+  _active = tokens;
+}
+
+/** Read the active token set (for non-React contexts). */
+export function getActiveTokens(): TokenShape {
+  return _active;
+}
+
+/**
+ * Proxy token object. `T.ink` looks up `_active.ink` at access time, so
+ * when the ThemeProvider swaps `_active` from lightTokens → darkTokens
+ * every component's `T.ink` resolves to the dark value on its next
+ * render. No re-render is required to *update* the value — the lookup
+ * is lazy — but the component still needs to re-render to pick up the
+ * new value in its JSX. ThemeProvider triggers that by re-rendering
+ * its children whenever `theme` changes.
+ */
+export const T: TokenShape = new Proxy({} as TokenShape, {
+  get(_target, prop: string) {
+    return _active[prop as keyof TokenShape];
+  },
+  has(_target, prop: string) {
+    return prop in _active;
+  },
+  ownKeys() {
+    return Reflect.ownKeys(_active);
+  },
+  getOwnPropertyDescriptor(_target, prop: string) {
+    return Object.getOwnPropertyDescriptor(_active, prop);
+  },
+});
