@@ -3,7 +3,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { T, TABS } from './data';
 import { getProfile, saveMeal, analyzeMeal } from './lib/api';
 import { NUTRITION_DB } from './data';
-import type { DetectedItem, PipelineTrace, UserProfile } from './types/schemas';
+import { getSession } from './lib/auth';
+import type { AuthSession, DetectedItem, PipelineTrace, UserProfile } from './types/schemas';
 import PhoneFrame from './components/PhoneFrame';
 import BottomNav from './components/BottomNav';
 import StepDots from './components/StepDots';
@@ -13,8 +14,62 @@ import NutrientsScreen from './components/screens/NutrientsScreen';
 import ProfileScreen from './components/screens/ProfileScreen';
 import GroceryScreen from './components/screens/GroceryScreen';
 import PwaInstallBanner from './components/PwaInstallBanner';
+import LoginScreen from './components/auth/LoginScreen';
+import AdminLayout from './components/admin/AdminLayout';
+import AdminOverview from './components/admin/AdminOverview';
 
 export default function App() {
+  const [session, setSession] = useState<AuthSession | null>(null);
+  // Tracks whether we've finished reading localStorage so we don't flash
+  // the login screen on every page reload while restoring a session.
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    setSession(getSession());
+    setAuthReady(true);
+  }, []);
+
+  // While restoring, render a quiet placeholder so the page doesn't flash
+  // a login screen to someone who is actually signed in.
+  if (!authReady) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: T.cardBg,
+          fontFamily: 'Inter',
+        }}
+      />
+    );
+  }
+
+  if (!session) {
+    return <LoginScreen onSignedIn={setSession} />;
+  }
+
+  if (session.role === 'admin') {
+    return (
+      <>
+        <PwaInstallBanner />
+        <AdminLayout session={session}>
+          <AdminOverview session={session} />
+        </AdminLayout>
+      </>
+    );
+  }
+
+  return <UserApp session={session} />;
+}
+
+/**
+ * Existing user-facing PWA, lifted out of the default export so the auth
+ * gate above can stay readable. Same tabs, same screens, same phone-frame
+ * styling — just wrapped in a typed component now.
+ */
+function UserApp({ session: _session }: { session: AuthSession }) {
   const [tab, setTab] = useState(0);
   const [direction, setDirection] = useState(1);
   const [captured, setCaptured] = useState(false);
@@ -25,7 +80,6 @@ export default function App() {
   const [pipelineToast, setPipelineToast] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
 
-  // Load profile on mount (mock async)
   useEffect(() => {
     let cancelled = false;
     getProfile().then((p) => {
@@ -46,14 +100,12 @@ export default function App() {
     setDirection(1);
     setPipelineToast('Cache check · Vision ID · HF validate · Reconcile');
 
-    // Fire the (mock) dual vision pipeline
     const imageRef = imageDataUrl ? 'captured_photo.jpg' : 'chicken_biryani.jpg';
     try {
       const { detected: next, pipeline: trace } = await analyzeMeal(imageRef);
       setDetected(next);
       setPipeline(trace);
 
-      // Save meal to history
       const totals = next.reduce(
         (acc, it) => {
           const n = NUTRITION_DB[it.name];
@@ -80,7 +132,6 @@ export default function App() {
         activeGoals: profile?.goals ?? { diabetic: false, protein: false, budget: false, mediter: false },
       });
 
-      // Briefly surface the pipeline trace for the demo, then advance
       setTimeout(() => {
         setPipelineToast(null);
         goToTab(1);
@@ -102,7 +153,6 @@ export default function App() {
   };
 
   if (!profile) {
-    // Tiny loading skeleton (renders while the (mock) profile resolves)
     return (
       <div
         style={{
@@ -122,141 +172,140 @@ export default function App() {
 
   return (
     <>
-    <PwaInstallBanner />
-    <PhoneFrame headerRight={<StepDots active={tab} onChange={goToTab} />}>
-      <AnimatePresence mode="wait" custom={direction} initial={false}>
-        <motion.div
-          key={tab}
-          custom={direction}
-          initial={
-            reduceMotion
-              ? { opacity: 0 }
-              : { opacity: 0, x: 24 * direction }
-          }
-          animate={{ opacity: 1, x: 0 }}
-          exit={
-            reduceMotion
-              ? { opacity: 0 }
-              : { opacity: 0, x: -24 * direction }
-          }
-          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-          style={{
-            paddingBottom: 110,
-            position: 'relative',
-            zIndex: 1,
-          }}
-          id={`panel-${TABS[tab].id}`}
-          role="tabpanel"
-          aria-labelledby={`tab-${TABS[tab].id}`}
-        >
-          {tab === 0 && (
-            <CaptureScreen
-              onCapture={(dataUrl) => handleCapture(dataUrl)}
-              onClick={() => handleCapture()}
-              onReset={handleRetake}
-              captured={captured}
-              previewUrl={capturedImage}
-              onNavigateTab={goToTab}
-            />
-          )}
-          {tab === 1 && (
-            <ResultsScreen
-              detected={detected}
-              onChangeDetected={setDetected}
-              onViewNutrients={() => goToTab(2)}
-              profile={profile}
-              capturedImage={capturedImage}
-            />
-          )}
-          {tab === 2 && <NutrientsScreen detected={detected} profile={profile} onBack={() => goToTab(1)} />}
-          {tab === 3 && (
-            <ProfileScreen
-              profile={profile}
-              onProfileChange={setProfile}
-            />
-          )}
-          {tab === 4 && <GroceryScreen profile={profile} />}
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Pipeline trace toast — proves the dual-vision pipeline is wired */}
-      <AnimatePresence>
-        {pipelineToast && (
+      <PwaInstallBanner />
+      <PhoneFrame headerRight={<StepDots active={tab} onChange={goToTab} />}>
+        <AnimatePresence mode="wait" custom={direction} initial={false}>
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.25 }}
-            role="status"
-            aria-live="polite"
+            key={tab}
+            custom={direction}
+            initial={
+              reduceMotion
+                ? { opacity: 0 }
+                : { opacity: 0, x: 24 * direction }
+            }
+            animate={{ opacity: 1, x: 0 }}
+            exit={
+              reduceMotion
+                ? { opacity: 0 }
+                : { opacity: 0, x: -24 * direction }
+            }
+            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
             style={{
-              position: 'absolute',
-              left: 16,
-              right: 16,
-              top: 110,
-              padding: '10px 14px',
-              borderRadius: 14,
-              background: 'rgba(46, 37, 34, 0.92)',
-              color: '#FFFFFF',
-              fontFamily: 'Inter',
-              fontSize: 11,
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              zIndex: 30,
-              boxShadow: '0 8px 24px rgba(46, 37, 34, 0.30)',
+              paddingBottom: 110,
+              position: 'relative',
+              zIndex: 1,
             }}
+            id={`panel-${TABS[tab].id}`}
+            role="tabpanel"
+            aria-labelledby={`tab-${TABS[tab].id}`}
           >
-            <motion.span
-              animate={reduceMotion ? {} : { rotate: 360 }}
-              transition={reduceMotion ? {} : { duration: 1.6, repeat: Infinity, ease: 'linear' }}
-              style={{ display: 'inline-flex', width: 14, height: 14 }}
-            >
-              <svg width={14} height={14} viewBox="0 0 14 14">
-                <circle cx={7} cy={7} r={5} stroke="rgba(249, 242, 228, 0.4)" strokeWidth={2} fill="none" />
-                <motion.circle
-                  cx={7}
-                  cy={7}
-                  r={5}
-                  stroke="#FFFFFF"
-                  strokeWidth={2}
-                  fill="none"
-                  strokeDasharray={2 * Math.PI * 5}
-                  strokeDashoffset={2 * Math.PI * 5 * 0.7}
-                  style={{ transform: 'rotate(-90deg)', transformOrigin: 'center' }}
-                />
-              </svg>
-            </motion.span>
-            <span style={{ flex: 1 }}>{pipelineToast}</span>
-            {pipeline.length > 0 && (
-              <span
-                className="tnum"
-                style={{
-                  fontSize: 9.5,
-                  color: 'rgba(249, 242, 228, 0.7)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                }}
-              >
-                {pipeline.length} stages
-              </span>
+            {tab === 0 && (
+              <CaptureScreen
+                onCapture={(dataUrl) => handleCapture(dataUrl)}
+                onClick={() => handleCapture()}
+                onReset={handleRetake}
+                captured={captured}
+                previewUrl={capturedImage}
+                onNavigateTab={goToTab}
+              />
             )}
+            {tab === 1 && (
+              <ResultsScreen
+                detected={detected}
+                onChangeDetected={setDetected}
+                onViewNutrients={() => goToTab(2)}
+                profile={profile}
+                capturedImage={capturedImage}
+              />
+            )}
+            {tab === 2 && <NutrientsScreen detected={detected} profile={profile} onBack={() => goToTab(1)} />}
+            {tab === 3 && (
+              <ProfileScreen
+                profile={profile}
+                onProfileChange={setProfile}
+              />
+            )}
+            {tab === 4 && <GroceryScreen profile={profile} />}
           </motion.div>
-        )}
-      </AnimatePresence>
+        </AnimatePresence>
 
-      <BottomNav active={tab} onChange={goToTab} />
+        <AnimatePresence>
+          {pipelineToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.25 }}
+              role="status"
+              aria-live="polite"
+              style={{
+                position: 'absolute',
+                left: 16,
+                right: 16,
+                top: 110,
+                padding: '10px 14px',
+                borderRadius: 14,
+                background: 'rgba(46, 37, 34, 0.92)',
+                color: '#FFFFFF',
+                fontFamily: 'Inter',
+                fontSize: 11,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                zIndex: 30,
+                boxShadow: '0 8px 24px rgba(46, 37, 34, 0.30)',
+              }}
+            >
+              <motion.span
+                animate={reduceMotion ? {} : { rotate: 360 }}
+                transition={reduceMotion ? {} : { duration: 1.6, repeat: Infinity, ease: 'linear' }}
+                style={{ display: 'inline-flex', width: 14, height: 14 }}
+              >
+                <svg width={14} height={14} viewBox="0 0 14 14">
+                  <circle cx={7} cy={7} r={5} stroke="rgba(249, 242, 228, 0.4)" strokeWidth={2} fill="none" />
+                  <motion.circle
+                    cx={7}
+                    cy={7}
+                    r={5}
+                    stroke="#FFFFFF"
+                    strokeWidth={2}
+                    fill="none"
+                    strokeDasharray={2 * Math.PI * 5}
+                    strokeDashoffset={2 * Math.PI * 5 * 0.7}
+                    style={{ transform: 'rotate(-90deg)', transformOrigin: 'center' }}
+                  />
+                </svg>
+              </motion.span>
+              <span style={{ flex: 1 }}>{pipelineToast}</span>
+              {pipeline.length > 0 && (
+                <span
+                  className="tnum"
+                  style={{
+                    fontSize: 9.5,
+                    color: 'rgba(249, 242, 228, 0.7)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  {pipeline.length} stages
+                </span>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      <div
-        role="status"
-        aria-live="polite"
-        className="sr-only"
-        style={{ position: 'absolute', left: -9999 }}
-      >
-        Viewing {TABS[tab].label}
-      </div>
-    </PhoneFrame>
+        <BottomNav active={tab} onChange={goToTab} />
+
+        <div
+          role="status"
+          aria-live="polite"
+          className="sr-only"
+          style={{ position: 'absolute', left: -9999 }}
+        >
+          Viewing {TABS[tab].label}
+        </div>
+      </PhoneFrame>
     </>
   );
 }
