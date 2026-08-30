@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { AlertTriangle, Info, Sparkles } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles } from 'lucide-react';
 import { T, NUTRITION_DB } from '../../data';
 import { resolveNutrition } from '../../lib/api';
 import type { DetectedItem, NutrientContribution, UserProfile } from '../../types/schemas';
@@ -552,13 +552,14 @@ function ExplainabilityVerdicts({ contributions, profile }: ExplainabilityVerdic
 interface NutrientsScreenProps {
   detected?: DetectedItem[];
   profile?: UserProfile;
+  onBack?: () => void;
 }
 
 /**
  * Nutrients screen — derives macros from current detected items,
  * animates count-up, and recomputes when grams change.
  */
-export default function NutrientsScreen({ detected = [], profile }: NutrientsScreenProps) {
+export default function NutrientsScreen({ detected = [], profile, onBack }: NutrientsScreenProps) {
   // Synchronously derive totals so count-up animations feel responsive
   const totals = useMemo(() => {
     return detected.reduce(
@@ -621,20 +622,120 @@ export default function NutrientsScreen({ detected = [], profile }: NutrientsScr
 
   return (
     <div style={{ padding: '20px 24px 0' }}>
-      <motion.h2
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        style={{
-          fontFamily: 'Inter',
-          fontSize: 24,
-          fontWeight: 600,
-          color: T.ink,
-          letterSpacing: '-0.02em',
-        }}
-      >
-        This meal, explained
-      </motion.h2>
+      {detected.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="glass-card"
+          style={{
+            borderRadius: 20,
+            padding: '32px 24px',
+            textAlign: 'center',
+            marginTop: 20,
+          }}
+        >
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'rgba(74, 58, 52, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <AlertTriangle size={24} color={T.inkMuted} />
+          </div>
+          <div style={{ fontFamily: 'Inter', fontSize: 16, fontWeight: 600, color: T.ink, marginBottom: 8 }}>
+            No meal analyzed yet
+          </div>
+          <div style={{ fontFamily: 'Inter', fontSize: 13, color: T.inkSoft, lineHeight: 1.4 }}>
+            Start by snapping a photo of your plate!
+          </div>
+        </motion.div>
+      )}
+
+      {onBack && (
+        <motion.button
+          type="button"
+          onClick={onBack}
+          whileHover={{ x: -2 }}
+          whileTap={{ scale: 0.94 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+          aria-label="Back to results"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            background: 'none',
+            border: 'none',
+            padding: '4px 6px',
+            fontFamily: 'Inter',
+            fontSize: 12,
+            fontWeight: 600,
+            color: T.inkSoft,
+            cursor: 'pointer',
+            marginBottom: 8,
+          }}
+        >
+          <ChevronLeft size={14} /> Back to results
+        </motion.button>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <motion.h2
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          style={{
+            fontFamily: 'Inter',
+            fontSize: 24,
+            fontWeight: 600,
+            color: T.ink,
+            letterSpacing: '-0.02em',
+          }}
+        >
+          This meal, explained
+        </motion.h2>
+        {detected.length > 0 && (
+          <motion.button
+            type="button"
+            onClick={() => {
+              const lines = [
+                `NutriVision - ${detected.length} items, ${Math.round(totals.protein)}g protein, ${Math.round(totals.carbs)}g carbs, ${Math.round(totals.fat)}g fat`,
+                '',
+                ...detected.map((d) => {
+                  const n = NUTRITION_DB[d.name];
+                  const kcal = n ? Math.round(n.kcal * d.grams / 100) : '?';
+                  return `  ${d.name} (${d.grams}g) - ${kcal} kcal`;
+                }),
+              ].join('\n');
+              if (navigator?.clipboard) navigator.clipboard.writeText(lines).catch(() => {});
+            }}
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+            aria-label="Share nutrition summary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              background: 'none',
+              border: 'none',
+              padding: '5px 6px',
+              fontFamily: 'Inter',
+              fontSize: 11.5,
+              fontWeight: 600,
+              color: T.primary,
+              cursor: 'pointer',
+              minHeight: 32,
+            }}
+          >
+            <Share2 size={12} /> Share
+          </motion.button>
+        )}
+      </div>
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

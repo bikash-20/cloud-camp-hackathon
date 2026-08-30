@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { T, TABS } from './data';
-import { getProfile } from './lib/api';
+import { getProfile, saveMeal } from './lib/api';
 import { analyzeMeal } from './lib/api';
+import { NUTRITION_DB } from './data';
 import type { DetectedItem, PipelineTrace, UserProfile } from './types/schemas';
 import PhoneFrame from './components/PhoneFrame';
 import BottomNav from './components/BottomNav';
@@ -52,6 +53,34 @@ export default function App() {
       const { detected: next, pipeline: trace } = await analyzeMeal(imageRef);
       setDetected(next);
       setPipeline(trace);
+
+      // Save meal to history
+      const totals = next.reduce(
+        (acc, it) => {
+          const n = NUTRITION_DB[it.name];
+          if (!n) return acc;
+          const factor = it.grams / 100;
+          return {
+            kcal: acc.kcal + n.kcal * factor,
+            protein: acc.protein + n.protein * factor,
+            carbs: acc.carbs + n.carbs * factor,
+            fat: acc.fat + n.fat * factor,
+            fiber: acc.fiber + n.fiber * factor,
+            sodium: acc.sodium + n.sodium * factor,
+            sugar: acc.sugar + n.sugar * factor,
+          };
+        },
+        { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sodium: 0, sugar: 0 },
+      );
+      const label = next.map((i) => i.name).join(', ') || 'Meal';
+      saveMeal({
+        label,
+        items: next,
+        totals,
+        photoUrl: imageDataUrl ?? null,
+        activeGoals: profile?.goals ?? { diabetic: false, protein: false, budget: false, mediter: false },
+      });
+
       // Briefly surface the pipeline trace for the demo, then advance
       setTimeout(() => {
         setPipelineToast(null);
@@ -139,7 +168,7 @@ export default function App() {
               capturedImage={capturedImage}
             />
           )}
-          {tab === 2 && <NutrientsScreen detected={detected} profile={profile} />}
+          {tab === 2 && <NutrientsScreen detected={detected} profile={profile} onBack={() => goToTab(1)} />}
           {tab === 3 && (
             <ProfileScreen
               profile={profile}

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Camera, Sparkles, ScanLine, RotateCcw, X, Upload } from 'lucide-react';
+import { Camera, Sparkles, ScanLine, RotateCcw, X, Upload, UtensilsCrossed, History, ShoppingBag, ChevronRight } from 'lucide-react';
 import { T, USER_NAME, getGreeting } from '../../data';
+import { getTodaySummary, getMealHistory } from '../../lib/api';
+import type { MealEntry } from '../../types/schemas';
 
 type CapturePhase = 'idle' | 'camera' | 'captured';
 
@@ -39,6 +41,11 @@ export default function CaptureScreen({
   const [analyzeProgress, setAnalyzeProgress] = useState(0);
   const [rippled, setRippled] = useState(false);
   const [pressed, setPressed] = useState(false);
+  const [todaySummary, setTodaySummary] = useState<{ mealsLogged: number; totalKcal: number } | null>(null);
+  const [recentMeals, setRecentMeals] = useState<MealEntry[]>([]);
+  const [todayLoading, setTodayLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const initialLoadRef = useRef(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,6 +89,26 @@ export default function CaptureScreen({
       // Fall back to file picker immediately
       fileInputRef.current?.click();
     }
+  }, []);
+
+  // Load today's summary and recent meals on mount
+  useEffect(() => {
+    if (initialLoadRef.current) return;
+    initialLoadRef.current = true;
+    let cancelled = false;
+    getTodaySummary().then((s) => {
+      if (!cancelled) {
+        setTodaySummary(s);
+        setTodayLoading(false);
+      }
+    });
+    getMealHistory().then((h) => {
+      if (!cancelled) {
+        setRecentMeals(h.slice(0, 3));
+        setHistoryLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
   }, []);
 
   // Clean up camera on unmount or reset
@@ -769,6 +796,192 @@ export default function CaptureScreen({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Quick Actions (only when idle) ─────────────────────── */}
+      {phase === 'idle' && !captured && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.25 }}
+          style={{
+            display: 'flex',
+            gap: 8,
+            marginTop: 16,
+            overflowX: 'auto',
+            paddingBottom: 4,
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {[
+            { icon: UtensilsCrossed, label: 'Log Meal', color: T.primary },
+            { icon: History, label: 'View History', color: T.accentAmber },
+            { icon: ShoppingBag, label: 'Grocery List', color: T.accentGood },
+          ].map((a) => (
+            <motion.button
+              key={a.label}
+              type="button"
+              onClick={handleTapCard}
+              whileHover={{ y: -1, scale: 1.02 }}
+              whileTap={{ scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                borderRadius: 14,
+                background: 'rgba(249, 242, 228, 0.75)',
+                border: '1px solid rgba(74, 58, 52, 0.15)',
+                fontFamily: 'Inter',
+                fontSize: 12,
+                fontWeight: 600,
+                color: T.ink,
+                cursor: 'pointer',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <a.icon size={14} color={a.color} strokeWidth={2} />
+              {a.label}
+            </motion.button>
+          ))}
+        </motion.div>
+      )}
+
+      {/* ── Today's Summary Skeleton ────────────────────────── */}
+      {phase === 'idle' && !captured && todayLoading && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.3 }}
+          className="glass-card"
+          style={{ borderRadius: 18, padding: '14px 16px', marginTop: 16 }}
+        >
+          <div className="skeleton" style={{ width: 90, height: 12, marginBottom: 12 }} />
+          <div style={{ display: 'flex', gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div className="skeleton" style={{ width: 40, height: 22, marginBottom: 6 }} />
+              <div className="skeleton" style={{ width: 70, height: 10 }} />
+            </div>
+            <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
+            <div style={{ flex: 1 }}>
+              <div className="skeleton" style={{ width: 48, height: 22, marginBottom: 6 }} />
+              <div className="skeleton" style={{ width: 80, height: 10 }} />
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Today's Summary Card ──────────────────────────────── */}
+      {phase === 'idle' && !captured && todaySummary && todaySummary.mealsLogged > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.3 }}
+          className="glass-card"
+          style={{
+            borderRadius: 18,
+            padding: '14px 16px',
+            marginTop: 16,
+            cursor: 'pointer',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: T.inkSoft, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Today's Summary
+            </span>
+            <ChevronRight size={14} color={T.inkSoft} />
+          </div>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <div>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 20, fontWeight: 700, color: T.ink }}>
+                {todaySummary.mealsLogged}
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
+                meal{todaySummary.mealsLogged !== 1 ? 's' : ''} logged
+              </div>
+            </div>
+            <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
+            <div>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 20, fontWeight: 700, color: T.ink }}>
+                {Math.round(todaySummary.totalKcal)}
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
+                kcal consumed
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Recent Meals Skeleton ──────────────────────────── */}
+      {phase === 'idle' && !captured && historyLoading && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.35 }}
+          style={{ marginTop: 18 }}
+        >
+          <div className="skeleton" style={{ width: 90, height: 12, marginBottom: 10 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: 14, padding: '10px 14px' }}>
+                <div style={{ flex: 1 }}>
+                  <div className="skeleton" style={{ width: `${100 - i * 15}%`, height: 14, marginBottom: 6 }} />
+                  <div className="skeleton" style={{ width: 80, height: 10 }} />
+                </div>
+                <div className="skeleton" style={{ width: 50, height: 16, marginLeft: 8 }} />
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Recent Meals ──────────────────────────────────────── */}
+      {phase === 'idle' && !captured && recentMeals.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.35 }}
+          style={{ marginTop: 18 }}
+        >
+          <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: T.inkSoft, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+            Recent Meals
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {recentMeals.map((meal) => {
+              const time = new Date(meal.date);
+              const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              return (
+                <motion.div
+                  key={meal.id}
+                  className="glass-card"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    borderRadius: 14,
+                    padding: '10px 14px',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {meal.label}
+                    </div>
+                    <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft, marginTop: 2 }}>
+                      {timeStr} · {meal.items.length} item{meal.items.length !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                  <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 700, color: T.accentAmber, flexShrink: 0, marginLeft: 8 }}>
+                    {Math.round(meal.totals.kcal)}
+                    <span style={{ fontSize: 10, fontWeight: 500, color: T.inkSoft }}> kcal</span>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

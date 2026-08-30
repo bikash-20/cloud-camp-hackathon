@@ -17,12 +17,15 @@ import type {
   DetectedItem,
   GroceryItem,
   GroceryList,
+  MealEntry,
   NutrientContribution,
   PipelineTrace,
   ResolveNutritionResult,
   ResolvedItem,
+  UserStats,
   UserProfile,
 } from '../types/schemas';
+import * as storage from './storage';
 import {
   MOCK_DETECTED,
   MOCK_GROCERY_GROUPS,
@@ -33,10 +36,11 @@ import {
 
 // ── In-memory mutable state (pretends to be a backend session) ──────────
 
-let profileState: UserProfile = structuredClone(MOCK_PROFILE);
+let profileState: UserProfile = storage.loadOrDefault('profile', structuredClone(MOCK_PROFILE));
 let groceryState: GroceryItem[] = MOCK_GROCERY_GROUPS.flatMap((g) => g.items);
 let budgetState = MOCK_PROFILE.budget;
 let nextGroceryId = 100;
+let historyState: MealEntry[] = storage.loadOrDefault('meal_history', []);
 
 // ── Utility ─────────────────────────────────────────────────────────────
 
@@ -222,6 +226,7 @@ export async function getProfile(): Promise<UserProfile> {
 export async function updateProfile(p: UserProfile): Promise<UserProfile> {
   await delay(120, 220);
   profileState = structuredClone(p);
+  storage.save('profile', profileState);
   return structuredClone(profileState);
 }
 
@@ -270,6 +275,78 @@ export async function toggleGroceryItem(itemId: string): Promise<void> {
   await delay(40, 80);
   const it = groceryState.find((i) => i.id === itemId);
   if (it) it.checked = !it.checked;
+}
+
+export async function clearGroceryList(): Promise<void> {
+  await delay(60, 120);
+  groceryState = [];
+}
+
+// ── Meal history ─────────────────────────────────────────────────────────────────
+
+/** Save a completed meal to history. Persists to localStorage. */
+export async function saveMeal(entry: Omit<MealEntry, 'id' | 'date'>): Promise<MealEntry> {
+  await delay(60, 120);
+  const saved: MealEntry = {
+    ...entry,
+    id: `meal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    date: new Date().toISOString(),
+  };
+  historyState = [saved, ...historyState];
+  storage.save('meal_history', historyState);
+  return structuredClone(saved);
+}
+
+/** Get full meal history, most recent first. */
+export async function getMealHistory(): Promise<MealEntry[]> {
+  await delay(40, 80);
+  historyState = storage.loadOrDefault('meal_history', []);
+  return structuredClone(historyState);
+}
+
+/** Get meals logged today. */
+export async function getTodaySummary(): Promise<{
+  mealsLogged: number;
+  totalKcal: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFat: number;
+}> {
+  await delay(40, 80);
+  historyState = storage.loadOrDefault('meal_history', []);
+  const today = new Date().toISOString().slice(0, 10);
+  const todayMeals = historyState.filter((m) => m.date.startsWith(today));
+  return {
+    mealsLogged: todayMeals.length,
+    totalKcal: todayMeals.reduce((s, m) => s + m.totals.kcal, 0),
+    totalProtein: todayMeals.reduce((s, m) => s + m.totals.protein, 0),
+    totalCarbs: todayMeals.reduce((s, m) => s + m.totals.carbs, 0),
+    totalFat: todayMeals.reduce((s, m) => s + m.totals.fat, 0),
+  };
+}
+
+/** Get aggregated user statistics for the profile screen. */
+export async function getUserStats(): Promise<UserStats> {
+  await delay(40, 80);
+  historyState = storage.loadOrDefault('meal_history', []);
+  if (historyState.length === 0) {
+    return { totalMeals: 0, totalDaysActive: 0, avgDailyKcal: 0, streakDays: 0 };
+  }
+  const days = new Set(historyState.map((m) => m.date.slice(0, 10)));
+  const totalKcal = historyState.reduce((s, m) => s + m.totals.kcal, 0);
+  return {
+    totalMeals: historyState.length,
+    totalDaysActive: days.size,
+    avgDailyKcal: Math.round(totalKcal / days.size),
+    streakDays: days.size, // simplified streak for demo
+  };
+}
+
+/** Delete a meal from history. */
+export async function deleteMeal(mealId: string): Promise<void> {
+  await delay(40, 80);
+  historyState = historyState.filter((m) => m.id !== mealId);
+  storage.save('meal_history', historyState);
 }
 
 // ── Aggregate targets (small helper for NutrientsScreen) ────────────────────────────

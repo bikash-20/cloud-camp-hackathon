@@ -408,3 +408,28 @@ p { margin: 0; }
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/* === SKELETON LOADER ================================================= */
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  border-radius: 10px;
+  background: linear-gradient(
+    90deg,
+    rgba(74, 58, 52, 0.06) 25%,
+    rgba(74, 58, 52, 0.12) 50%,
+    rgba(74, 58, 52, 0.06) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}

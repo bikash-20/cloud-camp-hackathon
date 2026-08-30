@@ -8,7 +8,8 @@ import type {
   HealthGoals,
   UserProfile,
 } from '../../types/schemas';
-import { DEFAULT_PROFILE, updateProfile } from '../../lib/api';
+import { DEFAULT_PROFILE, updateProfile, getUserStats } from '../../lib/api';
+import type { UserStats } from '../../types/schemas';
 import Pill from '../Pill';
 import Chip from '../Chip';
 import SectionLabel from '../SectionLabel';
@@ -55,6 +56,8 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
   const [toast, setToast] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(profile.name);
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const statsLoadedRef = useRef(false);
   // Track the previous values so we can re-sync only when the *parent's*
   // profile diverges from our local state — not on every local edit.
   const prevRef = useRef({
@@ -87,6 +90,17 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
       prev.name = profile.name;
     }
   }, [profile]);
+
+  // Load user stats on mount
+  useEffect(() => {
+    if (statsLoadedRef.current) return;
+    statsLoadedRef.current = true;
+    let cancelled = false;
+    getUserStats().then((s) => {
+      if (!cancelled) setStats(s);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const triggerToast = (msg: string) => {
     setToast(msg);
@@ -319,6 +333,53 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
           </div>
         </div>
       </motion.div>
+
+      {/* ── User Statistics ─────────────────────────────────────── */}
+      {stats && stats.totalMeals > 0 && (
+        <>
+          <SectionLabel>Your Stats</SectionLabel>
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.08 }}
+            className="glass-card"
+            style={{
+              borderRadius: 18,
+              padding: '14px 16px',
+              marginBottom: 22,
+              display: 'flex',
+              gap: 16,
+            }}
+          >
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 20, fontWeight: 700, color: T.ink }}>
+                {stats.totalMeals}
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
+                meals logged
+              </div>
+            </div>
+            <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 20, fontWeight: 700, color: T.ink }}>
+                {stats.totalDaysActive}
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
+                days active
+              </div>
+            </div>
+            <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 20, fontWeight: 700, color: T.accentAmber }}>
+                {stats.avgDailyKcal}
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
+                avg kcal/day
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
 
       <SectionLabel>Health goals</SectionLabel>
       <motion.div

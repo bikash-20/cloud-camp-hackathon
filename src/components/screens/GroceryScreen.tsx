@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Plus, Share2, Trash2, X } from 'lucide-react';
-import { T } from '../../data';
+import { Check, Plus, Share2, Trash2, X, ShoppingBag, Trash } from 'lucide-react';
+import { T, MOCK_NUTRITION_DB } from '../../data';
 import type { GroceryItem, GroceryList, UserProfile } from '../../types/schemas';
 import {
   addGroceryItem as apiAddItem,
@@ -9,6 +9,8 @@ import {
   removeGroceryItem as apiRemoveItem,
   toggleGroceryItem as apiToggle,
   updateGroceryPrice as apiUpdatePrice,
+  clearGroceryList,
+  getMealHistory,
 } from '../../lib/api';
 import ConfidenceRing from '../ConfidenceRing';
 import SectionLabel from '../SectionLabel';
@@ -38,6 +40,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
   const [toast, setToast] = useState<string | null>(null);
   const [addingAt, setAddingAt] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const nextIdRef = useRef(100);
   const initialLoadRef = useRef(false);
 
@@ -51,6 +54,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
       if (cancelled) return;
       setGroups(list.groups.map((g) => ({ cat: g.category, items: g.items })));
       setBudget(list.budget);
+      setLoading(false);
     });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -254,6 +258,149 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
           <Share2 size={12} /> Share list
         </motion.button>
       </motion.div>
+
+      {/* ── Clear All & Generate from Meals buttons ─────────── */}
+      {groups.some((g) => g.items.length > 0) && (
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.15 }}
+          style={{ display: 'flex', gap: 8, marginBottom: 12 }}
+        >
+          <motion.button
+            type="button"
+            onClick={async () => {
+              setGroups([]);
+              await clearGroceryList();
+              triggerToast('List cleared');
+            }}
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              borderRadius: 12,
+              background: 'rgba(201, 98, 45, 0.1)',
+              border: '1px solid rgba(201, 98, 45, 0.25)',
+              fontFamily: 'Inter',
+              fontSize: 11,
+              fontWeight: 600,
+              color: T.accentWarn,
+              cursor: 'pointer',
+            }}
+          >
+            <Trash size={11} /> Clear all
+          </motion.button>
+          <motion.button
+            type="button"
+            onClick={async () => {
+              const history = await getMealHistory();
+              const ingredients = new Set<string>();
+              history.forEach((m) => {
+                m.items.forEach((it) => {
+                  if (MOCK_NUTRITION_DB[it.name]) {
+                    MOCK_NUTRITION_DB[it.name].pairings.forEach((p) => ingredients.add(p));
+                  }
+                });
+              });
+              if (ingredients.size === 0) {
+                triggerToast('No meal history to generate from');
+                return;
+              }
+              let added = 0;
+              for (const name of ingredients) {
+                if (groups.some((g) => g.items.some((i) => i.name === name))) continue;
+                await apiAddItem('Other', name, 40);
+                added++;
+              }
+              if (added > 0) {
+                const list = await getGroceryList(profile);
+                setGroups(list.groups.map((g) => ({ cat: g.category, items: g.items })));
+                triggerToast(`Added ${added} item${added !== 1 ? 's' : ''} from meals`);
+              } else {
+                triggerToast('All suggested items already in list');
+              }
+            }}
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              borderRadius: 12,
+              background: 'rgba(122, 140, 79, 0.1)',
+              border: '1px solid rgba(122, 140, 79, 0.25)',
+              fontFamily: 'Inter',
+              fontSize: 11,
+              fontWeight: 600,
+              color: T.accentGood,
+              cursor: 'pointer',
+            }}
+          >
+            <ShoppingBag size={11} /> Generate from meals
+          </motion.button>
+        </motion.div>
+      )}
+
+      {/* ── Empty state ──────────────────────────────────────── */}
+      {groups.every((g) => g.items.length === 0) && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="glass-card"
+          style={{
+            borderRadius: 20,
+            padding: '32px 24px',
+            textAlign: 'center',
+            marginTop: 20,
+          }}
+        >
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'rgba(74, 58, 52, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <ShoppingBag size={24} color={T.inkMuted} />
+          </div>
+          <div style={{ fontFamily: 'Inter', fontSize: 16, fontWeight: 600, color: T.ink, marginBottom: 8 }}>
+            Your grocery list is empty
+          </div>
+          <div style={{ fontFamily: 'Inter', fontSize: 13, color: T.inkSoft, lineHeight: 1.4 }}>
+            Snap a meal or add items manually
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Skeleton Loader ────────────────────────────────────── */}
+      {loading && (
+        <div style={{ marginTop: 8 }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ marginBottom: 18 }}>
+              <div className="skeleton" style={{ width: 80, height: 12, marginBottom: 10 }} />
+              {[0, 1].map((j) => (
+                <div key={j} className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: 12, borderRadius: 14, padding: '10px 14px', marginBottom: 8 }}>
+                  <div className="skeleton" style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div className="skeleton" style={{ width: `${70 - i * 10 - j * 5}%`, height: 14, marginBottom: 4 }} />
+                  </div>
+                  <div className="skeleton" style={{ width: 40, height: 14 }} />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
 
       <motion.div variants={container} initial="hidden" animate="show" layout>
         {groups.map((g, gi) => (

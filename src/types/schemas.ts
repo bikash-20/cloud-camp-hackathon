@@ -220,3 +220,41 @@ export function bucketizeConfidence(c: number): ConfidenceBucket {
   if (c >= 60) return 'medium';
   return 'low';
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+//  Meal history
+// ─────────────────────────────────────────────────────────────────────────
+
+/** A single logged meal stored in localStorage history. */
+export interface MealEntry {
+  /** Unique ID (timestamp-based) */
+  id: string;
+  /** ISO 8601 timestamp */
+  date: string;
+  /** Meal label (auto-generated from items) */
+  label: string;
+  /** Detected food items at the time of logging */
+  items: DetectedItem[];
+  /** Snapshot of nutrition totals (kcal, protein, carbs, fat, fiber, sodium, sugar) */
+  totals: {
+    kcal: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber: number;
+    sodium: number;
+    sugar: number;
+  };
+  /** Optional captured photo data URL */
+  photoUrl?: string | null;
+  /** Which profile goals were active when this meal was logged */
+  activeGoals: HealthGoals;
+}
+
+/** Aggregated stats for the profile screen. */
+export interface UserStats {
+  totalMeals: number;
+  totalDaysActive: number;
+  avgDailyKcal: number;
+  streakDays: number;
+}
