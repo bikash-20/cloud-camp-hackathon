@@ -25,6 +25,7 @@ import type {
   UserStats,
   UserProfile,
 } from '../types/schemas';
+import { resolveDailyKcalTarget } from '../types/schemas';
 import * as storage from './storage';
 import {
   MOCK_DETECTED,
@@ -304,13 +305,23 @@ export async function getMealHistory(): Promise<MealEntry[]> {
   return structuredClone(historyState);
 }
 
-/** Get meals logged today. */
+/** Get meals logged today.
+ *
+ * Macros are returned as grams, kcal as raw kcal. `dailyKcalTarget` is
+ * resolved from the *currently loaded* profile (falls back to the universal
+ * default if absent) so the Home progress bar can render without the screen
+ * having to load the profile separately.
+ *
+ * `mealsLogged: 0` plus all-zero totals is the canonical "no meals yet"
+ * shape — Home uses it to render an empty state instead of hiding the card.
+ */
 export async function getTodaySummary(): Promise<{
   mealsLogged: number;
   totalKcal: number;
   totalProtein: number;
   totalCarbs: number;
   totalFat: number;
+  dailyKcalTarget: number;
 }> {
   await delay(40, 80);
   historyState = storage.loadOrDefault('meal_history', []);
@@ -322,6 +333,7 @@ export async function getTodaySummary(): Promise<{
     totalProtein: todayMeals.reduce((s, m) => s + m.totals.protein, 0),
     totalCarbs: todayMeals.reduce((s, m) => s + m.totals.carbs, 0),
     totalFat: todayMeals.reduce((s, m) => s + m.totals.fat, 0),
+    dailyKcalTarget: resolveDailyKcalTarget(profileState),
   };
 }
 

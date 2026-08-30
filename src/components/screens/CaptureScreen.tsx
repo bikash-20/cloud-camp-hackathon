@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Camera, Sparkles, ScanLine, RotateCcw, X, Upload, UtensilsCrossed, History, ShoppingBag, ChevronRight } from 'lucide-react';
-import { T, USER_NAME, getGreeting } from '../../data';
-import { getTodaySummary, getMealHistory } from '../../lib/api';
+import { T, USER_NAME, getGreeting, NUTRITION_DB } from '../../data';
+import { getTodaySummary, getMealHistory, getMacroTargets } from '../../lib/api';
 import type { MealEntry } from '../../types/schemas';
 
 type CapturePhase = 'idle' | 'camera' | 'captured';
+
+/** Tab indices match the order in src/mocks/fixtures.ts → MOCK_TABS. Kept
+ *  here as a local mapping so we don't have to import the whole TABS array
+ *  just to call `goToTab` from a quick-action chip. Only Grocery needs an
+ *  index here today — Recent scrolls within the screen, Log Meal opens the
+ *  camera card. If we add cross-tab navigation from Capture later, list it
+ *  here. */
+const TAB_GROCERY = 4;
 
 interface CaptureScreenProps {
   /** Called with the captured image data URL when the user takes a photo. */
@@ -16,6 +24,132 @@ interface CaptureScreenProps {
   captured: boolean;
   /** Optional preview URL to show after capture (e.g. from parent state). */
   previewUrl?: string | null;
+  /** Optional callback to switch tabs (used by quick-action chips). */
+  onNavigateTab?: (index: number) => void;
+}
+
+/** Format an ISO timestamp as a short relative string for the recent-meals
+ *  list. We deliberately drop absolute time for the most-recent entries and
+ *  fall back to "Yesterday" / weekday for older ones — phone-first UX, not a
+ *  desktop dashboard.
+ *
+ *    < 1 min   → "just now"
+ *    < 60 min  → "Nm ago"
+ *    same day  → "Nh ago"
+ *    −1 day    → "Yesterday"
+ *    < 7 d     → weekday short
+ *    else      → "Mon DD"
+ *
+ *  Bug note: we used to gate the "Nh ago" branch on
+ *  `now.toDateString() === then.toDateString()`, which is wrong for a meal
+ *  logged at 23:50 and viewed at 00:30 (diffH is 1 but they're different
+ *  calendar days). The fix: compute diffH *first*, then fall through to
+ *  the calendar-comparison branches only when diffH ≥ 24.
+ */
+function formatRelative(iso: string, now: Date = new Date()): string {
+  const then = new Date(iso);
+  const diffMs = now.getTime() - then.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH}h ago`;
+  const dayDiff = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  if (dayDiff === 1) return 'Yesterday';
+  if (dayDiff < 7) return then.toLocaleDateString([], { weekday: 'short' });
+  return then.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+/** Hash a string into a stable integer 0..2^31. Used to deterministically
+ *  pick a gradient stop pair for meals that don't have a captured photo. */
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h << 5) - h + s.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+
+/** Pick a deterministic gradient + emoji fallback for a meal thumbnail when
+ *  there's no captured image. Tied to the meal.id so the same meal always
+ *  renders the same swatch — important so the list feels stable across
+ *  re-renders. The emoji is the descriptor's emoji for the first item that
+ *  has one; falls back to a fork-and-knife glyph. */
+function pickThumbnailStyle(meal: MealEntry, descriptorEmojis: Record<string, string>) {
+  const h = hashStr(meal.id);
+  // Warm earth-tone gradients that read well on the cream card bg.
+  const palettes = [
+    'linear-gradient(135deg, #D0AE92, #A8836C)',
+    'linear-gradient(135deg, #B8C68A, #7A8C4F)',
+    'linear-gradient(135deg, #EBD7BE, #C9622D)',
+    'linear-gradient(135deg, #A8836C, #77574A)',
+  ];
+  const bg = palettes[h % palettes.length];
+  const firstItem = meal.items[0];
+  const emoji = (firstItem && descriptorEmojis[firstItem.name]) || '🍽';
+  return { bg, emoji };
+}
+
+/** Tiny animated progress bar used by both the daily-kcal bar and the three
+ *  macro mini-bars. Kept local to this file because the existing `Bar`
+ *  component is styled for the Nutrients screen (full label + subtext,
+ *  drop-shadow, border) and doesn't fit the flatter Home aesthetic.
+ *
+ *  Pass `ariaValueNow`/`ariaValueMax` as raw numbers when the bar
+ *  represents a real unit (kcal, grams) — screen readers will then
+ *  announce e.g. "800 of 2000" instead of the dimensionless ratio. */
+function MiniBar({
+  ratio,
+  fill,
+  height,
+  delay,
+  ariaLabel,
+  ariaValueNow,
+  ariaValueMax,
+}: {
+  ratio: number;
+  fill: string;
+  height: number;
+  delay?: number;
+  ariaLabel?: string;
+  ariaValueNow?: number;
+  ariaValueMax?: number;
+}) {
+  const reduceMotion = useReducedMotion();
+  const pct = Math.min(1, Math.max(0, ratio));
+  return (
+    <div
+      style={{
+        position: 'relative',
+        height,
+        borderRadius: 999,
+        background: 'rgba(74, 58, 52, 0.10)',
+        overflow: 'hidden',
+      }}
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={ariaValueMax ?? 1}
+      aria-valuenow={ariaValueNow ?? pct}
+      aria-label={ariaLabel}
+    >
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: `${pct * 100}%` }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : { type: 'spring', stiffness: 180, damping: 26, delay }
+        }
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: fill,
+          borderRadius: 999,
+        }}
+      />
+    </div>
+  );
 }
 
 /**
@@ -33,6 +167,7 @@ export default function CaptureScreen({
   onReset,
   captured,
   previewUrl,
+  onNavigateTab,
 }: CaptureScreenProps) {
   const reduceMotion = useReducedMotion();
   const [phase, setPhase] = useState<CapturePhase>('idle');
@@ -41,7 +176,16 @@ export default function CaptureScreen({
   const [analyzeProgress, setAnalyzeProgress] = useState(0);
   const [rippled, setRippled] = useState(false);
   const [pressed, setPressed] = useState(false);
-  const [todaySummary, setTodaySummary] = useState<{ mealsLogged: number; totalKcal: number } | null>(null);
+  // Today summary now carries macro totals + the daily kcal target so the
+  // progress bar can render without the Profile screen being open.
+  const [todaySummary, setTodaySummary] = useState<{
+    mealsLogged: number;
+    totalKcal: number;
+    totalProtein: number;
+    totalCarbs: number;
+    totalFat: number;
+    dailyKcalTarget: number;
+  } | null>(null);
   const [recentMeals, setRecentMeals] = useState<MealEntry[]>([]);
   const [todayLoading, setTodayLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -813,14 +957,38 @@ export default function CaptureScreen({
           }}
         >
           {[
-            { icon: UtensilsCrossed, label: 'Log Meal', color: T.primary },
-            { icon: History, label: 'View History', color: T.accentAmber },
-            { icon: ShoppingBag, label: 'Grocery List', color: T.accentGood },
+            {
+              icon: UtensilsCrossed,
+              label: 'Log Meal',
+              color: T.primary,
+              // Log Meal = primary CTA, opens camera like the capture card
+              onClick: handleTapCard,
+            },
+            {
+              icon: History,
+              label: 'Recent',
+              color: T.accentAmber,
+              // Recent = scroll-anchor to the recent-meals section. Until we
+              // have a dedicated History tab, anchoring keeps the affordance
+              // honest rather than faking navigation. We call onNavigateTab
+              // only if a parent handler was provided (smoke testing on its
+              // own).
+              onClick: () => {
+                const el = document.getElementById('recent-meals-section');
+                el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              },
+            },
+            {
+              icon: ShoppingBag,
+              label: 'Grocery',
+              color: T.accentGood,
+              onClick: () => onNavigateTab?.(TAB_GROCERY),
+            },
           ].map((a) => (
             <motion.button
               key={a.label}
               type="button"
-              onClick={handleTapCard}
+              onClick={a.onClick}
               whileHover={{ y: -1, scale: 1.02 }}
               whileTap={{ scale: 0.96 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
@@ -873,44 +1041,195 @@ export default function CaptureScreen({
       )}
 
       {/* ── Today's Summary Card ──────────────────────────────── */}
-      {phase === 'idle' && !captured && todaySummary && todaySummary.mealsLogged > 0 && (
+      {phase === 'idle' && !captured && todaySummary && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.3 }}
+          role={todaySummary.mealsLogged > 0 ? 'button' : undefined}
+          tabIndex={todaySummary.mealsLogged > 0 ? 0 : -1}
+          onClick={() => {
+            // Tap → scroll to recent meals so the user lands somewhere
+            // useful. We don't have a history tab yet; deep-linking to
+            // Results doesn't help because Results is the *current*
+            // detection, not history.
+            const el = document.getElementById('recent-meals-section');
+            el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              const el = document.getElementById('recent-meals-section');
+              el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          }}
           className="glass-card"
           style={{
             borderRadius: 18,
             padding: '14px 16px',
             marginTop: 16,
-            cursor: 'pointer',
+            cursor: todaySummary.mealsLogged > 0 ? 'pointer' : 'default',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <span style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: T.inkSoft, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Today's Summary
             </span>
-            <ChevronRight size={14} color={T.inkSoft} />
+            {todaySummary.mealsLogged > 0 ? (
+              <ChevronRight size={14} color={T.inkSoft} aria-hidden="true" />
+            ) : (
+              <span style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: T.inkMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Empty
+              </span>
+            )}
           </div>
-          <div style={{ display: 'flex', gap: 16 }}>
-            <div>
-              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 20, fontWeight: 700, color: T.ink }}>
-                {todaySummary.mealsLogged}
-              </div>
-              <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
-                meal{todaySummary.mealsLogged !== 1 ? 's' : ''} logged
-              </div>
+
+          {todaySummary.mealsLogged === 0 ? (
+            // ── Empty state — render something useful so the section is
+            //    always present. Don't hide the card just because nothing's
+            //    logged yet.
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                color: T.inkSoft,
+                fontFamily: 'Inter',
+                fontSize: 13,
+                lineHeight: 1.4,
+              }}
+            >
+              <UtensilsCrossed size={16} color={T.inkMuted} strokeWidth={1.8} />
+              <span>
+                No meals yet today — <strong style={{ color: T.ink }}>snap your first</strong> to start tracking.
+              </span>
             </div>
-            <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
-            <div>
-              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 20, fontWeight: 700, color: T.ink }}>
-                {Math.round(todaySummary.totalKcal)}
+          ) : (
+            <>
+              {/* Top row: meals + kcal + progress bar */}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
+                <span className="tnum" style={{ fontFamily: 'Inter', fontSize: 22, fontWeight: 700, color: T.ink }}>
+                  {Math.round(todaySummary.totalKcal)}
+                </span>
+                <span style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: T.inkSoft }}>
+                  / {todaySummary.dailyKcalTarget} kcal
+                </span>
+                <span style={{ flex: 1 }} />
+                <span style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
+                  {todaySummary.mealsLogged} meal{todaySummary.mealsLogged !== 1 ? 's' : ''}
+                </span>
               </div>
-              <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
-                kcal consumed
-              </div>
-            </div>
-          </div>
+
+              {(() => {
+                const ratio = todaySummary.totalKcal / Math.max(1, todaySummary.dailyKcalTarget);
+                const over = ratio > 1;
+                return (
+                  <div style={{ marginBottom: 12 }}>
+                    <MiniBar
+                      ratio={ratio}
+                      fill={
+                        over
+                          ? `linear-gradient(90deg, ${T.accentWarn}, ${T.accentAmber})`
+                          : `linear-gradient(90deg, ${T.primary}, ${T.accentGood})`
+                      }
+                      height={6}
+                      ariaLabel="Today's kcal progress"
+                      ariaValueNow={Math.round(todaySummary.totalKcal)}
+                      ariaValueMax={todaySummary.dailyKcalTarget}
+                    />
+                  </div>
+                );
+              })()}
+
+              {(() => {
+                // Pull targets from the same source as NutrientsScreen so
+                // these bars stay in lockstep with the per-meal breakdown.
+                const macroTargets = getMacroTargets();
+                const macros: Array<{
+                  label: string;
+                  current: number;
+                  target: number;
+                  color: string;
+                }> = [
+                  {
+                    label: 'Protein',
+                    current: todaySummary.totalProtein,
+                    target: macroTargets.protein,
+                    color: T.primary,
+                  },
+                  {
+                    label: 'Carbs',
+                    current: todaySummary.totalCarbs,
+                    target: macroTargets.carbs,
+                    color: T.accentAmber,
+                  },
+                  {
+                    label: 'Fat',
+                    current: todaySummary.totalFat,
+                    target: macroTargets.fat,
+                    color: T.accentGood,
+                  },
+                ];
+                return (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gap: 10,
+                    }}
+                  >
+                    {macros.map((m) => {
+                      const ratio = m.current / Math.max(1, m.target);
+                      const over = ratio > 1;
+                      return (
+                        <div key={m.label}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'baseline',
+                              marginBottom: 4,
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontFamily: 'Inter',
+                                fontSize: 10,
+                                fontWeight: 600,
+                                color: T.inkSoft,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                              }}
+                            >
+                              {m.label}
+                            </span>
+                            <span
+                              className="tnum"
+                              style={{
+                                fontFamily: 'Inter',
+                                fontSize: 10,
+                                fontWeight: 600,
+                                color: over ? T.accentWarn : T.inkSoft,
+                              }}
+                            >
+                              {Math.round(m.current)}g
+                            </span>
+                          </div>
+                          <MiniBar
+                            ratio={ratio}
+                            fill={over ? T.accentWarn : m.color}
+                            height={4}
+                            delay={0.05}
+                            ariaLabel={`${m.label} progress`}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </>
+          )}
         </motion.div>
       )}
 
@@ -938,50 +1257,117 @@ export default function CaptureScreen({
       )}
 
       {/* ── Recent Meals ──────────────────────────────────────── */}
-      {phase === 'idle' && !captured && recentMeals.length > 0 && (
+      {phase === 'idle' && !captured && (
         <motion.div
+          id="recent-meals-section"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.35 }}
-          style={{ marginTop: 18 }}
+          style={{ marginTop: 18, scrollMarginTop: 90 }}
         >
           <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: T.inkSoft, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
             Recent Meals
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {recentMeals.map((meal) => {
-              const time = new Date(meal.date);
-              const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              return (
-                <motion.div
-                  key={meal.id}
-                  className="glass-card"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderRadius: 14,
-                    padding: '10px 14px',
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {meal.label}
+
+          {/* Empty state — only render after we've confirmed history is
+              loaded and truly empty. While loading, the skeleton above holds
+              the slot so we don't flash. */}
+          {!historyLoading && recentMeals.length === 0 && (
+            <div
+              className="glass-card"
+              style={{
+                borderRadius: 14,
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                color: T.inkSoft,
+                fontFamily: 'Inter',
+                fontSize: 13,
+                lineHeight: 1.4,
+              }}
+            >
+              <History size={16} color={T.inkMuted} strokeWidth={1.8} />
+              <span>
+                Your last few meals will appear here once you log them.
+              </span>
+            </div>
+          )}
+
+          {recentMeals.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {recentMeals.map((meal) => {
+                // Resolve a thumbnail: prefer the captured photo; otherwise
+                // fall back to a deterministic gradient + emoji swatch so
+                // pre-existing seeded history (no photoUrl) still looks
+                // alive.
+                const thumbBg = meal.photoUrl
+                  ? undefined
+                  : pickThumbnailStyle(meal, descriptorEmojiMap).bg;
+                const thumbEmoji = meal.photoUrl
+                  ? null
+                  : pickThumbnailStyle(meal, descriptorEmojiMap).emoji;
+                return (
+                  <motion.div
+                    key={meal.id}
+                    className="glass-card"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      borderRadius: 14,
+                      padding: '8px 14px 8px 8px',
+                    }}
+                  >
+                    {/* Thumbnail — 40×40 square. If we have a real photo,
+                        show it; otherwise gradient + emoji. */}
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                        flexShrink: 0,
+                        overflow: 'hidden',
+                        background: thumbBg ?? 'rgba(74, 58, 52, 0.08)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundImage: meal.photoUrl ? `url(${meal.photoUrl})` : undefined,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        fontSize: 20,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {!meal.photoUrl && thumbEmoji}
                     </div>
-                    <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft, marginTop: 2 }}>
-                      {timeStr} · {meal.items.length} item{meal.items.length !== 1 ? 's' : ''}
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {meal.label}
+                      </div>
+                      <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft, marginTop: 2 }}>
+                        {formatRelative(meal.date)} · {meal.items.length} item{meal.items.length !== 1 ? 's' : ''}
+                      </div>
                     </div>
-                  </div>
-                  <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 700, color: T.accentAmber, flexShrink: 0, marginLeft: 8 }}>
-                    {Math.round(meal.totals.kcal)}
-                    <span style={{ fontSize: 10, fontWeight: 500, color: T.inkSoft }}> kcal</span>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+                    <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 700, color: T.accentAmber, flexShrink: 0, marginLeft: 8 }}>
+                      {Math.round(meal.totals.kcal)}
+                      <span style={{ fontSize: 10, fontWeight: 500, color: T.inkSoft }}> kcal</span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
         </motion.div>
       )}
     </div>
   );
 }
+
+/** Map of food name → emoji glyph from MOCK_NUTRITION_DB. Built once at
+ *  module load — cheap (4 entries today), no re-computation per render. */
+const descriptorEmojiMap: Record<string, string> = Object.fromEntries(
+  Object.entries(NUTRITION_DB).map(([k, v]) => [k, v.emoji]),
+);

@@ -172,6 +172,25 @@ export interface UserProfile {
   budget: number;
   /** Number of people the meal serves */
   serving: number;
+  /** Daily kcal target for the Home progress bar. Optional for backward
+   *  compatibility — older profiles stored before this shipped will fall
+   *  back to `DAILY_KCAL_TARGET_DEFAULT` (2000) at read time. */
+  dailyKcalTarget?: number;
+}
+
+/** Universal fallback daily kcal target. Roughly the adult average used by
+ *  US dietary guidelines (2000 kcal/day). Profiles that opt-in can override
+ *  via the Profile screen; until then we use this so the Home progress bar
+ *  always renders a meaningful percentage. */
+export const DAILY_KCAL_TARGET_DEFAULT = 2000;
+
+/** Resolve a profile's effective daily kcal target. Tolerates older stored
+ *  profiles that pre-date the `dailyKcalTarget` field by falling back to the
+ *  universal default. Always returns a positive finite number. */
+export function resolveDailyKcalTarget(profile: UserProfile | null | undefined): number {
+  const v = profile?.dailyKcalTarget;
+  if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v;
+  return DAILY_KCAL_TARGET_DEFAULT;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -157,6 +157,7 @@ export default function App() {
               onReset={handleRetake}
               captured={captured}
               previewUrl={capturedImage}
+              onNavigateTab={goToTab}
             />
           )}
           {tab === 1 && (

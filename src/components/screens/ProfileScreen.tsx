@@ -8,6 +8,7 @@ import type {
   HealthGoals,
   UserProfile,
 } from '../../types/schemas';
+import { DAILY_KCAL_TARGET_DEFAULT } from '../../types/schemas';
 import { DEFAULT_PROFILE, updateProfile, getUserStats } from '../../lib/api';
 import type { UserStats } from '../../types/schemas';
 import Pill from '../Pill';
@@ -53,6 +54,14 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
   );
   const [budget, setBudget] = useState(profile.budget);
   const [serving, setServing] = useState(profile.serving);
+  // Fall back to the universal default if the stored profile predates the
+  // field — see `resolveDailyKcalTarget` in schemas.ts for the read-side
+  // shim that handles this on the API layer too.
+  const [dailyKcalTarget, setDailyKcalTarget] = useState<number>(
+    typeof profile.dailyKcalTarget === 'number' && profile.dailyKcalTarget > 0
+      ? profile.dailyKcalTarget
+      : DAILY_KCAL_TARGET_DEFAULT,
+  );
   const [toast, setToast] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(profile.name);
@@ -66,6 +75,7 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
     budget: profile.budget,
     serving: profile.serving,
     name: profile.name,
+    dailyKcalTarget,
   });
 
   // When the parent's profile changes (external reset, API load, etc.),
@@ -89,6 +99,18 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
     if (profile.name !== prev.name) {
       setName(profile.name);
       prev.name = profile.name;
+    }
+    if (profile.dailyKcalTarget !== prev.dailyKcalTarget) {
+      setDailyKcalTarget(
+        typeof profile.dailyKcalTarget === 'number' && profile.dailyKcalTarget > 0
+          ? profile.dailyKcalTarget
+          : DAILY_KCAL_TARGET_DEFAULT,
+      );
+      // Store the normalized form so the next compare doesn't false-positive
+      // on the first sync from a profile that predates the field.
+      prev.dailyKcalTarget = typeof profile.dailyKcalTarget === 'number' && profile.dailyKcalTarget > 0
+        ? profile.dailyKcalTarget
+        : DAILY_KCAL_TARGET_DEFAULT;
     }
   }, [profile]);
 
@@ -119,6 +141,13 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
     setServing((s) => Math.min(8, Math.max(1, s + delta)));
   };
 
+  // Daily kcal target: 1200 (intentional loss floor) → 4000 (active adult).
+  // Stepped in 50 kcal increments so the Home progress bar moves noticeably
+  // on each tap, matching the budget stepper's behavior.
+  const adjustDailyKcal = (delta: number) => {
+    setDailyKcalTarget((v) => Math.min(4000, Math.max(1200, v + delta)));
+  };
+
   const resetAll = async () => {
     // Use the canonical DEFAULT_PROFILE — not getProfile() — so Reset
     // always reverts to factory-fresh state, not whatever the in-memory
@@ -128,6 +157,7 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
     setBudget(fresh.budget);
     setServing(fresh.serving);
     setName(fresh.name);
+    setDailyKcalTarget(DAILY_KCAL_TARGET_DEFAULT);
     setPrefs({});
     setAllergens({ Peanuts: true });
     await updateProfile(fresh);
@@ -144,10 +174,11 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
       allergens: ALLERGENS.filter((a) => allergens[a]),
       budget,
       serving,
+      dailyKcalTarget,
     };
     updateProfile(next).then((saved) => onProfileChange?.(saved));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goals, prefs, allergens, budget, serving, name]);
+  }, [goals, prefs, allergens, budget, serving, name, dailyKcalTarget]);
 
   const commitName = () => {
     setEditingName(false);
@@ -467,16 +498,29 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
         ))}
       </motion.div>
 
-      <SectionLabel>Daily grocery budget</SectionLabel>
+      <SectionLabel>Daily kcal target</SectionLabel>
       <StepperRow
-        label="Budget"
-        valueLabel={`৳${budget}`}
-        onDec={() => adjustBudget(-50)}
-        onInc={() => adjustBudget(50)}
-        decLabel="Decrease budget by 50 taka"
-        incLabel="Increase budget by 50 taka"
-        hint={`per day — the Grocery screen applies this as a weekly cap of ৳${budget * 7} (×7 days)`}
+        label="Kcal"
+        valueLabel={`${dailyKcalTarget} kcal`}
+        onDec={() => adjustDailyKcal(-50)}
+        onInc={() => adjustDailyKcal(50)}
+        decLabel="Decrease daily kcal target by 50"
+        incLabel="Increase daily kcal target by 50"
+        hint="powers the Home progress bar — defaults to 2000 kcal/day"
       />
+
+      <div style={{ marginTop: 16 }}>
+        <SectionLabel>Daily grocery budget</SectionLabel>
+        <StepperRow
+          label="Budget"
+          valueLabel={`৳${budget}`}
+          onDec={() => adjustBudget(-50)}
+          onInc={() => adjustBudget(50)}
+          decLabel="Decrease budget by 50 taka"
+          incLabel="Increase budget by 50 taka"
+          hint={`per day — the Grocery screen applies this as a weekly cap of �${budget * 7} (×7 days)`}
+        />
+      </div>
 
       <div style={{ marginTop: 16 }}>
         <SectionLabel>Servings on this plate</SectionLabel>
