@@ -61,7 +61,7 @@ export default function App() {
     );
   }
 
-  return <UserApp session={session} />;
+  return <UserApp session={session} onSignOut={() => setSession(null)} />;
 }
 
 /**
@@ -69,7 +69,7 @@ export default function App() {
  * gate above can stay readable. Same tabs, same screens, same phone-frame
  * styling — just wrapped in a typed component now.
  */
-function UserApp({ session: _session }: { session: AuthSession }) {
+function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () => void }) {
   const [tab, setTab] = useState(0);
   const [direction, setDirection] = useState(1);
   const [captured, setCaptured] = useState(false);
@@ -223,6 +223,8 @@ function UserApp({ session: _session }: { session: AuthSession }) {
               <ProfileScreen
                 profile={profile}
                 onProfileChange={setProfile}
+                session={session}
+                onSignOut={onSignOut}
               />
             )}
             {tab === 4 && <GroceryScreen profile={profile} />}

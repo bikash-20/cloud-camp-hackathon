@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Edit3, Minus, Plus, RotateCcw } from 'lucide-react';
+import { Edit3, LogOut, Minus, Plus, RotateCcw } from 'lucide-react';
 import { T } from '../../data';
 import type {
   Allergen,
+  AuthSession,
   DietaryPreference,
   HealthGoals,
   UserProfile,
@@ -11,6 +12,7 @@ import type {
 } from '../../types/schemas';
 import { DAILY_KCAL_TARGET_DEFAULT } from '../../types/schemas';
 import { DEFAULT_PROFILE, updateProfile, getUserStats } from '../../lib/api';
+import { logout } from '../../lib/auth';
 import Pill from '../Pill';
 import Chip from '../Chip';
 import SectionLabel from '../SectionLabel';
@@ -42,9 +44,15 @@ const toggleIn = (setState: React.Dispatch<React.SetStateAction<Record<string, b
 interface ProfileScreenProps {
   profile: UserProfile;
   onProfileChange?: (p: UserProfile) => void;
+  /** Currently signed-in user — drives the "Signed in as …" chip and the
+   *  sign-out action in the header. */
+  session?: AuthSession;
+  /** Called after a successful sign-out. App-level gate routes back to
+   *  the LoginScreen on this callback. */
+  onSignOut?: () => void;
 }
 
-export default function ProfileScreen({ profile, onProfileChange }: ProfileScreenProps) {
+export default function ProfileScreen({ profile, onProfileChange, session, onSignOut }: ProfileScreenProps) {
   const [goals, setGoals] = useState<HealthGoals>(profile.goals);
   const [prefs, setPrefs] = useState<Record<string, boolean>>(
     Object.fromEntries(profile.preferences.map((p) => [p, true])),
@@ -187,8 +195,50 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
     }
   };
 
+  const handleSignOut = () => {
+    // Mirror AdminLayout's logout flow — clear the persisted session,
+    // then notify the App-level gate so it routes back to LoginScreen
+    // without a full page reload.
+    logout();
+    onSignOut?.();
+  };
+
   return (
     <div style={{ padding: '20px 24px 0' }}>
+      {/* Signed-in chip — only renders when a session is present so the
+          Profile screen still works for callers (tests, demos) that don't
+          pass one through. */}
+      {session && (
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="glass-soft"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '5px 10px',
+            borderRadius: 999,
+            marginBottom: 10,
+            fontFamily: 'Inter',
+            fontSize: 11,
+            fontWeight: 600,
+            color: T.inkSoft,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: T.accentGood,
+            }}
+          />
+          Signed in as {session.email}
+        </motion.div>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -197,6 +247,7 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 8,
         }}
       >
         <h2
@@ -210,30 +261,58 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
         >
           Your health profile
         </h2>
-        <motion.button
-          type="button"
-          onClick={resetAll}
-          whileHover={{ y: -1, scale: 1.05 }}
-          whileTap={{ scale: 0.94 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-          aria-label="Reset profile to defaults"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            background: 'none',
-            border: 'none',
-            padding: '4px 6px',
-            fontFamily: 'Inter',
-            fontSize: 11,
-            fontWeight: 600,
-            color: T.inkSoft,
-            cursor: 'pointer',
-            minHeight: 28,
-          }}
-        >
-          <RotateCcw size={11} /> Reset
-        </motion.button>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+          <motion.button
+            type="button"
+            onClick={resetAll}
+            whileHover={{ y: -1, scale: 1.05 }}
+            whileTap={{ scale: 0.94 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+            aria-label="Reset profile to defaults"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              background: 'none',
+              border: 'none',
+              padding: '4px 6px',
+              fontFamily: 'Inter',
+              fontSize: 11,
+              fontWeight: 600,
+              color: T.inkSoft,
+              cursor: 'pointer',
+              minHeight: 28,
+            }}
+          >
+            <RotateCcw size={11} /> Reset
+          </motion.button>
+          {onSignOut && (
+            <motion.button
+              type="button"
+              onClick={handleSignOut}
+              whileHover={{ y: -1, scale: 1.05 }}
+              whileTap={{ scale: 0.94 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+              aria-label="Sign out of NutriVision"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                background: 'none',
+                border: 'none',
+                padding: '4px 6px',
+                fontFamily: 'Inter',
+                fontSize: 11,
+                fontWeight: 600,
+                color: T.accentWarn,
+                cursor: 'pointer',
+                minHeight: 28,
+              }}
+            >
+              <LogOut size={11} /> Sign out
+            </motion.button>
+          )}
+        </div>
       </motion.div>
       <p
         style={{
