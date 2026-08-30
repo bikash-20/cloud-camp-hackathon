@@ -4,6 +4,7 @@ import { T, TABS } from './data';
 import { getProfile, saveMeal, analyzeMeal } from './lib/api';
 import { NUTRITION_DB } from './data';
 import { getSession } from './lib/auth';
+import { ThemeProvider } from './theme/ThemeContext';
 import type { AuthSession, DetectedItem, PipelineTrace, UserProfile } from './types/schemas';
 import PhoneFrame from './components/PhoneFrame';
 import BottomNav from './components/BottomNav';
@@ -19,6 +20,18 @@ import AdminLayout from './components/admin/AdminLayout';
 import AdminOverview from './components/admin/AdminOverview';
 
 export default function App() {
+  return (
+    <ThemeProvider>
+      <AppShell />
+    </ThemeProvider>
+  );
+}
+
+/**
+ * Auth-gated shell, lifted out of the default export so the ThemeProvider
+ * can stay at the top of the tree.
+ */
+function AppShell() {
   const [session, setSession] = useState<AuthSession | null>(null);
   // Tracks whether we've finished reading localStorage so we don't flash
   // the login screen on every page reload while restoring a session.

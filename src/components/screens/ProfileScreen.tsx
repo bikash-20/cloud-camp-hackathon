@@ -16,6 +16,7 @@ import { logout } from '../../lib/auth';
 import Pill from '../Pill';
 import Chip from '../Chip';
 import SectionLabel from '../SectionLabel';
+import ThemeToggle from '../ThemeToggle';
 
 interface GoalConfig {
   key: keyof HealthGoals;
@@ -262,6 +263,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           Your health profile
         </h2>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <ThemeToggle />
           <motion.button
             type="button"
             onClick={resetAll}

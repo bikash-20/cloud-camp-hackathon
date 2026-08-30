@@ -433,3 +433,82 @@ p { margin: 0; }
     animation: none;
   }
 }
+
+/* === DARK THEME ========================================================= */
+
+[data-theme="dark"] {
+  /* CSS vars consumed by .glass-card, .glass-soft, .glass-tint, etc. */
+  --card-bg:        rgba(40, 30, 24, 0.78);
+  --card-border:    rgba(208, 174, 146, 0.18);
+  --card-border-soft: rgba(208, 174, 146, 0.10);
+  --card-shadow:    0 8px 32px rgba(0, 0, 0, 0.45),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  --ink:            #F2E8D5;
+  --ink-soft:       #D0AE92;
+  --ink-muted:      #8A7461;
+  --primary:        #D0AE92;
+
+  /* Page-level surfaces (matches the existing admin dashboard dark gradient) */
+  --bg-gradient-start: #1B1411;
+  --bg-gradient-mid:   #2A201B;
+  --bg-gradient-end:   #1F1815;
+  --bg:                #1B1411;
+  --surface:           #1F1815;
+  --surface-2:         #3D302A;
+
+  /* Phone bezel — stays cream in both themes so the dark surface inside
+     reads as a distinct pane, not a continuation of the page bg. */
+}
+
+/* Body gradient — warm dark earth */
+[data-theme="dark"] body {
+  background: linear-gradient(180deg, #1B1411 0%, #2A201B 100%);
+}
+
+/* Phone interior gradient (.sage-bg) */
+[data-theme="dark"] .sage-bg {
+  background: linear-gradient(
+    180deg,
+    #1B1411 0%,
+    #2A201B 50%,
+    #1F1815 100%
+  );
+}
+
+/* Skeleton shimmer — dim brown so it doesn't glare on dark glass */
+[data-theme="dark"] .skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(208, 174, 146, 0.04) 25%,
+    rgba(208, 174, 146, 0.10) 50%,
+    rgba(208, 174, 146, 0.04) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* Confidence badges — bump alpha and lighten foreground for dark bg.
+   The light variants use brown/green/amber on cream; on dark the badge
+   pill tints still work but the foreground needs to lighten. */
+[data-theme="dark"] .conf-badge.high   { background: rgba(184, 198, 138, 0.20); color: #B8C68A; border-color: rgba(184, 198, 138, 0.45); }
+[data-theme="dark"] .conf-badge.medium { background: rgba(232, 196, 154, 0.20); color: #E8C49A; border-color: rgba(232, 196, 154, 0.45); }
+[data-theme="dark"] .conf-badge.low    { background: rgba(240, 183, 154, 0.22); color: #F0B79A; border-color: rgba(240, 183, 154, 0.50); }
+
+[data-theme="dark"] .kcal-chip {
+  background: rgba(232, 196, 154, 0.16);
+  border-color: rgba(232, 196, 154, 0.40);
+  color: #E8C49A;
+}
+
+[data-theme="dark"] .swipe-bg.left  { background: rgba(240, 183, 154, 0.18); color: #F0B79A; }
+[data-theme="dark"] .swipe-bg.right { background: rgba(184, 198, 138, 0.20); color: #B8C68A; }
+
+[data-theme="dark"] .legible-display {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* Bottom-nav hover ink — flip to light on dark so hover state is visible */
+[data-theme="dark"] .nav-tab-btn:hover .nav-tab-icon,
+[data-theme="dark"] .nav-tab-btn:hover .nav-tab-label {
+  color: var(--ink);
+}

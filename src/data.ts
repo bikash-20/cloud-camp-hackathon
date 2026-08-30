@@ -4,58 +4,22 @@
  * The "data" module previously mixed runtime mock data with design tokens.
  * Mock data now lives in `src/mocks/fixtures.ts` (typed) and the API client
  * in `src/lib/api.ts`. This file:
- *   - Owns the `T` color/typography tokens (used by every component)
+ *   - Owns the `T` color/typography tokens (light theme default; dark
+ *     variant lives in `src/theme/tokens.ts`)
  *   - Re-exports the canonical fixture exports for any caller that still
  *     imports from the legacy path (preserves backward compatibility while
  *     the migration is in flight).
+ *
+ * Components that need to react to the theme should import `useTokens`
+ * from `src/theme/useTokens` instead of `T`. The `T` constant here stays
+ * frozen for backwards compatibility and for any non-themed caller (e.g.
+ * the Login screen, the admin shell — which has its own dark surface).
  */
 
 import type { FoodCategory } from './types/schemas';
+import { lightTokens } from './theme/tokens';
 
-export const T = {
-  // Earth palette (from the color stack)
-  earth1: '#4A3A34',
-  earth2: '#77574A',
-  earth3: '#A8836C',
-  earth4: '#D0AE92',
-  earth5: '#EBD7BE',
-  earth6: '#F9F2E4',
-
-  // Background gradient
-  gradientStart: '#77574A',
-  gradientMid:   '#D0AE92',
-  gradientEnd:   '#F9F2E4',
-
-  // Brand
-  primary:        '#4A3A34',
-  primaryLight:   '#77574A',
-  primaryDeep:    '#2E2522',
-
-  // Surfaces
-  cardBg:        'rgba(249, 242, 228, 0.72)',
-  cardBorder:    'rgba(74, 58, 52, 0.22)',
-  cardBorderSoft:'rgba(74, 58, 52, 0.12)',
-
-  // Text
-  ink:            '#2E2522',
-  inkSoft:        '#77574A',
-  inkMuted:       '#A8836C',
-
-  // Status accents
-  accentWarn:     '#C9622D',
-  accentAmber:    '#B8743A',
-  accentGood:     '#7A8C4F',
-
-  // Legacy aliases
-  surface:        '#F9F2E4',
-  surface2:       '#D0AE92',
-  delight:        '#B8743A',
-  warning:        '#C9622D',
-  good:           '#7A8C4F',
-  accent:         '#4A3A34',
-  accentDeep:     '#2E2522',
-  bg:             '#D0AE92',
-} as const;
+export const T = lightTokens;
 
 export const FONT_LINK =
   'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap';
