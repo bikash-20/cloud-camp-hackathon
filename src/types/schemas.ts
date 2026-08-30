@@ -228,6 +228,35 @@ export interface TabDescriptor {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+//  Auth (mock-grade for the demo)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Role determines which app surface the session lands on. The current
+ *  hackathon build only ships `user` (regular PWA) and `admin` (dashboard). */
+export type Role = 'user' | 'admin';
+
+/** Lightweight session record persisted to localStorage under `nv_auth`.
+ *  Passwords are not stored — the auth lib matches by username prefix and
+ *  password is only used to gate a non-empty form submission. */
+export interface AuthSession {
+  email: string;
+  role: Role;
+  /** ISO timestamp when the session was created. */
+  loginAt: string;
+}
+
+/** Synthetic account the admin dashboard sees in its directory. Admins do
+ *  not see user passwords — only the public profile + a generated meal
+ *  history. The real signed-in user is also surfaced as one of these. */
+export interface DemoUser {
+  email: string;
+  displayName: string;
+  /** Days since "joining" the platform — informs the joined-on chip. */
+  joinedDaysAgo: number;
+  meals: MealEntry[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 //  Helpers
 // ─────────────────────────────────────────────────────────────────────────
 

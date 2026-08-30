@@ -1301,12 +1301,9 @@ export default function CaptureScreen({
                 // fall back to a deterministic gradient + emoji swatch so
                 // pre-existing seeded history (no photoUrl) still looks
                 // alive.
-                const thumbBg = meal.photoUrl
-                  ? undefined
-                  : pickThumbnailStyle(meal, descriptorEmojiMap).bg;
-                const thumbEmoji = meal.photoUrl
-                  ? null
-                  : pickThumbnailStyle(meal, descriptorEmojiMap).emoji;
+                const fallback = meal.photoUrl ? null : pickThumbnailStyle(meal, descriptorEmojiMap);
+                const thumbBg = fallback?.bg;
+                const thumbEmoji = fallback?.emoji;
                 return (
                   <motion.div
                     key={meal.id}

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { T, TABS } from './data';
-import { getProfile, saveMeal } from './lib/api';
-import { analyzeMeal } from './lib/api';
+import { getProfile, saveMeal, analyzeMeal } from './lib/api';
 import { NUTRITION_DB } from './data';
 import type { DetectedItem, PipelineTrace, UserProfile } from './types/schemas';
 import PhoneFrame from './components/PhoneFrame';

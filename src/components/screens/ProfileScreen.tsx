@@ -7,10 +7,10 @@ import type {
   DietaryPreference,
   HealthGoals,
   UserProfile,
+  UserStats,
 } from '../../types/schemas';
 import { DAILY_KCAL_TARGET_DEFAULT } from '../../types/schemas';
 import { DEFAULT_PROFILE, updateProfile, getUserStats } from '../../lib/api';
-import type { UserStats } from '../../types/schemas';
 import Pill from '../Pill';
 import Chip from '../Chip';
 import SectionLabel from '../SectionLabel';
@@ -500,7 +500,6 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
 
       <SectionLabel>Daily kcal target</SectionLabel>
       <StepperRow
-        label="Kcal"
         valueLabel={`${dailyKcalTarget} kcal`}
         onDec={() => adjustDailyKcal(-50)}
         onInc={() => adjustDailyKcal(50)}
@@ -512,20 +511,18 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
       <div style={{ marginTop: 16 }}>
         <SectionLabel>Daily grocery budget</SectionLabel>
         <StepperRow
-          label="Budget"
           valueLabel={`৳${budget}`}
           onDec={() => adjustBudget(-50)}
           onInc={() => adjustBudget(50)}
           decLabel="Decrease budget by 50 taka"
           incLabel="Increase budget by 50 taka"
-          hint={`per day — the Grocery screen applies this as a weekly cap of �${budget * 7} (×7 days)`}
+          hint={`per day — the Grocery screen applies this as a weekly cap of ৳${budget * 7} (×7 days)`}
         />
       </div>
 
       <div style={{ marginTop: 16 }}>
         <SectionLabel>Servings on this plate</SectionLabel>
         <StepperRow
-          label="Servings"
           valueLabel={`${serving}×`}
           onDec={() => adjustServing(-1)}
           onInc={() => adjustServing(1)}
@@ -570,7 +567,6 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
 }
 
 interface StepperRowProps {
-  label: string;
   valueLabel: string;
   onDec: () => void;
   onInc: () => void;
@@ -579,7 +575,7 @@ interface StepperRowProps {
   hint: string;
 }
 
-function StepperRow({ label: _label, valueLabel, onDec, onInc, decLabel, incLabel, hint }: StepperRowProps) {
+function StepperRow({ valueLabel, onDec, onInc, decLabel, incLabel, hint }: StepperRowProps) {
   const reduceMotion = useReducedMotion();
   return (
     <>
