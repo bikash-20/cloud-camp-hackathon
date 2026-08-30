@@ -94,13 +94,17 @@ export const lightTokens: TokenShape = {
 } as const;
 
 /**
- * Dark variant — warm earth at low lightness.
+ * Dark variant — mirrors the admin dashboard's dark surface.
  *
- *   Text inverted to cream, card surfaces dim to deep brown glass,
- *   brand primary becomes amber so it pops on dark backgrounds.
- *   Status accents lighten so they remain readable (warn, amber, good).
- *   Page bg matches the existing admin dashboard gradient so the two
- *   dark surfaces feel like one product.
+ * The admin uses a `linear-gradient(180deg, #1B1411 → #2A201B)` page
+ * background with `rgba(255, 255, 255, 0.04)` glass cards, white-on-cream
+ * text (`#F9F2E4`), and warm tints for secondary text (`rgba(249, 242,
+ * 228, 0.55–0.65)`). We use the exact same recipe so flipping the user
+ * PWA into dark mode feels like stepping into the admin tool — same
+ * product, same earth identity, just dimmed.
+ *
+ * The previous warm-brown-glass variant was too distinct from admin; the
+ * user asked to align them so the dark UI looks identical to admin.
  */
 export const darkTokens: TokenShape = {
   earth1: '#1F1815',
@@ -108,25 +112,27 @@ export const darkTokens: TokenShape = {
   earth3: '#3D302A',
   earth4: '#5C4838',
   earth5: '#7A6450',
-  earth6: '#1F1815',
+  earth6: '#F9F2E4',
 
   primary:        '#D0AE92',
   primaryLight:   '#E8C49A',
   primaryDeep:    '#EBD7BE',
 
-  cardBg:        'rgba(40, 30, 24, 0.78)',
-  cardBorder:    'rgba(208, 174, 146, 0.18)',
-  cardBorderSoft:'rgba(208, 174, 146, 0.10)',
+  // Admin card surface: faint white wash on dark glass.
+  cardBg:        'rgba(255, 255, 255, 0.04)',
+  cardBorder:    'rgba(255, 255, 255, 0.08)',
+  cardBorderSoft:'rgba(255, 255, 255, 0.06)',
 
-  ink:            '#F2E8D5',
-  inkSoft:        '#D0AE92',
-  inkMuted:       '#8A7461',
+  // Admin text ramp: cream primary, 65% cream secondary, 55% cream tertiary.
+  ink:            '#F9F2E4',
+  inkSoft:        'rgba(249, 242, 228, 0.65)',
+  inkMuted:       'rgba(249, 242, 228, 0.55)',
 
   accentWarn:     '#F0B79A',
   accentAmber:    '#E8C49A',
   accentGood:     '#B8C68A',
 
-  surface:        '#1F1815',
+  surface:        'rgba(20, 14, 11, 0.85)',
   surface2:       '#3D302A',
   delight:        '#E8C49A',
   warning:        '#F0B79A',
@@ -135,9 +141,10 @@ export const darkTokens: TokenShape = {
   accentDeep:     '#EBD7BE',
   bg:             '#1B1411',
 
+  // Admin page gradient (also used by .sage-bg in dark mode).
   gradientStart:  '#1B1411',
   gradientMid:    '#2A201B',
-  gradientEnd:    '#1F1815',
+  gradientEnd:    '#1B1411',
 } as const;
 
 // ── Active-token reference (mutable, swapped by ThemeProvider) ──────────

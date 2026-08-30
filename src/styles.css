@@ -436,44 +436,59 @@ p { margin: 0; }
 
 /* === DARK THEME ========================================================= */
 
+/* Dark mode mirrors the admin dashboard's surface recipe:
+     • Page bg gradient `#1B1411 → #2A201B`
+     • Card surface `rgba(255, 255, 255, 0.04)` + 8% white border
+     • Cream text `#F9F2E4` with `rgba(249, 242, 228, 0.55–0.65)` ramps
+     • Faint white inner highlight on the glass instead of warm cream
+   These CSS vars are consumed by .glass-card, .glass-soft, .glass-tint,
+   and any component that reads the CSS custom properties. The T Proxy
+   carries the same values into inline styles, so anything reading
+   `T.cardBg` / `T.ink` etc. matches. */
 [data-theme="dark"] {
-  /* CSS vars consumed by .glass-card, .glass-soft, .glass-tint, etc. */
-  --card-bg:        rgba(40, 30, 24, 0.78);
-  --card-border:    rgba(208, 174, 146, 0.18);
-  --card-border-soft: rgba(208, 174, 146, 0.10);
+  --card-bg:        rgba(255, 255, 255, 0.04);
+  --card-border:    rgba(255, 255, 255, 0.08);
+  --card-border-soft: rgba(255, 255, 255, 0.06);
   --card-shadow:    0 8px 32px rgba(0, 0, 0, 0.45),
                     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 
-  --ink:            #F2E8D5;
-  --ink-soft:       #D0AE92;
-  --ink-muted:      #8A7461;
+  --ink:            #F9F2E4;
+  --ink-soft:       rgba(249, 242, 228, 0.65);
+  --ink-muted:      rgba(249, 242, 228, 0.55);
   --primary:        #D0AE92;
 
-  /* Page-level surfaces (matches the existing admin dashboard dark gradient) */
   --bg-gradient-start: #1B1411;
   --bg-gradient-mid:   #2A201B;
-  --bg-gradient-end:   #1F1815;
+  --bg-gradient-end:   #1B1411;
   --bg:                #1B1411;
-  --surface:           #1F1815;
+  --surface:           rgba(20, 14, 11, 0.85);
   --surface-2:         #3D302A;
-
-  /* Phone bezel — stays cream in both themes so the dark surface inside
-     reads as a distinct pane, not a continuation of the page bg. */
 }
 
-/* Body gradient — warm dark earth */
+/* Body gradient — exact match for the admin dashboard. */
 [data-theme="dark"] body {
   background: linear-gradient(180deg, #1B1411 0%, #2A201B 100%);
 }
 
-/* Phone interior gradient (.sage-bg) */
+/* Phone interior gradient (.sage-bg) — same gradient as body so the
+   phone surface and the page edge blend into one continuous pane. */
 [data-theme="dark"] .sage-bg {
-  background: linear-gradient(
-    180deg,
-    #1B1411 0%,
-    #2A201B 50%,
-    #1F1815 100%
-  );
+  background: linear-gradient(180deg, #1B1411 0%, #2A201B 100%);
+}
+
+/* Soft glass chips (signed-in pill, capture chip) — match the admin's
+   faint white wash instead of the cream glass used in light mode. */
+[data-theme="dark"] .glass-soft {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 14px -6px rgba(0, 0, 0, 0.5);
+}
+
+/* Tinted warning cards — admin-style warm orange wash. */
+[data-theme="dark"] .glass-tint {
+  background: rgba(240, 183, 154, 0.10);
+  border-color: rgba(240, 183, 154, 0.28);
+  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.5);
 }
 
 /* Skeleton shimmer — dim brown so it doesn't glare on dark glass */
