@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Moon, Sun } from 'lucide-react';
 import { useTokens } from '../theme/useTokens';
+import { T } from '../data';
 
 /**
  * Theme toggle pill — sits in the Profile screen header next to Reset
@@ -15,10 +16,11 @@ import { useTokens } from '../theme/useTokens';
 export default function ThemeToggle() {
   const { theme, toggleTheme } = useTokens();
   const isDark = theme === 'dark';
-  // Use a darker-tinted surface in light mode and a lighter-tinted one
-  // in dark mode so the pill always reads as elevated against its own bg.
-  const pillBg = isDark ? 'rgba(208, 174, 146, 0.10)' : 'rgba(74, 58, 52, 0.08)';
-  const pillBorder = isDark ? 'rgba(208, 174, 146, 0.22)' : 'rgba(74, 58, 52, 0.18)';
+  // Alpha bumped from the previous (0.08/0.18) so the pill has a
+  // visible surface on the cream Profile header — the icon and label
+  // were otherwise washing out into the page background.
+  const pillBg = isDark ? 'rgba(208, 174, 146, 0.14)' : 'rgba(74, 58, 52, 0.14)';
+  const pillBorder = isDark ? 'rgba(208, 174, 146, 0.32)' : 'rgba(74, 58, 52, 0.30)';
 
   return (
     <motion.button
@@ -37,7 +39,7 @@ export default function ThemeToggle() {
         borderRadius: 10,
         background: pillBg,
         border: `1px solid ${pillBorder}`,
-        color: 'inherit',
+        color: T.ink,
         fontFamily: 'Inter',
         fontSize: 11,
         fontWeight: 700,
