@@ -62,6 +62,24 @@ export const FONT_LINK =
 
 export const USER_NAME = 'Rafi';
 
+/**
+ * Time-of-day greeting based on the user's local clock.
+ *
+ *   05:00–11:59 → "Good morning"
+ *   12:00–17:59 → "Good afternoon"
+ *   18:00–21:59 → "Good evening"
+ *   22:00–04:59 → "Hello"
+ *
+ * Falls back to a static greeting if the hour can't be read (SSR/edge).
+ */
+export function getGreeting(now: Date = new Date()): string {
+  const h = now.getHours();
+  if (h >= 5 && h < 12) return 'Good morning';
+  if (h >= 12 && h < 18) return 'Good afternoon';
+  if (h >= 18 && h < 22) return 'Good evening';
+  return 'Hello';
+}
+
 // ── Category tile gradients (typed) ─────────────────────────────────────
 
 export const CATEGORY_TILES: Record<FoodCategory, string> = {

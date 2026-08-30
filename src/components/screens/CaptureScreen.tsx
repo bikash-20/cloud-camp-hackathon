@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Camera, Sparkles, ScanLine, RotateCcw, X, Upload } from 'lucide-react';
-import { T, USER_NAME } from '../../data';
+import { T, USER_NAME, getGreeting } from '../../data';
 
 type CapturePhase = 'idle' | 'camera' | 'captured';
 
@@ -209,16 +209,22 @@ export default function CaptureScreen({
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="glass-soft"
         style={{
+          display: 'inline-flex',
+          alignSelf: 'flex-start',
+          marginBottom: 12,
+          padding: '6px 12px',
+          borderRadius: 999,
           fontFamily: 'Inter',
-          fontSize: 13,
-          fontWeight: 500,
-          color: T.inkSoft,
-          letterSpacing: '0.08em',
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.ink,
+          letterSpacing: '0.06em',
           textTransform: 'uppercase',
         }}
       >
-        Good evening, {USER_NAME}
+        {getGreeting()}, {USER_NAME}
       </motion.div>
 
       <motion.h1
