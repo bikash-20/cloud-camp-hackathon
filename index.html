@@ -30,8 +30,12 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Register service worker for PWA
-      if ('serviceWorker' in navigator) {
+      // Register service worker for PWA — production only. In dev mode the
+      // SW aggressively caches assets and intercepts module fetches, which
+      // makes HMR unreliable and silently serves stale bundles after a
+      // fresh commit. Skip registration on localhost / 127.0.0.1.
+      const isLocalhost = ['localhost', '127.0.0.1'].includes(location.hostname);
+      if ('serviceWorker' in navigator && !isLocalhost) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').catch(() => {});
         });
