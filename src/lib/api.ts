@@ -40,10 +40,23 @@ let nextGroceryId = 100;
 
 // ── Utility ─────────────────────────────────────────────────────────────
 
+// @demo-only — replace with real fetch() when backend lands.
+// The random delay simulates realistic network latency so the UI feels real.
+// Keep Math.random() so screenshots / Playwright snapshots are not deterministic.
 function delay(min: number, max: number): Promise<void> {
   const ms = Math.floor(min + Math.random() * (max - min));
   return new Promise((r) => setTimeout(r, ms));
 }
+
+/**
+ * Canonical, factory-fresh profile used for Reset.
+ *
+ * DO NOT mutate this — always `structuredClone` it before handing it to
+ * `updateProfile`. The mock state in `profileState` starts as a clone of
+ * this and diverges as the user makes changes; this constant is the
+ * single source of truth for "what a fresh user looks like".
+ */
+export const DEFAULT_PROFILE: UserProfile = structuredClone(MOCK_PROFILE);
 
 function makeTrace(stage: PipelineTrace['stage'], label: string, status: PipelineTrace['status'] = 'done'): PipelineTrace {
   return { stage, status, startedAt: Date.now(), finishedAt: Date.now(), label };

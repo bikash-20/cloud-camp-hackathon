@@ -33,16 +33,28 @@ export default function SectionLabel({ children, action, onAction }: SectionLabe
         <button
           type="button"
           onClick={onAction}
+          aria-label={typeof action === 'string' ? action : 'Action'}
           style={{
-            background: 'none',
-            border: 'none',
-            padding: '4px 6px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            background: 'rgba(74, 58, 52, 0.08)',
+            border: '1px solid rgba(74, 58, 52, 0.18)',
+            padding: '5px 10px',
+            borderRadius: 999,
             fontFamily: 'Inter',
             fontSize: 11,
             fontWeight: 600,
             color: T.primary,
             cursor: 'pointer',
-            minHeight: 24,
+            minHeight: 28,
+            transition: 'background 160ms ease, transform 160ms ease, box-shadow 160ms ease',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(74, 58, 52, 0.14)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(74, 58, 52, 0.08)';
           }}
         >
           {action}

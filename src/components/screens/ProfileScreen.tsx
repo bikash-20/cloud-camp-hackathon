@@ -8,7 +8,7 @@ import type {
   HealthGoals,
   UserProfile,
 } from '../../types/schemas';
-import { getProfile, updateProfile } from '../../lib/api';
+import { DEFAULT_PROFILE, updateProfile } from '../../lib/api';
 import Pill from '../Pill';
 import Chip from '../Chip';
 import SectionLabel from '../SectionLabel';
@@ -55,16 +55,36 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
   const [toast, setToast] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(profile.name);
-  const syncedRef = useRef(false);
+  // Track the previous values so we can re-sync only when the *parent's*
+  // profile diverges from our local state — not on every local edit.
+  const prevRef = useRef({
+    goals: profile.goals,
+    budget: profile.budget,
+    serving: profile.serving,
+    name: profile.name,
+  });
 
-  // When parent profile changes (e.g. api loaded something new), re-sync local state
+  // When the parent's profile changes (external reset, API load, etc.),
+  // re-sync the local state for any field that diverged. Local edits
+  // never trigger this path because `profile` only changes when the
+  // parent commits a new profile via `onProfileChange`.
   useEffect(() => {
-    if (!syncedRef.current) {
+    const prev = prevRef.current;
+    if (profile.goals !== prev.goals) {
       setGoals(profile.goals);
+      prev.goals = profile.goals;
+    }
+    if (profile.budget !== prev.budget) {
       setBudget(profile.budget);
+      prev.budget = profile.budget;
+    }
+    if (profile.serving !== prev.serving) {
       setServing(profile.serving);
+      prev.serving = profile.serving;
+    }
+    if (profile.name !== prev.name) {
       setName(profile.name);
-      syncedRef.current = true;
+      prev.name = profile.name;
     }
   }, [profile]);
 
@@ -82,7 +102,10 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
   };
 
   const resetAll = async () => {
-    const fresh = await getProfile();
+    // Use the canonical DEFAULT_PROFILE — not getProfile() — so Reset
+    // always reverts to factory-fresh state, not whatever the in-memory
+    // session happens to be.
+    const fresh = structuredClone(DEFAULT_PROFILE);
     setGoals(fresh.goals);
     setBudget(fresh.budget);
     setServing(fresh.serving);
@@ -96,7 +119,6 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
 
   // Persist any meaningful change to the (mock) backend
   useEffect(() => {
-    if (!syncedRef.current) return;
     const next: UserProfile = {
       name,
       goals,

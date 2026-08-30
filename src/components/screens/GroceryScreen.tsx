@@ -39,9 +39,13 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
   const [addingAt, setAddingAt] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const nextIdRef = useRef(100);
+  const initialLoadRef = useRef(false);
 
-  // Initial load + sync when profile.budget changes
+  // Load once on mount only. Subsequent profile updates (goals, prefs, etc.)
+  // intentionally do NOT wipe the user's locally-added grocery items.
   useEffect(() => {
+    if (initialLoadRef.current) return;
+    initialLoadRef.current = true;
     let cancelled = false;
     getGroceryList(profile).then((list: GroceryList) => {
       if (cancelled) return;
@@ -49,7 +53,13 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
       setBudget(list.budget);
     });
     return () => { cancelled = true; };
-  }, [profile]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // React to budget changes only — keeps the ring in sync without wiping items.
+  useEffect(() => {
+    setBudget(profile.budget);
+  }, [profile.budget]);
 
   const totalSpent = groups.reduce(
     (sum, g) => sum + g.items.filter((i) => i.checked).reduce((s, i) => s + i.price, 0),
@@ -106,15 +116,21 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
   const addItem = async (gi: number, name: string, price: number) => {
     const localId = `custom-${nextIdRef.current++}`;
     const optimistic: GroceryItem = { id: localId, name, price, checked: false };
-    setGroups((gs) =>
-      gs.map((g, idx) =>
+    // Capture the category name from the SAME render state we just updated,
+    // not from a stale closure — the form may have been opened from a previous
+    // render after profile/state updates.
+    let category = 'Other';
+    setGroups((gs) => {
+      const target = gs[gi];
+      if (target) category = target.cat;
+      return gs.map((g, idx) =>
         idx === gi ? { ...g, items: [...g.items, optimistic] } : g,
-      ),
-    );
+      );
+    });
     setAddingAt(null);
     triggerToast(`Added ${name}`);
     // Backend reconciliation (mocked)
-    await apiAddItem(groups[gi]?.cat ?? 'Other', name, price);
+    await apiAddItem(category, name, price);
   };
 
   const shareList = () => {
@@ -463,6 +479,8 @@ interface AddItemFormProps {
 function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState(40);
+  const [error, setError] = useState<string | null>(null);
+  const [shake, setShake] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -470,16 +488,29 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
   }, []);
 
   const submit = () => {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setError('Please enter an item name');
+      setShake((n) => n + 1);
+      inputRef.current?.focus();
+      return;
+    }
+    setError(null);
     onSubmit(name.trim(), Math.max(0, Math.min(9999, price)));
   };
 
   return (
     <motion.div
+      role="form"
+      aria-label="Add custom grocery item"
       initial={{ opacity: 0, y: 6, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 6, scale: 0.98 }}
-      transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+      animate={
+        error
+          ? { opacity: 1, y: 0, scale: 1, x: [0, -6, 6, -4, 4, 0] }
+          : { opacity: 1, y: 0, scale: 1 }
+      }
+      // Re-trigger shake whenever error is re-set
+      key={shake}
+      transition={{ type: 'spring', stiffness: 320, damping: 22, x: { duration: 0.35 } }}
       className="glass-card"
       style={{
         display: 'flex',
@@ -488,19 +519,23 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
         borderRadius: 14,
         padding: '8px 10px',
         marginBottom: 8,
-        border: `1px dashed ${T.primary}`,
+        border: `1px dashed ${error ? T.accentWarn : T.primary}`,
+        flexDirection: 'column',
       }}
     >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
       <input
         ref={inputRef}
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => { setName(e.target.value); if (error) setError(null); }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
           if (e.key === 'Escape') onCancel();
         }}
         placeholder="Item name"
         aria-label="New item name"
+        aria-invalid={!!error}
+        aria-describedby={error ? 'add-item-error' : undefined}
         style={{
           flex: 1,
           minWidth: 0,
@@ -525,7 +560,7 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
         className="tnum"
         style={{
           width: 56,
-          fontFamily: "'Inter', sans-serif",
+          fontFamily: 'Inter',
           fontSize: 12,
           fontWeight: 600,
           color: T.ink,
@@ -556,6 +591,7 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
           cursor: 'pointer',
           padding: 0,
           boxShadow: '0 4px 10px -3px rgba(46,37,34,0.45)',
+          flexShrink: 0,
         }}
       >
         <Plus size={14} color="#FFFFFF" strokeWidth={2.5} />
@@ -578,10 +614,29 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
           justifyContent: 'center',
           cursor: 'pointer',
           padding: 0,
+          flexShrink: 0,
         }}
       >
         <X size={12} color={T.inkSoft} strokeWidth={2.5} />
       </motion.button>
+      </div>
+      {error && (
+        <div
+          id="add-item-error"
+          role="alert"
+          aria-live="assertive"
+          style={{
+            fontFamily: 'Inter',
+            fontSize: 11,
+            fontWeight: 600,
+            color: T.accentWarn,
+            alignSelf: 'flex-start',
+            paddingLeft: 4,
+          }}
+        >
+          {error}
+        </div>
+      )}
     </motion.div>
   );
 }
