@@ -38,9 +38,21 @@ import {
 // ── In-memory mutable state (pretends to be a backend session) ──────────
 
 let profileState: UserProfile = storage.loadOrDefault('profile', structuredClone(MOCK_PROFILE));
-let groceryState: GroceryItem[] = MOCK_GROCERY_GROUPS.flatMap((g) => g.items);
+// Grocery items are now persisted to localStorage so Clear All / Generate
+// from Meals survive a page refresh. Older installs (pre-persistence) fall
+// back to the seeded MOCK_GROCERY_GROUPS the first time we read.
+const initialGrocery: GroceryItem[] = storage.load<GroceryItem[]>('grocery') ?? MOCK_GROCERY_GROUPS.flatMap((g) => g.items);
+let groceryState: GroceryItem[] = initialGrocery;
+let groceryNextId: number = (() => {
+  // Compute the next id seed from existing items so we don't collide with
+  // pre-seeded mocks like `g-0-0` or previously added custom items.
+  const max = groceryState.reduce((m, it) => {
+    const n = parseInt(String(it.id).replace(/\D+/g, ''), 10);
+    return Number.isFinite(n) && n > m ? n : m;
+  }, 0);
+  return max + 1;
+})();
 let budgetState = MOCK_PROFILE.budget;
-let nextGroceryId = 100;
 let historyState: MealEntry[] = storage.loadOrDefault('meal_history', []);
 
 // ── Utility ─────────────────────────────────────────────────────────────
@@ -233,15 +245,44 @@ export async function updateProfile(p: UserProfile): Promise<UserProfile> {
 
 // ── Grocery list ───────────────────────────────────────────────────────────────────
 
+/**
+ * Bucket the flat `groceryState` array back into display groups.
+ *
+ * Items added via `addGroceryItem` arrive without a category — they land in
+ * `otherGroup`. Items whose id matches a seeded mock group (e.g. `g-0-0`,
+ * `g-1-2`) keep their original category. The result preserves the order of
+ * MOCK_GROCERY_GROUPS first, then appends any `Other` group that exists.
+ */
+function bucketGroceryByCategory(items: GroceryItem[]): Array<{ category: string; items: GroceryItem[] }> {
+  // Map every seeded id → category once at the top of the function.
+  const idToCategory = new Map<string, string>();
+  for (const g of MOCK_GROCERY_GROUPS) {
+    for (const it of g.items) idToCategory.set(it.id, g.category);
+  }
+  const groups = MOCK_GROCERY_GROUPS.map((g) => ({ category: g.category, items: [] as GroceryItem[] }));
+  const other: GroceryItem[] = [];
+  for (const it of items) {
+    const cat = idToCategory.get(it.id);
+    if (cat) {
+      const target = groups.find((g) => g.category === cat);
+      if (target) target.items.push(it);
+      else other.push(it);
+    } else {
+      other.push(it);
+    }
+  }
+  // Only emit the "Other" bucket if there are uncategorized items so we
+  // don't render an empty section.
+  if (other.length > 0) groups.push({ category: 'Other', items: other });
+  return groups;
+}
+
 export async function getGroceryList(profile: UserProfile): Promise<GroceryList> {
   await delay(120, 220);
   budgetState = profile.budget;
   return {
     budget: budgetState,
-    groups: MOCK_GROCERY_GROUPS.map((g) => ({
-      category: g.category,
-      items: g.items.map((i) => ({ ...i })),
-    })),
+    groups: bucketGroceryByCategory(groceryState),
   };
 }
 
@@ -252,35 +293,44 @@ export async function addGroceryItem(
 ): Promise<GroceryItem> {
   await delay(80, 160);
   const item: GroceryItem = {
-    id: `g-new-${nextGroceryId++}`,
+    id: `g-new-${groceryNextId++}`,
     name,
     price: Math.max(0, price),
     checked: false,
   };
   groceryState.push(item);
+  storage.save('grocery', groceryState);
   return item;
 }
 
 export async function removeGroceryItem(itemId: string): Promise<void> {
   await delay(60, 120);
   groceryState = groceryState.filter((i) => i.id !== itemId);
+  storage.save('grocery', groceryState);
 }
 
 export async function updateGroceryPrice(itemId: string, price: number): Promise<void> {
   await delay(60, 120);
   const it = groceryState.find((i) => i.id === itemId);
-  if (it) it.price = Math.max(0, Math.min(9999, price));
+  if (it) {
+    it.price = Math.max(0, Math.min(9999, price));
+    storage.save('grocery', groceryState);
+  }
 }
 
 export async function toggleGroceryItem(itemId: string): Promise<void> {
   await delay(40, 80);
   const it = groceryState.find((i) => i.id === itemId);
-  if (it) it.checked = !it.checked;
+  if (it) {
+    it.checked = !it.checked;
+    storage.save('grocery', groceryState);
+  }
 }
 
 export async function clearGroceryList(): Promise<void> {
   await delay(60, 120);
   groceryState = [];
+  storage.save('grocery', groceryState);
 }
 
 // ── Meal history ─────────────────────────────────────────────────────────────────

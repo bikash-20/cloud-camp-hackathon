@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Plus, Share2, Trash2, X, ShoppingBag, Trash } from 'lucide-react';
+import { Check, Plus, Share2, Trash2, X, ShoppingBag, Trash, Sparkles } from 'lucide-react';
 import { T, MOCK_NUTRITION_DB } from '../../data';
 import type { GroceryItem, GroceryList, UserProfile } from '../../types/schemas';
 import {
@@ -41,6 +41,8 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
   const [addingAt, setAddingAt] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const [mealCount, setMealCount] = useState<number | null>(null);
   const nextIdRef = useRef(100);
   const initialLoadRef = useRef(false);
 
@@ -55,6 +57,13 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
       setGroups(list.groups.map((g) => ({ cat: g.category, items: g.items })));
       setBudget(list.budget);
       setLoading(false);
+    });
+    // We also fetch the meal history count so the "Generate from meals"
+    // button can show a meaningful label and stay visible even on an empty
+    // grocery list (its visibility should depend on whether there's history,
+    // not on whether the list is non-empty).
+    getMealHistory().then((h) => {
+      if (!cancelled) setMealCount(h.length);
     });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,6 +94,14 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
       return () => clearTimeout(t);
     }
   }, [overBudget, totalSpent, weeklyCap]);
+
+  // Clear All uses a two-tap confirm — first tap arms, second tap fires.
+  // Auto-cancels after 3 s so the destructive state can't get stuck.
+  useEffect(() => {
+    if (!confirmingClear) return;
+    const t = setTimeout(() => setConfirmingClear(false), 3000);
+    return () => clearTimeout(t);
+  }, [confirmingClear]);
 
   const triggerToast = (msg: string) => {
     setToast(msg);
@@ -259,41 +276,20 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
         </motion.button>
       </motion.div>
 
-      {/* ── Clear All & Generate from Meals buttons ─────────── */}
-      {groups.some((g) => g.items.length > 0) && (
+      {/* ── Action row: Generate from meals + Clear all ────────────
+          Visibility:
+            • Generate from meals — shown whenever there's any meal
+              history (the button's whole purpose is to seed an empty list
+              from meals, so hiding it when the list is empty was wrong).
+            • Clear all — shown only when there's actually something to
+              clear. */}
+      {mealCount !== null && mealCount > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.15 }}
-          style={{ display: 'flex', gap: 8, marginBottom: 12 }}
+          transition={{ duration: 0.4, delay: 0.12 }}
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}
         >
-          <motion.button
-            type="button"
-            onClick={async () => {
-              setGroups([]);
-              await clearGroceryList();
-              triggerToast('List cleared');
-            }}
-            whileHover={{ y: -1 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '6px 12px',
-              borderRadius: 12,
-              background: 'rgba(201, 98, 45, 0.1)',
-              border: '1px solid rgba(201, 98, 45, 0.25)',
-              fontFamily: 'Inter',
-              fontSize: 11,
-              fontWeight: 600,
-              color: T.accentWarn,
-              cursor: 'pointer',
-            }}
-          >
-            <Trash size={11} /> Clear all
-          </motion.button>
           <motion.button
             type="button"
             onClick={async () => {
@@ -307,18 +303,24 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                 });
               });
               if (ingredients.size === 0) {
-                triggerToast('No meal history to generate from');
+                triggerToast('No pairings found in meal history');
                 return;
               }
               let added = 0;
+              // Re-fetch the canonical list (now backed by persisted state)
+              // so the dedup check sees everything in groceryState, not
+              // just what the UI happened to render.
+              const list = await getGroceryList(profile);
+              const existing = new Set(list.groups.flatMap((g) => g.items.map((i) => i.name)));
               for (const name of ingredients) {
-                if (groups.some((g) => g.items.some((i) => i.name === name))) continue;
+                if (existing.has(name)) continue;
                 await apiAddItem('Other', name, 40);
+                existing.add(name);
                 added++;
               }
               if (added > 0) {
-                const list = await getGroceryList(profile);
-                setGroups(list.groups.map((g) => ({ cat: g.category, items: g.items })));
+                const fresh = await getGroceryList(profile);
+                setGroups(fresh.groups.map((g) => ({ cat: g.category, items: g.items })));
                 triggerToast(`Added ${added} item${added !== 1 ? 's' : ''} from meals`);
               } else {
                 triggerToast('All suggested items already in list');
@@ -327,22 +329,71 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
             whileHover={{ y: -1 }}
             whileTap={{ scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+            aria-label="Generate grocery items from recent meal pairings"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 5,
-              padding: '6px 12px',
+              gap: 6,
+              padding: '7px 12px',
               borderRadius: 12,
-              background: 'rgba(122, 140, 79, 0.1)',
-              border: '1px solid rgba(122, 140, 79, 0.25)',
+              background: 'rgba(122, 140, 79, 0.12)',
+              border: '1px solid rgba(122, 140, 79, 0.30)',
               fontFamily: 'Inter',
               fontSize: 11,
               fontWeight: 600,
               color: T.accentGood,
               cursor: 'pointer',
+              boxShadow: '0 2px 6px -2px rgba(122, 140, 79, 0.25)',
             }}
           >
-            <ShoppingBag size={11} /> Generate from meals
+            <Sparkles size={12} /> Generate from meals
+          </motion.button>
+        </motion.div>
+      )}
+
+      {groups.some((g) => g.items.length > 0) && (
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.18 }}
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}
+        >
+          <motion.button
+            type="button"
+            onClick={async () => {
+              if (!confirmingClear) {
+                setConfirmingClear(true);
+                triggerToast('Tap again to confirm — clearing all items');
+                return;
+              }
+              setConfirmingClear(false);
+              setGroups([]);
+              await clearGroceryList();
+              triggerToast('List cleared');
+            }}
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+            aria-label={confirmingClear ? 'Tap again to confirm clear all' : 'Clear all grocery items'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 12px',
+              borderRadius: 12,
+              background: confirmingClear
+                ? 'rgba(201, 98, 45, 0.22)'
+                : 'rgba(201, 98, 45, 0.10)',
+              border: `1px solid ${confirmingClear ? 'rgba(201, 98, 45, 0.55)' : 'rgba(201, 98, 45, 0.28)'}`,
+              fontFamily: 'Inter',
+              fontSize: 11,
+              fontWeight: 600,
+              color: T.accentWarn,
+              cursor: 'pointer',
+              transition: 'background 180ms ease, border-color 180ms ease',
+            }}
+          >
+            <Trash size={11} /> {confirmingClear ? 'Tap to confirm' : 'Clear all'}
           </motion.button>
         </motion.div>
       )}
