@@ -1,4 +1,6 @@
-const CACHE_NAME = 'nutrivision-v1';
+// Bump this on every deploy so the SW invalidates old precached assets.
+// Convention: nutrision-v{N} where N increments per push.
+const CACHE_NAME = 'nutrivision-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
