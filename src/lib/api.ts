@@ -129,19 +129,43 @@ export async function resolveNutrition(
     }
   }
 
-  // Emit a contribution per (nutrient, item) for flagged nutrients
+  // Emit a contribution per (nutrient, item) for flagged nutrients.
+  // Each contribution carries a short, item-specific verdict string so the
+  // Nutrients screen can render per-item verdict chips and a one-sentence
+  // "meal verdict" without re-computing the math on the client.
   const contributions: NutrientContribution[] = [];
   const flagRules: Array<{
     nutrient: NutrientContribution['nutrient'];
     threshold: number; // absolute value above which to flag
-    reasonIfHigh: string;
-    reasonIfLow?: string;
+    reasonIfHigh: (itemName: string, amount: number) => string;
+    reasonIfLow?: (itemName: string, amount: number) => string;
     lowThreshold?: number;
+    unit?: 'g' | 'mg';
   }> = [
-    { nutrient: 'sodium',  threshold: MOCK_TARGETS.sodium,  reasonIfHigh: 'above daily target' },
-    { nutrient: 'sugar',   threshold: MOCK_TARGETS.sugar,   reasonIfHigh: 'added sugar spike',   reasonIfLow: 'low — fine in moderation' },
-    { nutrient: 'fiber',   threshold: MOCK_TARGETS.fiber,   reasonIfHigh: 'good fiber',          reasonIfLow: 'low fiber — consider produce', lowThreshold: 12 },
-    { nutrient: 'protein', threshold: MOCK_TARGETS.protein, reasonIfHigh: 'strong protein',      reasonIfLow: 'low protein' },
+    {
+      nutrient: 'sodium',
+      threshold: MOCK_TARGETS.sodium,
+      reasonIfHigh: (n, a) => `${n} adds ${Math.round(a)}mg sodium — that's ${Math.round((a / MOCK_TARGETS.sodium) * 100)}% of your daily cap in one item.`,
+    },
+    {
+      nutrient: 'sugar',
+      threshold: MOCK_TARGETS.sugar,
+      reasonIfHigh: (n, a) => `${n} brings ${a.toFixed(1)}g of sugar — a notable spike for a prediabetic-friendly plate.`,
+      reasonIfLow: (n, a) => `${n} is naturally low in sugar (~${a.toFixed(1)}g) — fine in moderation.`,
+    },
+    {
+      nutrient: 'fiber',
+      threshold: MOCK_TARGETS.fiber,
+      reasonIfHigh: (n, a) => `${n} is a solid fiber source at ${a.toFixed(1)}g — pulls the meal toward target.`,
+      reasonIfLow: (n, a) => `${n} is low in fiber (~${a.toFixed(1)}g) — swap in raita or salad to balance the plate.`,
+      lowThreshold: 12,
+    },
+    {
+      nutrient: 'protein',
+      threshold: MOCK_TARGETS.protein,
+      reasonIfHigh: (n, a) => `${n} delivers ${a.toFixed(1)}g of protein — strong for a single dish.`,
+      reasonIfLow: (n, a) => `${n} is light on protein (~${a.toFixed(1)}g) — consider adding dal or paneer.`,
+    },
   ];
 
   for (const rule of flagRules) {
@@ -155,13 +179,20 @@ export async function resolveNutrition(
       const share = total > 0 ? amount / total : 0;
       if (share < 0.05) continue; // skip negligible contributions
       const localFlag = flagged && (rule.nutrient === 'sodium' ? amount > 300 : rule.nutrient === 'sugar' ? amount > 15 : false);
+      const tone: 'good' | 'warn' = localFlag ? 'warn' : 'good';
+      const reason = localFlag
+        ? rule.reasonIfHigh(r.name, amount)
+        : rule.reasonIfLow
+          ? rule.reasonIfLow(r.name, amount)
+          : undefined;
       contributions.push({
         nutrient: rule.nutrient,
         itemName: r.name,
         amount,
         share,
         flagged: localFlag,
-        reason: localFlag ? rule.reasonIfHigh : undefined,
+        reason,
+        tone,
       });
     }
   }

@@ -383,7 +383,7 @@ export default function ProfileScreen({ profile, onProfileChange }: ProfileScree
         onInc={() => adjustBudget(50)}
         decLabel="Decrease budget by 50 taka"
         incLabel="Increase budget by 50 taka"
-        hint="per day, used to rank grocery-list swaps"
+        hint={`per day — the Grocery screen applies this as a weekly cap of ৳${budget * 7} (×7 days)`}
       />
 
       <div style={{ marginTop: 16 }}>

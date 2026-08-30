@@ -310,6 +310,245 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
   );
 }
 
+/**
+ * Verdict chips + one-sentence meal verdict.
+ *
+ * Per Blueprint §2 ("Explainability Layer — judges love transparency"),
+ * this is the headline reasoning layer. Each chip is a short, item-specific
+ * sentence that names the food, the nutrient, and the impact. The closing
+ * "Meal verdict" ties the most-flagged items into one human-readable line.
+ *
+ * Tone:
+ *   - 'warn' (accentWarn background) — over-target for the user's profile
+ *   - 'good' (accentGood background) — under-target supportive call-out
+ */
+interface ItemVerdict {
+  itemName: string;
+  reason: string;
+  tone: 'good' | 'warn';
+  share: number; // for sorting the "top offender" pick
+}
+
+function buildItemVerdicts(contributions: NutrientContribution[]): ItemVerdict[] {
+  // Pick the most-impactful verdict per item: prefer flagged, then highest share.
+  const byItem = new Map<string, ItemVerdict>();
+  for (const c of contributions) {
+    if (!c.reason) continue;
+    const existing = byItem.get(c.itemName);
+    const candidate: ItemVerdict = {
+      itemName: c.itemName,
+      reason: c.reason,
+      tone: c.tone ?? (c.flagged ? 'warn' : 'good'),
+      share: c.share,
+    };
+    if (!existing) {
+      byItem.set(c.itemName, candidate);
+      continue;
+    }
+    // Prefer flagged, then by share
+    const existingScore = (existing.tone === 'warn' ? 2 : 1) * 1000 + existing.share;
+    const candidateScore = (candidate.tone === 'warn' ? 2 : 1) * 1000 + candidate.share;
+    if (candidateScore > existingScore) byItem.set(c.itemName, candidate);
+  }
+  return Array.from(byItem.values()).sort((a, b) => {
+    if (a.tone !== b.tone) return a.tone === 'warn' ? -1 : 1;
+    return b.share - a.share;
+  });
+}
+
+function buildMealVerdict(
+  verdicts: ItemVerdict[],
+  isDiabetic: boolean,
+): string {
+  if (verdicts.length === 0) {
+    return 'No major flags — this meal sits comfortably within your active goals.';
+  }
+  const topWarn = verdicts.filter((v) => v.tone === 'warn').slice(0, 2);
+  if (topWarn.length === 0) {
+    return isDiabetic
+      ? 'Nothing crossed your diabetic-friendly thresholds — well-balanced for the active goal.'
+      : 'Nothing crossed your sodium or fiber thresholds — a balanced plate overall.';
+  }
+  const names = topWarn.map((v) => v.itemName).join(' and ');
+  const nutrientMatch = topWarn[0].reason.toLowerCase().includes('sodium')
+    ? 'sodium load'
+    : topWarn[0].reason.toLowerCase().includes('sugar')
+      ? 'sugar spike'
+      : topWarn[0].reason.toLowerCase().includes('fiber')
+        ? 'fiber gap'
+        : 'flagged nutrient';
+  return `Driven mostly by ${names} — that's where the ${nutrientMatch} is coming from for this meal.`;
+}
+
+interface ExplainabilityVerdictsProps {
+  contributions: NutrientContribution[];
+  profile?: UserProfile;
+}
+
+function ExplainabilityVerdicts({ contributions, profile }: ExplainabilityVerdictsProps) {
+  const verdicts = useMemo(() => buildItemVerdicts(contributions), [contributions]);
+  if (verdicts.length === 0) return null;
+  const mealVerdict = buildMealVerdict(verdicts, !!profile?.goals.diabetic);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay: 0.46 }}
+      className="glass-card"
+      style={{
+        borderRadius: 22,
+        padding: '14px 16px',
+        marginBottom: 18,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
+        <span
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: '50%',
+            background: T.primary,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Sparkles size={12} color="#FFFFFF" strokeWidth={2.4} />
+        </span>
+        <div
+          style={{
+            fontFamily: 'Inter',
+            fontSize: 13,
+            fontWeight: 600,
+            color: T.ink,
+          }}
+        >
+          Why we flagged this
+        </div>
+        <div
+          style={{
+            marginLeft: 'auto',
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: 9,
+            fontWeight: 600,
+            color: T.inkSoft,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            background: 'rgba(74, 58, 52, 0.08)',
+            padding: '3px 6px',
+            borderRadius: 6,
+          }}
+        >
+          Per-item reasoning
+        </div>
+      </div>
+
+      <div
+        role="list"
+        aria-label="Per-item verdict explanations"
+        style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+      >
+        {verdicts.map((v, idx) => (
+          <motion.div
+            key={`${v.itemName}-${idx}`}
+            role="listitem"
+            initial={{ opacity: 0, x: -6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: 0.5 + idx * 0.04 }}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              padding: '10px 12px',
+              borderRadius: 14,
+              background:
+                v.tone === 'warn'
+                  ? 'rgba(201, 98, 45, 0.08)'
+                  : 'rgba(74, 138, 78, 0.08)',
+              border:
+                v.tone === 'warn'
+                  ? '1px solid rgba(201, 98, 45, 0.22)'
+                  : '1px solid rgba(74, 138, 78, 0.22)',
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                flexShrink: 0,
+                marginTop: 1,
+                background: v.tone === 'warn' ? T.accentWarn : T.accentGood,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#FFFFFF',
+                fontFamily: 'Inter',
+                fontSize: 10,
+                fontWeight: 800,
+              }}
+            >
+              {v.tone === 'warn' ? '!' : '✓'}
+            </span>
+            <div
+              style={{
+                fontFamily: 'Inter',
+                fontSize: 12,
+                lineHeight: 1.45,
+                color: T.ink,
+              }}
+            >
+              {v.reason}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Meal verdict — one sentence tying the top flags together. */}
+      <div
+        style={{
+          marginTop: 12,
+          padding: '10px 12px',
+          borderRadius: 12,
+          background: 'rgba(74, 58, 52, 0.06)',
+          fontFamily: 'Inter',
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.ink,
+          lineHeight: 1.45,
+        }}
+        aria-label="Meal verdict"
+      >
+        <span
+          style={{
+            display: 'inline-block',
+            marginRight: 6,
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            color: T.inkSoft,
+            textTransform: 'uppercase',
+          }}
+        >
+          Meal verdict
+        </span>
+        <br />
+        {mealVerdict}
+      </div>
+    </motion.div>
+  );
+}
+
 interface NutrientsScreenProps {
   detected?: DetectedItem[];
   profile?: UserProfile;
@@ -545,7 +784,7 @@ export default function NutrientsScreen({ detected = [], profile }: NutrientsScr
         />
       </motion.div>
 
-      {/* Blueprint Section 2: Explainability Layer */}
+      {/* Blueprint Section 2: Explainability Layer — SHAP contribution strip */}
       <AnimatePresence>
         {contributions.length > 0 && (
           <ExplainabilityStrip
@@ -555,7 +794,15 @@ export default function NutrientsScreen({ detected = [], profile }: NutrientsScr
         )}
       </AnimatePresence>
 
-      {/* Warning callout */}
+      {/* Blueprint Section 2: Per-item verdict chips + meal verdict sentence.
+          This is the headline reasoning layer — the part judges can read out loud. */}
+      <AnimatePresence>
+        {contributions.length > 0 && (
+          <ExplainabilityVerdicts contributions={contributions} profile={profile} />
+        )}
+      </AnimatePresence>
+
+      {/* Soft warning when carbs + glycemic load are both high together. */}
       <AnimatePresence>
         {showWarning && (
           <motion.div
@@ -588,11 +835,12 @@ export default function NutrientsScreen({ detected = [], profile }: NutrientsScr
                 lineHeight: 1.5,
               }}
             >
-              <b style={{ color: T.accentWarn }}>Why this is flagged:</b> the biryani rice
-              portion contributes the bulk of fast-digesting carbs — about{' '}
-              <b>{Math.round(totals.glycemic * 100)}%</b> of this meal's glycemic load.
-              Swapping half the rice for extra raita would bring carbs within your
-              target.
+              <b style={{ color: T.accentWarn }}>Why this is flagged:</b> carbs run{' '}
+              <b>{Math.round(totals.carbs)}g</b> against a {TARGETS.carbs}g target, and the
+              glycemic load is sitting at{' '}
+              <b>{Math.round(totals.glycemic * 100)}%</b> of the prediabetic ceiling —
+              that's a fast-digesting combo. Swapping half the rice for extra raita would
+              bring both back into range without losing the plate's protein.
             </div>
           </motion.div>
         )}

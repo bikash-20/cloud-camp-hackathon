@@ -101,8 +101,10 @@ export interface NutrientContribution {
   share: number;
   /** True if this contribution crosses a flag threshold for the user */
   flagged: boolean;
-  /** Human-readable reason this was flagged */
+  /** Human-readable reason this was flagged (item-specific, used by verdict chips) */
   reason?: string;
+  /** Visual tone for the verdict chip — 'warn' for over-target, 'good' for under-target supportive */
+  tone?: 'good' | 'warn';
 }
 
 /**
@@ -165,7 +167,8 @@ export interface UserProfile {
   goals: HealthGoals;
   preferences: DietaryPreference[];
   allergens: Allergen[];
-  /** Weekly grocery budget ceiling, in local currency (BDT) */
+  /** Daily grocery budget ceiling, in local currency (BDT).
+   *  The Grocery screen applies a 7× multiplier to get the weekly cap. */
   budget: number;
   /** Number of people the meal serves */
   serving: number;

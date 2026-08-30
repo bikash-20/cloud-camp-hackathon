@@ -65,17 +65,22 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
     (sum, g) => sum + g.items.filter((i) => i.checked).reduce((s, i) => s + i.price, 0),
     0,
   );
-  const remaining = Math.max(0, budget - totalSpent);
-  const pct = Math.min(100, Math.round((totalSpent / budget) * 100));
-  const overBudget = totalSpent > budget;
+  // The Profile screen stores a *daily* grocery budget (৳500 default). The
+  // Grocery view is a *weekly* list, so the cap the user is shopping against
+  // is daily × 7. We compute this once per render so the ring, remaining,
+  // and over-budget toast all agree on the same number.
+  const weeklyCap = budget * 7;
+  const remaining = Math.max(0, weeklyCap - totalSpent);
+  const pct = Math.min(100, Math.round((totalSpent / weeklyCap) * 100));
+  const overBudget = totalSpent > weeklyCap;
 
   useEffect(() => {
     if (overBudget) {
-      setToast(`Over budget by ৳${totalSpent - budget}`);
+      setToast(`Over weekly budget by ৳${totalSpent - weeklyCap}`);
       const t = setTimeout(() => setToast(null), 1800);
       return () => clearTimeout(t);
     }
-  }, [overBudget, totalSpent, budget]);
+  }, [overBudget, totalSpent, weeklyCap]);
 
   const triggerToast = (msg: string) => {
     setToast(msg);
@@ -207,7 +212,11 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
         >
           ৳{remaining}
         </span>{' '}
-        left of ৳{budget}
+        left of{' '}
+        <span className="tnum" style={{ fontWeight: 600 }}>
+          ৳{weeklyCap}
+        </span>{' '}
+        <span style={{ color: T.inkMuted }}>(৳{budget}/day × 7d)</span>
       </motion.p>
 
       <motion.div
