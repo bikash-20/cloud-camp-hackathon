@@ -248,7 +248,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
-          marginBottom: 10,
+          marginBottom: 4,
         }}
       >
         <motion.button
@@ -276,20 +276,31 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
         </motion.button>
       </motion.div>
 
-      {/* ── Action row: Generate from meals + Clear all ────────────
-          Visibility:
-            • Generate from meals — shown whenever there's any meal
-              history (the button's whole purpose is to seed an empty list
-              from meals, so hiding it when the list is empty was wrong).
-            • Clear all — shown only when there's actually something to
-              clear. */}
-      {mealCount !== null && mealCount > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.12 }}
-          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}
-        >
+      {/* ── Action toolbar: Generate from meals (primary) + Clear all (warning)
+           Both buttons live in one visible bar right under the budget summary.
+           Two earlier revs used near-transparent washes (alpha 0.10–0.12) of
+           the accent colors, which disappeared against the cream card
+           background. These use solid fills with matching border tints, so
+           they're legible at a glance and the destructive action is
+           visually distinct from the constructive one. */}
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.12 }}
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 10,
+          marginBottom: 14,
+          padding: 10,
+          borderRadius: 16,
+          background: 'rgba(249, 242, 228, 0.55)',
+          border: '1px solid rgba(74, 58, 52, 0.12)',
+        }}
+      >
+        {/* "Generate from meals" — primary brand brown, always visible
+            when there is any meal history. This is the constructive action. */}
+        {mealCount !== null && mealCount > 0 && (
           <motion.button
             type="button"
             onClick={async () => {
@@ -327,37 +338,35 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
               }
             }}
             whileHover={{ y: -1 }}
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
             aria-label="Generate grocery items from recent meal pairings"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 6,
-              padding: '7px 12px',
+              gap: 7,
+              padding: '9px 16px',
               borderRadius: 12,
-              background: 'rgba(122, 140, 79, 0.12)',
-              border: '1px solid rgba(122, 140, 79, 0.30)',
+              background: T.primary,
+              border: `1px solid ${T.primaryDeep}`,
               fontFamily: 'Inter',
-              fontSize: 11,
-              fontWeight: 600,
-              color: T.accentGood,
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#FFFFFF',
               cursor: 'pointer',
-              boxShadow: '0 2px 6px -2px rgba(122, 140, 79, 0.25)',
+              boxShadow: '0 4px 12px -4px rgba(46, 37, 34, 0.45)',
+              letterSpacing: '0.01em',
             }}
           >
-            <Sparkles size={12} /> Generate from meals
+            <Sparkles size={13} color="#FFFFFF" /> Generate from meals
           </motion.button>
-        </motion.div>
-      )}
+        )}
 
-      {groups.some((g) => g.items.length > 0) && (
-        <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.18 }}
-          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}
-        >
+        {/* "Clear all" — only visible when there's something to clear. Solid
+            warning red so it's impossible to mistake for the constructive
+            action. Two-tap confirm toggles a deeper "Tap again to confirm"
+            state with a stronger shadow so the user knows they're armed. */}
+        {groups.some((g) => g.items.length > 0) && (
           <motion.button
             type="button"
             onClick={async () => {
@@ -372,31 +381,34 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
               triggerToast('List cleared');
             }}
             whileHover={{ y: -1 }}
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
             aria-label={confirmingClear ? 'Tap again to confirm clear all' : 'Clear all grocery items'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 6,
-              padding: '7px 12px',
+              gap: 7,
+              padding: '9px 16px',
               borderRadius: 12,
-              background: confirmingClear
-                ? 'rgba(201, 98, 45, 0.22)'
-                : 'rgba(201, 98, 45, 0.10)',
-              border: `1px solid ${confirmingClear ? 'rgba(201, 98, 45, 0.55)' : 'rgba(201, 98, 45, 0.28)'}`,
+              background: confirmingClear ? '#A8361A' : T.accentWarn,
+              border: `1px solid ${confirmingClear ? '#7A2412' : '#8A3E1F'}`,
               fontFamily: 'Inter',
-              fontSize: 11,
-              fontWeight: 600,
-              color: T.accentWarn,
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#FFFFFF',
               cursor: 'pointer',
-              transition: 'background 180ms ease, border-color 180ms ease',
+              letterSpacing: '0.01em',
+              boxShadow: confirmingClear
+                ? '0 6px 16px -4px rgba(168, 54, 26, 0.55)'
+                : '0 4px 12px -4px rgba(201, 98, 45, 0.45)',
+              transition: 'background 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
             }}
           >
-            <Trash size={11} /> {confirmingClear ? 'Tap to confirm' : 'Clear all'}
+            <Trash size={13} color="#FFFFFF" />{' '}
+            {confirmingClear ? 'Tap to confirm' : 'Clear all'}
           </motion.button>
-        </motion.div>
-      )}
+        )}
+      </motion.div>
 
       {/* ── Empty state ──────────────────────────────────────── */}
       {groups.every((g) => g.items.length === 0) && (
