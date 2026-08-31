@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from app.models.schemas import AnalyzeResult, DetectedItem, PipelineTrace
 from app.seed.fixtures import VISION_KEYED_DETECTED
 from app.services import ocr
-from app.services.trace import make_trace as trace
+from app.services.trace import make_trace
 
 
 router = APIRouter(prefix="/api/vision", tags=["vision"])
@@ -45,10 +45,10 @@ def analyze_meal(body: AnalyzeRequest) -> AnalyzeResult:
     exactly as it is.
     """
     pipeline: list[PipelineTrace] = [
-        trace("cache-check", "Cache check", "cache-hit"),
-        trace("vision-id", "Vision ID (Gemini)", "done"),
-        trace("hf-validate", "HF validator", "done"),
-        trace("reconcile", "Confidence-weighted reconcile", "done"),
+        make_trace("cache-check", "Cache check", "cache-hit"),
+        make_trace("vision-id", "Vision ID (Gemini)", "done"),
+        make_trace("hf-validate", "HF validator", "done"),
+        make_trace("reconcile", "Confidence-weighted reconcile", "done"),
     ]
 
     detected = VISION_KEYED_DETECTED.get(body.image_ref)

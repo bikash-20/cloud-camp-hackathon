@@ -28,6 +28,11 @@ log = logging.getLogger(__name__)
 USER_AGENT = "NutriVisionDemo/0.1 (hackathon demo; contact: dev@nutrivision.ai)"
 DEFAULT_BASE_URL = "https://world.openfoodfacts.org"
 
+# OFF reports sodium in grams per 100g; the schema (and frontend) expects
+# milligrams. 1 g = 1000 mg — pulled out as a constant so the conversion
+# is greppable rather than a bare `* 1000.0` magic number.
+SODIUM_G_TO_MG = 1000.0
+
 
 class OFFClient:
     """Thin HTTP wrapper around Open Food Facts search.
@@ -115,7 +120,7 @@ class OFFClient:
             glycemic=min(1.0, _get_float(nutriments, "carbohydrates_100g") / 100.0),
         )
         # OFF stores sodium in grams; the frontend expects milligrams.
-        facts.sodium *= 1000.0
+        facts.sodium *= SODIUM_G_TO_MG
         return facts
 
 

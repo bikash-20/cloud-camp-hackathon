@@ -23,31 +23,29 @@ router = APIRouter(prefix="/api/grocery", tags=["grocery"])
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 
-def _bucket_grocery_by_category(items: list[GroceryItem]) -> list[GroceryGroup]:
-    """Mirror of the frontend's `bucketGroceryByCategory`:
-    seeded ids (`g-0-0`, `g-1-2`, …) keep their original category from
-    `DEFAULT_GROCERY_GROUPS`; custom items (`g-new-*`) land in `Other`,
-    appended only when non-empty.
-    """
-    id_to_cat: dict[str, str] = {}
-    for group in DEFAULT_GROCERY_GROUPS:
-        for item in group.items:
-            id_to_cat[item.id] = group.category
+# Seeded ids (`g-0-0`, `g-1-2`, …) keep their original category from
+# `DEFAULT_GROCERY_GROUPS`; custom items (`g-new-*`) land in `Other`.
+# Built once at import — the seed data is immutable, so there's no
+# reason to rebuild the lookup on every request.
+_SEEDED_ID_TO_CATEGORY: dict[str, str] = {
+    item.id: group.category
+    for group in DEFAULT_GROCERY_GROUPS
+    for item in group.items
+}
+_EMPTY_BUCKETS: list[GroceryGroup] = [
+    GroceryGroup(category=g.category, items=[]) for g in DEFAULT_GROCERY_GROUPS
+]
 
-    out: list[GroceryGroup] = [
-        GroceryGroup(category=g.category, items=[]) for g in DEFAULT_GROCERY_GROUPS
-    ]
+
+def _bucket_grocery_by_category(items: list[GroceryItem]) -> list[GroceryGroup]:
+    """Mirror of the frontend's `bucketGroceryByCategory`."""
+    by_cat: dict[str, list[GroceryItem]] = {g.category: [] for g in DEFAULT_GROCERY_GROUPS}
     other: list[GroceryItem] = []
     for item in items:
-        cat = id_to_cat.get(item.id)
-        if cat is not None:
-            target = next((g for g in out if g.category == cat), None)
-            if target is not None:
-                target.items.append(item)
-            else:
-                other.append(item)
-        else:
-            other.append(item)
+        cat = _SEEDED_ID_TO_CATEGORY.get(item.id)
+        bucket = by_cat.get(cat) if cat is not None else None
+        (bucket if bucket is not None else other).append(item)
+    out = [GroceryGroup(category=g.category, items=by_cat[g.category]) for g in DEFAULT_GROCERY_GROUPS]
     if other:
         out.append(GroceryGroup(category="Other", items=other))
     return out

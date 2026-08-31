@@ -21,17 +21,7 @@ def make_trace(
     started_at: int | None = None,
     finished_at: int | None = None,
 ) -> PipelineTrace:
-    """Build a single trace entry with sensible defaults.
-
-    `started_at` / `finished_at` default to the current wall-clock ms so
-    most callers don't need to think about timing — but explicit values
-    can be passed for testing or when the route times each stage
-    individually.
-
-    Named `make_trace` (not `trace`) because the module itself is named
-    `trace.py` — calling the function `trace()` would shadow the module
-    on import and produce a confusing `TypeError`.
-    """
+    """Build a single trace entry. Timestamps default to "now" in ms."""
     now = time.time_ns() // 1_000_000
     return PipelineTrace(
         stage=stage,  # type: ignore[arg-type]

@@ -3,7 +3,7 @@
 Mirrors the `flagRules` block in `src/lib/api.ts#resolveNutrition`
 exactly so the NutrientsScreen verdict chips render identical
 contributions when wired to the backend. The math is the same;
-only the language is Python.
+only the language is Python — and now, the rule table is data.
 """
 
 from __future__ import annotations
@@ -20,150 +20,149 @@ from app.models.schemas import (
 from app.seed.fixtures import TARGETS
 
 
+# A flagged nutrient is one the user's profile cares about.
+# Diabetic profiles care about sugar + fiber; everyone else sodium + fiber.
+_PROFILE_FOCUS: dict[bool, frozenset[str]] = {
+    True: frozenset({"sugar", "fiber"}),
+    False: frozenset({"sodium", "fiber"}),
+}
+
+
 @dataclass(frozen=True)
-class _FlagRule:
+class _Rule:
     nutrient: str
     threshold: float
-    reason_if_high: str
-    reason_if_low: str | None
-    low_threshold: float | None
-    unit: str  # "g" or "mg" — for the high-reason string formatting
+    low_threshold: float | None  # below this → "good" tone with low-reason
+    warn_share: float  # meal-over + share ≥ this → "warn" tone with high-reason
+    unit: str  # "g" or "mg" — formats the interpolation
+    high_reason: str  # template; rendered with {name}, {amount}, {pct}
+    low_reason: str | None  # template; None means "no low-reason comment"
 
 
-# Threshold values come from `app/seed/fixtures.py:TARGETS`. The reason
-# strings are templated the same way the frontend does it: the per-item
-# amount is interpolated into a sentence that names the food and calls
-# out the relevant threshold.
-_RULES: list[_FlagRule] = [
-    _FlagRule(
+_RULES: list[_Rule] = [
+    _Rule(
         nutrient="sodium",
         threshold=TARGETS.sodium,
-        reason_if_high=(
-            "{name} adds {amount}mg sodium — that's {pct}% of your daily cap in one item."
-        ),
-        reason_if_low=None,
         low_threshold=None,
+        warn_share=0.30,
         unit="mg",
+        high_reason="{name} adds {amount}mg sodium — that's {pct}% of your daily cap in one item.",
+        low_reason=None,
     ),
-    _FlagRule(
+    _Rule(
         nutrient="sugar",
         threshold=TARGETS.sugar,
-        reason_if_high=(
-            "{name} brings {amount}g of sugar — a notable spike for a prediabetic-friendly plate."
-        ),
-        reason_if_low=(
-            "{name} contributes only ~{amount}g of sugar — well within your prediabetic-friendly target."
-        ),
         low_threshold=TARGETS.sugar * 0.6,
+        warn_share=0.30,
         unit="g",
+        high_reason="{name} brings {amount}g of sugar — a notable spike for a prediabetic-friendly plate.",
+        low_reason="{name} contributes only ~{amount}g of sugar — well within your prediabetic-friendly target.",
     ),
-    _FlagRule(
+    _Rule(
         nutrient="fiber",
         threshold=TARGETS.fiber,
-        reason_if_high=(
-            "{name} is a solid fiber source at {amount}g — pulls the meal toward target."
-        ),
-        reason_if_low=(
-            "{name} contributes only ~{amount}g fiber — the whole meal falls short of your 30g daily target. Add whole grains or legumes next time."
-        ),
         low_threshold=12.0,
+        warn_share=0.30,
         unit="g",
+        high_reason="{name} is a solid fiber source at {amount}g — pulls the meal toward target.",
+        low_reason="{name} contributes only ~{amount}g fiber — the whole meal falls short of your 30g daily target. Add whole grains or legumes next time.",
     ),
-    _FlagRule(
+    _Rule(
         nutrient="protein",
         threshold=TARGETS.protein,
-        reason_if_high=(
-            "{name} delivers {amount}g of protein — strong for a single dish."
-        ),
-        reason_if_low=(
-            "{name} is light on protein (~{amount}g) — consider adding dal or paneer."
-        ),
         low_threshold=None,
+        warn_share=0.30,
         unit="g",
+        high_reason="{name} delivers {amount}g of protein — strong for a single dish.",
+        low_reason="{name} is light on protein (~{amount}g) — consider adding dal or paneer.",
     ),
 ]
-
-
-def _nutrient_is_flagged_for_profile(rule: _FlagRule, goals: HealthGoals) -> bool:
-    """Mirrors the `nutrientIsFlaggedForProfile` check in the frontend.
-    Diabetic profiles care about sugar + fiber; everyone else cares
-    about sodium + fiber."""
-    if goals.diabetic:
-        return rule.nutrient in {"sugar", "fiber"}
-    return rule.nutrient in {"sodium", "fiber"}
 
 
 def compute_contributions(
     resolved: list[ResolvedItem],
     profile: UserProfile | None,
 ) -> list[NutrientContribution]:
-    """Compute per-item, per-nutrient contributions for the explainability
-    panel. Returns an empty list if no nutrient is in play for the user's
-    profile (matches frontend behavior)."""
+    """Per-item, per-nutrient contributions for the explainability panel.
+
+    A nutrient is "in play" iff the profile cares about it. Within those,
+    we flag two cases:
+      • Meal exceeds the nutrient's high threshold AND one item owns
+        ≥30% of the meal's share → "warn" tone with the high-reason.
+      • Meal falls below the low threshold → "good" tone with the
+        low-reason for each non-trivial item (share ≥ 10%).
+    """
     if profile is None:
         return []
-    # Per-nutrient totals across all resolved items.
-    totals: dict[str, float] = {rule.nutrient: 0.0 for rule in _RULES}
-    for r in resolved:
-        if r.nutrition is None:
-            continue
-        factor = r.grams / 100.0
-        for rule in _RULES:
-            totals[rule.nutrient] += getattr(r.nutrition, rule.nutrient) * factor
+    focus = _PROFILE_FOCUS[profile.goals.diabetic]
+
+    # Per-nutrient meal totals — exclude items whose nutrition we
+    # couldn't resolve (they'd just add noise to the share calc).
+    totals: dict[str, float] = {
+        r.nutrient: sum(_amount(it, r.nutrient) for it in resolved)
+        for r in _RULES
+        if r.nutrient in focus
+    }
 
     contributions: list[NutrientContribution] = []
     for rule in _RULES:
-        if not _nutrient_is_flagged_for_profile(rule, profile.goals):
+        if rule.nutrient not in focus:
             continue
         total = totals[rule.nutrient]
-        meal_over = total > rule.threshold
-        meal_under = rule.low_threshold is not None and total < rule.low_threshold
-        if not meal_over and not meal_under:
+        over = total > rule.threshold
+        under = rule.low_threshold is not None and total < rule.low_threshold
+        if not (over or under):
             continue
-        for r in resolved:
-            if r.nutrition is None:
+        for item in resolved:
+            if item.nutrition is None:
                 continue
-            factor = r.grams / 100.0
-            amount = getattr(r.nutrition, rule.nutrient) * factor
-            share = (amount / total) if total > 0 else 0.0
+            amount = _amount(item, rule.nutrient)
+            share = amount / total if total > 0 else 0.0
             if share < 0.10:
                 continue
-            tone = "warn" if (meal_over and share >= 0.30) else "good"
-            if tone == "warn":
-                template = rule.reason_if_high
-                pct = round((amount / rule.threshold) * 100) if rule.threshold > 0 else 0
-                reason = template.format(
-                    name=r.name,
-                    amount=_format_amount(amount, rule.unit),
-                    pct=pct,
-                )
-            elif rule.reason_if_low is not None:
-                reason = rule.reason_if_low.format(
-                    name=r.name,
-                    amount=_format_amount(amount, rule.unit),
-                )
-            else:
-                continue
-            contributions.append(
-                NutrientContribution(
-                    nutrient=rule.nutrient,  # type: ignore[arg-type]
-                    item_name=r.name,
-                    amount=amount,
-                    share=share,
-                    flagged=(tone == "warn"),
-                    reason=reason,
-                    tone=tone,
-                )
-            )
+            if over and share >= rule.warn_share:
+                contributions.append(_build(
+                    rule, item, amount, share, flagged=True, tone="warn",
+                ))
+            elif not over and rule.low_reason is not None:
+                contributions.append(_build(
+                    rule, item, amount, share, flagged=False, tone="good",
+                ))
     return contributions
 
 
-def _format_amount(amount: float, unit: str) -> str | float:
-    """Format amounts the same way the frontend does: integers for mg,
-    one decimal for grams."""
-    if unit == "mg":
-        return str(round(amount))
-    return round(amount, 1)
+def _amount(item: ResolvedItem, nutrient: str) -> float:
+    """Grams-scaled contribution of one resolved item to one nutrient."""
+    return getattr(item.nutrition, nutrient) * (item.grams / 100.0)
+
+
+def _build(
+    rule: _Rule,
+    item: ResolvedItem,
+    amount: float,
+    share: float,
+    *,
+    flagged: bool,
+    tone: str,
+) -> NutrientContribution:
+    template = rule.high_reason if tone == "warn" else rule.low_reason
+    amount_str = (
+        str(round(amount)) if rule.unit == "mg" else str(round(amount, 1))
+    )
+    kwargs: dict[str, object] = {"name": item.name, "amount": amount_str}
+    if tone == "warn":
+        kwargs["pct"] = (
+            round((amount / rule.threshold) * 100) if rule.threshold > 0 else 0
+        )
+    return NutrientContribution(
+        nutrient=rule.nutrient,  # type: ignore[arg-type]
+        item_name=item.name,
+        amount=amount,
+        share=share,
+        flagged=flagged,
+        reason=template.format(**kwargs),  # type: ignore[misc]
+        tone=tone,  # type: ignore[arg-type]
+    )
 
 
 def resolve_detected_item(item: DetectedItem, off_facts) -> ResolvedItem:
@@ -177,28 +176,17 @@ def resolve_detected_item(item: DetectedItem, off_facts) -> ResolvedItem:
     # Imported here to avoid a circular import at module load.
     from app.seed.fixtures import NUTRITION_DB
 
-    descriptor = NUTRITION_DB.get(item.name)
-    if descriptor is not None:
+    if (descriptor := NUTRITION_DB.get(item.name)) is not None:
         return ResolvedItem(
-            **item.model_dump(),
-            nutrition=descriptor,
-            descriptor=descriptor,
-            source="cache",
-            partial=False,
+            **item.model_dump(), nutrition=descriptor, descriptor=descriptor,
+            source="cache", partial=False,
         )
-    facts = off_facts(item.name)
-    if facts is None:
+    if (facts := off_facts(item.name)) is not None:
         return ResolvedItem(
-            **item.model_dump(),
-            nutrition=None,
-            descriptor=None,
-            source="estimated",
-            partial=True,
+            **item.model_dump(), nutrition=facts, descriptor=None,
+            source="open-food-facts", partial=False,
         )
     return ResolvedItem(
-        **item.model_dump(),
-        nutrition=facts,
-        descriptor=None,
-        source="open-food-facts",
-        partial=False,
+        **item.model_dump(), nutrition=None, descriptor=None,
+        source="estimated", partial=True,
     )
