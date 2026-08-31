@@ -304,3 +304,38 @@ class MacroTargets(BaseModel):
     carbs: float
     fat: float
     kcal: float
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Cut (b) additions — portion estimation support
+# ─────────────────────────────────────────────────────────────────────────
+
+
+class DensityEntry(BaseModel):
+    """One row of the per-category density table used by the portion
+    estimator. `g_per_ml` is grams per millilitre of typical serving —
+    the estimator multiplies the canned seed by this to derive realistic
+    portion estimates without a real volume reference."""
+
+    category: FoodCategory
+    g_per_ml: float
+    """Item-name hint; helps the estimator pick the right row when
+    `category` is ambiguous (e.g. a biryani is 'grains', not 'protein')."""
+    item_hint: str | None = None
+
+
+DENSITY_TABLE: list[DensityEntry] = [
+    DensityEntry(category="grains", g_per_ml=0.85, item_hint="rice"),
+    DensityEntry(category="grains", g_per_ml=0.80, item_hint="biryani"),
+    DensityEntry(category="grains", g_per_ml=0.75, item_hint="roti"),
+    DensityEntry(category="grains", g_per_ml=0.70, item_hint="noodles"),
+    DensityEntry(category="protein", g_per_ml=1.05, item_hint="chicken"),
+    DensityEntry(category="protein", g_per_ml=1.00, item_hint="fish"),
+    DensityEntry(category="protein", g_per_ml=1.04, item_hint="egg"),
+    DensityEntry(category="protein", g_per_ml=1.03, item_hint="paneer"),
+    DensityEntry(category="produce", g_per_ml=0.25, item_hint="salad"),
+    DensityEntry(category="produce", g_per_ml=0.60, item_hint="fruit"),
+    DensityEntry(category="produce", g_per_ml=0.55, item_hint="vegetable"),
+    DensityEntry(category="produce", g_per_ml=0.95, item_hint="onion"),
+    DensityEntry(category="other", g_per_ml=1.00, item_hint=None),
+]

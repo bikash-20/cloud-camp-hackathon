@@ -43,9 +43,11 @@ def client(state_path: Path) -> Generator[TestClient, None, None]:
     # Drop the cached singletons between tests so each one starts clean.
     import app.services.state as state_mod
     import app.api.nutrition as nutrition_mod
+    import app.api.vision as vision_mod
 
     state_mod._state = None
-    nutrition_mod._reset_off_for_tests()
+    nutrition_mod._reset_clients_for_tests()
+    vision_mod._reset_for_tests()
 
     from app.main import create_app
 
@@ -55,7 +57,8 @@ def client(state_path: Path) -> Generator[TestClient, None, None]:
 
     # Tear-down: drop singletons so the next test gets a fresh state.
     state_mod._state = None
-    nutrition_mod._reset_off_for_tests()
+    nutrition_mod._reset_clients_for_tests()
+    vision_mod._reset_for_tests()
 
 
 @pytest.fixture

@@ -3,7 +3,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles } from 'lucide-react';
 import { T, NUTRITION_DB } from '../../data';
 import { resolveNutrition } from '../../lib/api';
-import { focusedNutrients } from '../../lib/personalize';
+import { focusedNutrients, unitForNutrient } from '../../lib/personalize';
 import { MOCK_TARGETS } from '../../mocks/fixtures';
 import type { DetectedItem, NutrientContribution, UserProfile } from '../../types/schemas';
 import Bar from '../Bar';
@@ -233,7 +233,7 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
               <span>{f.nutrient}</span>
               <span style={{ color: T.ink }}>
                 {f.contributions.reduce((s, c) => s + c.amount, 0).toFixed(0)}
-                {f.nutrient === 'sodium' ? 'mg' : 'g'} total
+                {unitForNutrient(f.nutrient)} total
               </span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

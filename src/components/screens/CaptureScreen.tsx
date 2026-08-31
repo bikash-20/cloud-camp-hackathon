@@ -40,11 +40,10 @@ interface CaptureScreenProps {
  *    < 7 d     → weekday short
  *    else      → "Mon DD"
  *
- *  Bug note: we used to gate the "Nh ago" branch on
- *  `now.toDateString() === then.toDateString()`, which is wrong for a meal
- *  logged at 23:50 and viewed at 00:30 (diffH is 1 but they're different
- *  calendar days). The fix: compute diffH *first*, then fall through to
- *  the calendar-comparison branches only when diffH ≥ 24.
+ *  The "Nh ago" branch only fires when `then` and `now` land on the same
+ *  calendar day — otherwise a meal logged at 23:00 yesterday and viewed at
+ *  13:00 today (diffH = 14, dayDiff = 1) would incorrectly say "14h ago"
+ *  instead of "Yesterday".
  */
 function formatRelative(iso: string, now: Date = new Date()): string {
   const then = new Date(iso);
@@ -52,8 +51,10 @@ function formatRelative(iso: string, now: Date = new Date()): string {
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 1) return 'just now';
   if (diffMin < 60) return `${diffMin}m ago`;
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH}h ago`;
+  if (then.toDateString() === now.toDateString()) {
+    const diffH = Math.floor(diffMin / 60);
+    return `${diffH}h ago`;
+  }
   const dayDiff = Math.floor(diffMs / (24 * 60 * 60 * 1000));
   if (dayDiff === 1) return 'Yesterday';
   if (dayDiff < 7) return then.toLocaleDateString([], { weekday: 'short' });
@@ -326,15 +327,11 @@ export default function CaptureScreen({
     if (initialLoadRef.current) return;
     initialLoadRef.current = true;
     let cancelled = false;
-    getTodaySummary().then((s) => {
+    Promise.all([getTodaySummary(), getMealHistory()]).then(([summary, history]) => {
       if (!cancelled) {
-        setTodaySummary(s);
+        setTodaySummary(summary);
         setTodayLoading(false);
-      }
-    });
-    getMealHistory().then((h) => {
-      if (!cancelled) {
-        setRecentMeals(h.slice(0, 3));
+        setRecentMeals(history.slice(0, 3));
         setHistoryLoading(false);
       }
     });

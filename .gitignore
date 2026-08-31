@@ -17,3 +17,8 @@ app/.env
 *.pyc
 .pytest_cache/
 .ruff_cache/
+
+# Backend caches — sqlite + chroma DBs are runtime artifacts,
+# not source. They get recreated on first request.
+app/cache/chroma/
+app/cache/cache.db

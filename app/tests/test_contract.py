@@ -20,6 +20,55 @@ from app.models.schemas import HealthGoals, UserProfile
 from app.seed.fixtures import DEFAULT_GROCERY_GROUPS, DEFAULT_PROFILE, TARGETS
 
 
+# ── Cut (b): fixtures ────────────────────────────────────────────────────
+
+
+class _FakeStage:
+    """Universal stub for HF / Gemini / OFF / USDA / Fruityvice clients.
+
+    Methods return what the caller hands via `set_return`. Keeps each
+    test self-contained — no global monkeypatches leaking between tests.
+    """
+
+    def __init__(self) -> None:
+        self._next_return = None
+        self.calls: list[str] = []
+
+    def is_configured(self) -> bool:
+        return True
+
+    def detect(self, image_ref: str):  # noqa: D401
+        self.calls.append(image_ref)
+        return self._next_return
+
+    def classify(self, image_ref: str):
+        self.calls.append(image_ref)
+        return self._next_return
+
+    def lookup(self, name: str):
+        self.calls.append(name)
+        return self._next_return
+
+    def set_return(self, value) -> None:
+        self._next_return = value
+
+    def close(self) -> None:
+        pass
+
+
+@pytest.fixture
+def vision_clients(monkeypatch: pytest.MonkeyPatch):
+    """Wire Gemini + HF with controllable returns; canned fallback stays
+    untouched so the trace still exercises the 4-stage shape."""
+    import app.api.vision as vision_mod
+
+    gemini = _FakeStage()
+    hf = _FakeStage()
+    monkeypatch.setattr(vision_mod, "_get_gemini", lambda: gemini)
+    monkeypatch.setattr(vision_mod, "_get_hf", lambda: hf)
+    return gemini, hf
+
+
 # ── Vision ──────────────────────────────────────────────────────────────
 
 
@@ -210,3 +259,141 @@ def test_meal_stats_aggregate(client: TestClient) -> None:
 def test_meal_delete_unknown_returns_404(client: TestClient) -> None:
     """Negative path: missing meal id → 404, not 500."""
     assert client.delete("/api/meals/meal-does-not-exist").status_code == 404
+
+
+# ── Cut (b): real vision pipeline with mocked Gemini/HF clients ────────
+
+
+def test_vision_pipeline_uses_gemini_when_configured(
+    client: TestClient, vision_clients
+) -> None:
+    """With Gemini + HF stubbed and Gemini returning one item, the
+    pipeline trace shows vision-id/hf-validate/reconcile as `done`
+    (because the fake stub reports `is_configured() == True`)."""
+    from app.models.schemas import DetectedItem
+
+    gemini, hf = vision_clients
+    gemini.set_return([DetectedItem(name="Dal", confidence=88, grams=200)])
+    hf.set_return([])  # HF configured but no labels
+
+    # Unique image_ref so the persistent vector cache doesn't shadow
+    # this test with a cache-hit.
+    resp = client.post("/api/vision/analyze", json={"image_ref": "fresh-gemini-001.jpg"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["detected"][0]["name"] == "Dal"
+    trace = {t["stage"]: t["status"] for t in body["pipeline"]}
+    assert trace["vision-id"] == "done"
+    assert trace["hf-validate"] == "fallback"  # HF returned []
+    assert trace["reconcile"] == "fallback"
+
+
+def test_vision_pipeline_falls_back_to_canned_when_no_clients(
+    client: TestClient,
+) -> None:
+    """No env vars set → no clients configured → canned fixture wins.
+
+    Use a fresh image_ref so the vector cache (populated by earlier
+    tests) doesn't shadow the canned fixture path."""
+    import app.api.vision as vision_mod
+
+    class _NotConfigured:
+        def is_configured(self) -> bool:
+            return False
+
+        def detect(self, *a, **k):
+            return []
+
+        def classify(self, *a, **k):
+            return []
+
+        def close(self):
+            pass
+
+    import app.api.vision as vm
+    vm._get_gemini = lambda: _NotConfigured()  # type: ignore[assignment]
+    vm._get_hf = lambda: _NotConfigured()  # type: ignore[assignment]
+
+    # Use a ref not in the canned map so we exercise the "no clients +
+    # miss in canned → empty list" branch instead of the cache-hit
+    # branch that earlier tests triggered.
+    resp = client.post(
+        "/api/vision/analyze", json={"image_ref": "unknown_no_clients.jpg"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["detected"] == []
+    # Trace marks every stage as fallback (no real client).
+    trace = {t["stage"]: t["status"] for t in body["pipeline"]}
+    assert trace["vision-id"] == "fallback"
+    assert trace["hf-validate"] == "fallback"
+
+
+# ── Cut (b): nutrition cascade end-to-end ──────────────────────────────
+
+
+def test_nutrition_cascade_falls_through_off_to_usda(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """OFF misses → USDA hits → ResolvedItem.source == 'usda'."""
+    import app.api.nutrition as nutrition_mod
+    from app.models.schemas import NutritionFacts
+
+    class _Off:
+        def lookup(self, name: str):
+            return None  # miss
+
+        def close(self):
+            pass
+
+    usda_facts = NutritionFacts(
+        protein=10, carbs=20, fat=5, kcal=150,
+        fiber=2, sodium=200, sugar=3, glycemic=0.5,
+    )
+
+    class _Usda:
+        def lookup(self, name: str):
+            return usda_facts
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(nutrition_mod, "_get_off", lambda: _Off())
+    monkeypatch.setattr(nutrition_mod, "_get_usda", lambda: _Usda())
+
+    resp = client.post(
+        "/api/nutrition/resolve",
+        json={"items": [{"name": "Mystery food", "confidence": 80, "grams": 100}]},
+    )
+    assert resp.status_code == 200
+    item = resp.json()["resolved"][0]
+    assert item["source"] == "usda"
+    assert item["partial"] is False
+    assert item["nutrition"]["kcal"] == 150
+
+
+def test_nutrition_cascade_all_miss_returns_estimated(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """OFF + USDA + Fruityvice all miss → ResolvedItem.source == 'estimated'."""
+    import app.api.nutrition as nutrition_mod
+
+    class _Miss:
+        def lookup(self, name: str):
+            return None
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(nutrition_mod, "_get_off", lambda: _Miss())
+    monkeypatch.setattr(nutrition_mod, "_get_usda", lambda: _Miss())
+    monkeypatch.setattr(nutrition_mod, "_get_fruityvice", lambda: _Miss())
+
+    resp = client.post(
+        "/api/nutrition/resolve",
+        json={"items": [{"name": "Unknown", "confidence": 80, "grams": 100}]},
+    )
+    assert resp.status_code == 200
+    item = resp.json()["resolved"][0]
+    assert item["source"] == "estimated"
+    assert item["partial"] is True

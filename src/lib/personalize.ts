@@ -102,6 +102,15 @@ export function itemAmount(
   return (nutrition as unknown as Record<string, number>)[nutrient] * (grams / 100);
 }
 
+/** Display unit for a given nutrient, read from the rule table. Mirrors the
+ *  backend's per-nutrient unit conventions (sodium is milligrams, everything
+ *  else is grams). Callers — e.g. NutrientsScreen — should prefer this over a
+ *  hard-coded ternary so adding a new unit (mg for sugar, etc.) doesn't drift. */
+export function unitForNutrient(nutrient: NutrientContribution['nutrient']): 'g' | 'mg' {
+  const rule = FLAG_RULES.find((r) => r.nutrient === nutrient);
+  return rule?.unit ?? 'g';
+}
+
 /**
  * Compute per-nutrient meal totals across all resolved items.
  * Items without `nutrition` are skipped — they can't contribute to the share.
