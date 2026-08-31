@@ -15,13 +15,14 @@
 import type {
   AnalyzeResult,
   DetectedItem,
+  GroceryGroup,
   GroceryItem,
   GroceryList,
   MealEntry,
-  NutrientContribution,
   PipelineTrace,
   ResolveNutritionResult,
   ResolvedItem,
+  TodaySummary,
   UserStats,
   UserProfile,
 } from '../types/schemas';
@@ -34,26 +35,25 @@ import {
   MOCK_PROFILE,
   MOCK_TARGETS,
 } from '../mocks/fixtures';
+import { buildContributions, mealTotals } from './personalize';
 
 // ── In-memory mutable state (pretends to be a backend session) ──────────
 
 let profileState: UserProfile = storage.loadOrDefault('profile', structuredClone(MOCK_PROFILE));
-// Grocery items are now persisted to localStorage so Clear All / Generate
-// from Meals survive a page refresh. Older installs (pre-persistence) fall
-// back to the seeded MOCK_GROCERY_GROUPS the first time we read.
-const initialGrocery: GroceryItem[] = storage.load<GroceryItem[]>('grocery') ?? MOCK_GROCERY_GROUPS.flatMap((g) => g.items);
-let groceryState: GroceryItem[] = initialGrocery;
-let groceryNextId: number = (() => {
-  // Compute the next id seed from existing items so we don't collide with
-  // pre-seeded mocks like `g-0-0` or previously added custom items.
-  const max = groceryState.reduce((m, it) => {
-    const n = parseInt(String(it.id).replace(/\D+/g, ''), 10);
-    return Number.isFinite(n) && n > m ? n : m;
-  }, 0);
-  return max + 1;
-})();
+// Grocery items are persisted to localStorage so Clear All / Generate from
+// Meals survive a page refresh. Older installs (pre-persistence) fall back
+// to the seeded MOCK_GROCERY_GROUPS the first time we read.
+let groceryState: GroceryItem[] = storage.load<GroceryItem[]>('grocery') ?? MOCK_GROCERY_GROUPS.flatMap((g) => g.items);
 let budgetState = MOCK_PROFILE.budget;
-let historyState: MealEntry[] = storage.loadOrDefault('meal_history', []);
+let mealHistory: MealEntry[] = storage.loadOrDefault('meal_history', []);
+
+// ── Persistence ─────────────────────────────────────────────────────────
+
+function persist<T>(key: string, get: () => T): T {
+  const value = get();
+  storage.save(key, value);
+  return value;
+}
 
 // ── Utility ─────────────────────────────────────────────────────────────
 
@@ -79,7 +79,11 @@ function makeTrace(stage: PipelineTrace['stage'], label: string, status: Pipelin
   return { stage, status, startedAt: Date.now(), finishedAt: Date.now(), label };
 }
 
-// ── Vision pipeline ─────────────────────────────────────────────────────────────────
+function clone<T>(v: T): T {
+  return structuredClone(v);
+}
+
+// ── Vision pipeline ─────────────────────────────────────────────────────
 
 /**
  * POST /api/vision/analyze  →  { detected, pipeline }
@@ -87,7 +91,6 @@ function makeTrace(stage: PipelineTrace['stage'], label: string, status: Pipelin
  * detected items with a per-stage trace.
  */
 export async function analyzeMeal(_imageRef: string): Promise<AnalyzeResult> {
-  // Simulate the pipeline firing off stage-by-stage with a trace
   const pipeline: PipelineTrace[] = [
     makeTrace('cache-check', 'Cache check', 'cache-hit'),
     makeTrace('vision-id', 'Vision ID (Gemini)', 'done'),
@@ -95,10 +98,10 @@ export async function analyzeMeal(_imageRef: string): Promise<AnalyzeResult> {
     makeTrace('reconcile', 'Confidence-weighted reconcile', 'done'),
   ];
   await delay(180, 320);
-  return { detected: structuredClone(MOCK_DETECTED), pipeline };
+  return { detected: clone(MOCK_DETECTED), pipeline };
 }
 
-// ── Nutrition resolution ────────────────────────────────────────────────────────────
+// ── Nutrition resolution ────────────────────────────────────────────────
 
 /**
  * POST /api/nutrition/resolve  →  { resolved, contributions }
@@ -116,163 +119,65 @@ export async function resolveNutrition(
     return {
       ...it,
       descriptor,
-      nutrition: descriptor
-        ? {
-            protein: descriptor.protein,
-            carbs: descriptor.carbs,
-            fat: descriptor.fat,
-            kcal: descriptor.kcal,
-            fiber: descriptor.fiber,
-            sodium: descriptor.sodium,
-            sugar: descriptor.sugar,
-            glycemic: descriptor.glycemic,
-          }
-        : null,
+      nutrition: descriptor ? { ...descriptor } : null,
       source: descriptor ? 'cache' : 'estimated',
       partial: descriptor == null,
     };
   });
 
-  // Compute totals per nutrient for share calc
-  const totals: Record<string, number> = {
-    sodium: 0, sugar: 0, fiber: 0, protein: 0, carbs: 0, fat: 0, kcal: 0,
-  };
-  const nutrientKeys = ['sodium', 'sugar', 'fiber', 'protein', 'carbs', 'fat', 'kcal'] as const;
-  for (const r of resolved) {
-    if (!r.nutrition) continue;
-    const factor = r.grams / 100;
-    for (const k of nutrientKeys) {
-      totals[k] += r.nutrition[k] * factor;
-    }
-  }
-
-  // Emit a contribution per (nutrient, item) for flagged nutrients.
-  // Each contribution carries a short, item-specific verdict string so the
-  // Nutrients screen can render per-item verdict chips and a one-sentence
-  // "meal verdict" without re-computing the math on the client.
-  const contributions: NutrientContribution[] = [];
-  const flagRules: Array<{
-    nutrient: NutrientContribution['nutrient'];
-    threshold: number; // absolute value above which to flag
-    reasonIfHigh: (itemName: string, amount: number) => string;
-    reasonIfLow?: (itemName: string, amount: number) => string;
-    lowThreshold?: number;
-    unit?: 'g' | 'mg';
-  }> = [
-    {
-      nutrient: 'sodium',
-      threshold: MOCK_TARGETS.sodium,
-      reasonIfHigh: (n, a) => `${n} adds ${Math.round(a)}mg sodium — that's ${Math.round((a / MOCK_TARGETS.sodium) * 100)}% of your daily cap in one item.`,
-    },
-    {
-      nutrient: 'sugar',
-      threshold: MOCK_TARGETS.sugar,
-      reasonIfHigh: (n, a) => `${n} brings ${a.toFixed(1)}g of sugar — a notable spike for a prediabetic-friendly plate.`,
-      reasonIfLow: (n, a) => `${n} contributes only ~${a.toFixed(1)}g of sugar — well within your prediabetic-friendly target.`,
-      lowThreshold: MOCK_TARGETS.sugar * 0.6, // emit low-sugar chips when total ≤ 60% of cap
-    },
-    {
-      nutrient: 'fiber',
-      threshold: MOCK_TARGETS.fiber,
-      reasonIfHigh: (n, a) => `${n} is a solid fiber source at ${a.toFixed(1)}g — pulls the meal toward target.`,
-      reasonIfLow: (n, a) => `${n} contributes only ~${a.toFixed(1)}g fiber — the whole meal falls short of your 30g daily target. Add whole grains or legumes next time.`,
-      lowThreshold: 12,
-    },
-    {
-      nutrient: 'protein',
-      threshold: MOCK_TARGETS.protein,
-      reasonIfHigh: (n, a) => `${n} delivers ${a.toFixed(1)}g of protein — strong for a single dish.`,
-      reasonIfLow: (n, a) => `${n} is light on protein (~${a.toFixed(1)}g) — consider adding dal or paneer.`,
-    },
-  ];
-
-  for (const rule of flagRules) {
-    const total = totals[rule.nutrient];
-    // The nutrient is "in play" for the user's profile if it's tracked for
-    // their goals. We emit explanations for two reasons:
-    //   (a) the meal is OVER target — flag the top contributor(s) as 'warn'
-    //   (b) the meal is UNDER target by a lot (≤ lowThreshold) — call out
-    //       the *low* contribution so the user sees what's missing
-    // Both paths populate the verdict chip list so the panel never appears
-    // empty for a non-trivial meal.
-    const nutrientIsFlaggedForProfile = profile?.goals.diabetic
-      ? rule.nutrient === 'sugar' || rule.nutrient === 'fiber'
-      : rule.nutrient === 'sodium' || rule.nutrient === 'fiber';
-    if (!nutrientIsFlaggedForProfile) continue;
-    const mealOverTarget = total > rule.threshold;
-    const mealUnderTarget = rule.lowThreshold != null && total < rule.lowThreshold;
-    if (!mealOverTarget && !mealUnderTarget) continue;
-    for (const r of resolved) {
-      if (!r.nutrition) continue;
-      const amount = r.nutrition[rule.nutrient] * (r.grams / 100);
-      const share = total > 0 ? amount / total : 0;
-      if (share < 0.10) continue;
-      const tone: 'good' | 'warn' = mealOverTarget && share >= 0.30 ? 'warn' : 'good';
-      const reason = tone === 'warn'
-        ? rule.reasonIfHigh(r.name, amount)
-        : rule.reasonIfLow
-          ? rule.reasonIfLow(r.name, amount)
-          : undefined;
-      if (!reason) continue;
-      contributions.push({
-        nutrient: rule.nutrient,
-        itemName: r.name,
-        amount,
-        share,
-        flagged: tone === 'warn',
-        reason,
-        tone,
-      });
-    }
-  }
-
+  const totals = mealTotals(resolved);
+  const contributions = buildContributions(resolved, totals, profile);
   return { resolved, contributions };
 }
 
-// ── Profile ────────────────────────────────────────────────────────────────────────
+// ── Profile ─────────────────────────────────────────────────────────────
 
 export async function getProfile(): Promise<UserProfile> {
   await delay(80, 160);
-  return structuredClone(profileState);
+  return clone(profileState);
 }
 
 export async function updateProfile(p: UserProfile): Promise<UserProfile> {
   await delay(120, 220);
-  profileState = structuredClone(p);
-  storage.save('profile', profileState);
-  return structuredClone(profileState);
+  profileState = clone(p);
+  persist('profile', () => profileState);
+  return clone(profileState);
 }
 
-// ── Grocery list ───────────────────────────────────────────────────────────────────
+// ── Grocery list ────────────────────────────────────────────────────────
+
+// Built once at import — the seed data is immutable, so there's no reason
+// to rebuild the id → category lookup on every call. Custom items
+// (`g-new-*`) miss the map and fall through to the `Other` bucket.
+const SEEDED_ID_TO_CATEGORY: ReadonlyMap<string, string> = (() => {
+  const m = new Map<string, string>();
+  for (const g of MOCK_GROCERY_GROUPS) {
+    for (const it of g.items) m.set(it.id, g.category);
+  }
+  return m;
+})();
 
 /**
  * Bucket the flat `groceryState` array back into display groups.
  *
- * Items added via `addGroceryItem` arrive without a category — they land in
- * `otherGroup`. Items whose id matches a seeded mock group (e.g. `g-0-0`,
- * `g-1-2`) keep their original category. The result preserves the order of
- * MOCK_GROCERY_GROUPS first, then appends any `Other` group that exists.
+ * Items added via `addGroceryItem` arrive without a category — they land
+ * in `Other`. Items whose id matches a seeded mock group (`g-0-0`,
+ * `g-1-2`, …) keep their original category. Order: seeded groups first,
+ * then `Other` if non-empty.
  */
-function bucketGroceryByCategory(items: GroceryItem[]): Array<{ category: string; items: GroceryItem[] }> {
-  // Map every seeded id → category once at the top of the function.
-  const idToCategory = new Map<string, string>();
-  for (const g of MOCK_GROCERY_GROUPS) {
-    for (const it of g.items) idToCategory.set(it.id, g.category);
-  }
-  const groups = MOCK_GROCERY_GROUPS.map((g) => ({ category: g.category, items: [] as GroceryItem[] }));
+function bucketGroceryByCategory(items: GroceryItem[]): GroceryGroup[] {
+  const byCat = new Map<string, GroceryItem[]>();
+  for (const g of MOCK_GROCERY_GROUPS) byCat.set(g.category, []);
   const other: GroceryItem[] = [];
-  for (const it of items) {
-    const cat = idToCategory.get(it.id);
-    if (cat) {
-      const target = groups.find((g) => g.category === cat);
-      if (target) target.items.push(it);
-      else other.push(it);
-    } else {
-      other.push(it);
-    }
+  for (const item of items) {
+    const cat = SEEDED_ID_TO_CATEGORY.get(item.id);
+    const bucket = cat != null ? byCat.get(cat) : undefined;
+    (bucket ?? other).push(item);
   }
-  // Only emit the "Other" bucket if there are uncategorized items so we
-  // don't render an empty section.
+  const groups: GroceryGroup[] = MOCK_GROCERY_GROUPS.map((g) => ({
+    category: g.category,
+    items: byCat.get(g.category) ?? [],
+  }));
   if (other.length > 0) groups.push({ category: 'Other', items: other });
   return groups;
 }
@@ -280,10 +185,19 @@ function bucketGroceryByCategory(items: GroceryItem[]): Array<{ category: string
 export async function getGroceryList(profile: UserProfile): Promise<GroceryList> {
   await delay(120, 220);
   budgetState = profile.budget;
-  return {
-    budget: budgetState,
-    groups: bucketGroceryByCategory(groceryState),
-  };
+  return { budget: budgetState, groups: bucketGroceryByCategory(groceryState) };
+}
+
+function nextGroceryId(): string {
+  // Walk the items every call rather than tracking a counter — the cost is
+  // bounded (≤100 items in the demo) and avoids stale counter bugs after
+  // a reload.
+  let max = 0;
+  for (const it of groceryState) {
+    const n = parseInt(String(it.id).replace(/\D+/g, ''), 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return `g-new-${max + 1}`;
 }
 
 export async function addGroceryItem(
@@ -293,20 +207,20 @@ export async function addGroceryItem(
 ): Promise<GroceryItem> {
   await delay(80, 160);
   const item: GroceryItem = {
-    id: `g-new-${groceryNextId++}`,
+    id: nextGroceryId(),
     name,
     price: Math.max(0, price),
     checked: false,
   };
-  groceryState.push(item);
-  storage.save('grocery', groceryState);
+  groceryState = [...groceryState, item];
+  persist('grocery', () => groceryState);
   return item;
 }
 
 export async function removeGroceryItem(itemId: string): Promise<void> {
   await delay(60, 120);
   groceryState = groceryState.filter((i) => i.id !== itemId);
-  storage.save('grocery', groceryState);
+  persist('grocery', () => groceryState);
 }
 
 export async function updateGroceryPrice(itemId: string, price: number): Promise<void> {
@@ -314,7 +228,7 @@ export async function updateGroceryPrice(itemId: string, price: number): Promise
   const it = groceryState.find((i) => i.id === itemId);
   if (it) {
     it.price = Math.max(0, Math.min(9999, price));
-    storage.save('grocery', groceryState);
+    persist('grocery', () => groceryState);
   }
 }
 
@@ -323,66 +237,58 @@ export async function toggleGroceryItem(itemId: string): Promise<void> {
   const it = groceryState.find((i) => i.id === itemId);
   if (it) {
     it.checked = !it.checked;
-    storage.save('grocery', groceryState);
+    persist('grocery', () => groceryState);
   }
 }
 
 export async function clearGroceryList(): Promise<void> {
   await delay(60, 120);
   groceryState = [];
-  storage.save('grocery', groceryState);
+  persist('grocery', () => groceryState);
 }
 
-// ── Meal history ─────────────────────────────────────────────────────────────────
+// ── Meal history ────────────────────────────────────────────────────────
 
 /** Save a completed meal to history. Persists to localStorage. */
 export async function saveMeal(entry: Omit<MealEntry, 'id' | 'date'>): Promise<MealEntry> {
   await delay(60, 120);
   const saved: MealEntry = {
     ...entry,
-    id: `meal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `meal-${cryptoRandomId()}`,
     date: new Date().toISOString(),
   };
-  historyState = [saved, ...historyState];
-  storage.save('meal_history', historyState);
-  return structuredClone(saved);
+  mealHistory = [saved, ...mealHistory];
+  persist('meal_history', () => mealHistory);
+  return clone(saved);
 }
 
 /** Get full meal history, most recent first. */
 export async function getMealHistory(): Promise<MealEntry[]> {
   await delay(40, 80);
-  historyState = storage.loadOrDefault('meal_history', []);
-  return structuredClone(historyState);
+  mealHistory = storage.loadOrDefault('meal_history', []);
+  return clone(mealHistory);
 }
 
-/** Get meals logged today.
- *
- * Macros are returned as grams, kcal as raw kcal. `dailyKcalTarget` is
- * resolved from the *currently loaded* profile (falls back to the universal
- * default if absent) so the Home progress bar can render without the screen
- * having to load the profile separately.
+/**
+ * Get meals logged today.
  *
  * `mealsLogged: 0` plus all-zero totals is the canonical "no meals yet"
  * shape — Home uses it to render an empty state instead of hiding the card.
+ * `dailyKcalTarget` resolves from the currently-loaded profile (falls back
+ * to the universal default) so the Home progress bar can render without
+ * loading the profile separately.
  */
-export async function getTodaySummary(): Promise<{
-  mealsLogged: number;
-  totalKcal: number;
-  totalProtein: number;
-  totalCarbs: number;
-  totalFat: number;
-  dailyKcalTarget: number;
-}> {
+export async function getTodaySummary(): Promise<TodaySummary> {
   await delay(40, 80);
-  historyState = storage.loadOrDefault('meal_history', []);
+  mealHistory = storage.loadOrDefault('meal_history', []);
   const today = new Date().toISOString().slice(0, 10);
-  const todayMeals = historyState.filter((m) => m.date.startsWith(today));
+  const todayMeals = mealHistory.filter((m) => m.date.startsWith(today));
   return {
     mealsLogged: todayMeals.length,
-    totalKcal: todayMeals.reduce((s, m) => s + m.totals.kcal, 0),
-    totalProtein: todayMeals.reduce((s, m) => s + m.totals.protein, 0),
-    totalCarbs: todayMeals.reduce((s, m) => s + m.totals.carbs, 0),
-    totalFat: todayMeals.reduce((s, m) => s + m.totals.fat, 0),
+    totalKcal: sumField(todayMeals, 'kcal'),
+    totalProtein: sumField(todayMeals, 'protein'),
+    totalCarbs: sumField(todayMeals, 'carbs'),
+    totalFat: sumField(todayMeals, 'fat'),
     dailyKcalTarget: resolveDailyKcalTarget(profileState),
   };
 }
@@ -390,14 +296,14 @@ export async function getTodaySummary(): Promise<{
 /** Get aggregated user statistics for the profile screen. */
 export async function getUserStats(): Promise<UserStats> {
   await delay(40, 80);
-  historyState = storage.loadOrDefault('meal_history', []);
-  if (historyState.length === 0) {
+  mealHistory = storage.loadOrDefault('meal_history', []);
+  if (mealHistory.length === 0) {
     return { totalMeals: 0, totalDaysActive: 0, avgDailyKcal: 0, streakDays: 0 };
   }
-  const days = new Set(historyState.map((m) => m.date.slice(0, 10)));
-  const totalKcal = historyState.reduce((s, m) => s + m.totals.kcal, 0);
+  const days = new Set(mealHistory.map((m) => m.date.slice(0, 10)));
+  const totalKcal = sumField(mealHistory, 'kcal');
   return {
-    totalMeals: historyState.length,
+    totalMeals: mealHistory.length,
     totalDaysActive: days.size,
     avgDailyKcal: Math.round(totalKcal / days.size),
     streakDays: days.size, // simplified streak for demo
@@ -407,12 +313,31 @@ export async function getUserStats(): Promise<UserStats> {
 /** Delete a meal from history. */
 export async function deleteMeal(mealId: string): Promise<void> {
   await delay(40, 80);
-  historyState = historyState.filter((m) => m.id !== mealId);
-  storage.save('meal_history', historyState);
+  mealHistory = mealHistory.filter((m) => m.id !== mealId);
+  persist('meal_history', () => mealHistory);
 }
 
-// ── Aggregate targets (small helper for NutrientsScreen) ────────────────────────────
+// ── Aggregate targets (small helper for NutrientsScreen) ────────────────
 
 export function getMacroTargets() {
   return { ...MOCK_TARGETS };
+}
+
+// ── Helpers (private) ───────────────────────────────────────────────────
+
+function sumField(meals: readonly MealEntry[], field: 'kcal' | 'protein' | 'carbs' | 'fat'): number {
+  let s = 0;
+  for (const m of meals) s += m.totals[field];
+  return s;
+}
+
+/**
+ * Generate a stable id using `crypto.randomUUID()` where available,
+ * falling back to a `Date.now + Math.random` combo for older browsers.
+ * Either way the result is URL-safe and unique within a session.
+ */
+function cryptoRandomId(): string {
+  const c = (globalThis as { crypto?: Crypto }).crypto;
+  if (c?.randomUUID) return c.randomUUID().replace(/-/g, '').slice(0, 12);
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }

@@ -193,6 +193,31 @@ export function resolveDailyKcalTarget(profile: UserProfile | null | undefined):
   return DAILY_KCAL_TARGET_DEFAULT;
 }
 
+/** Per-meal nutrition snapshot — mirrors backend `MealTotals`. */
+export interface MealTotals {
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  /** milligrams of sodium */
+  sodium: number;
+  sugar: number;
+}
+
+/**
+ * Today's logged-meals summary — the shape the Home progress bar consumes.
+ * Mirrors backend `TodaySummary`.
+ */
+export interface TodaySummary {
+  mealsLogged: number;
+  totalKcal: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFat: number;
+  dailyKcalTarget: number;
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 //  Grocery list
 // ─────────────────────────────────────────────────────────────────────────
@@ -284,15 +309,7 @@ export interface MealEntry {
   /** Detected food items at the time of logging */
   items: DetectedItem[];
   /** Snapshot of nutrition totals (kcal, protein, carbs, fat, fiber, sodium, sugar) */
-  totals: {
-    kcal: number;
-    protein: number;
-    carbs: number;
-    fat: number;
-    fiber: number;
-    sodium: number;
-    sugar: number;
-  };
+  totals: MealTotals;
   /** Optional captured photo data URL */
   photoUrl?: string | null;
   /** Which profile goals were active when this meal was logged */

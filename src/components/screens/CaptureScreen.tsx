@@ -3,7 +3,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Camera, Sparkles, ScanLine, RotateCcw, X, Upload, UtensilsCrossed, History, ShoppingBag, ChevronRight } from 'lucide-react';
 import { T, USER_NAME, getGreeting, NUTRITION_DB } from '../../data';
 import { getTodaySummary, getMealHistory, getMacroTargets } from '../../lib/api';
-import type { MealEntry } from '../../types/schemas';
+import type { MealEntry, TodaySummary } from '../../types/schemas';
 
 type CapturePhase = 'idle' | 'camera' | 'captured';
 
@@ -153,6 +153,99 @@ function MiniBar({
 }
 
 /**
+ * A labeled ratio bar — used by both the daily-kcal bar and the three
+ * macro mini-bars in Today's Summary. Encapsulates the "over-target"
+ * styling so the call sites only pass current + target.
+ */
+function MacroMeter({
+  label,
+  current,
+  target,
+  unit,
+  color,
+  height = 4,
+  delay = 0,
+}: {
+  label: string;
+  current: number;
+  target: number;
+  /** "g" or "mg" — printed after the rounded current value. */
+  unit: 'g' | 'mg';
+  /** Bar color used when current ≤ target. */
+  color: string;
+  height?: number;
+  delay?: number;
+}) {
+  const ratio = current / Math.max(1, target);
+  const over = ratio > 1;
+  const fill = over
+    ? `linear-gradient(90deg, ${T.accentWarn}, ${T.accentAmber})`
+    : color;
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+        <span style={METER_LABEL_STYLE}>{label}</span>
+        <span className="tnum" style={{ ...METER_VALUE_STYLE, color: over ? T.accentWarn : T.inkSoft }}>
+          {Math.round(current)}{unit}
+        </span>
+      </div>
+      <MiniBar
+        ratio={ratio}
+        fill={fill}
+        height={height}
+        delay={delay}
+        ariaLabel={`${label} progress`}
+      />
+    </div>
+  );
+}
+
+const METER_LABEL_STYLE = {
+  fontFamily: 'Inter',
+  fontSize: 10,
+  fontWeight: 600,
+  color: T.inkSoft,
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.05em',
+};
+
+const METER_VALUE_STYLE = {
+  fontFamily: 'Inter',
+  fontSize: 10,
+  fontWeight: 600,
+};
+
+/** 40×40 thumbnail — prefers a captured photo, falls back to a deterministic
+ *  gradient + emoji swatch keyed off `meal.id` so pre-existing seeded history
+ *  still looks alive. The look-up is stable across renders. */
+function Thumbnail({ meal, emojisByName }: { meal: MealEntry; emojisByName: Record<string, string> }) {
+  const fallback = pickThumbnailStyle(meal, emojisByName);
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        flexShrink: 0,
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundImage: meal.photoUrl ? `url(${meal.photoUrl})` : undefined,
+        backgroundColor: meal.photoUrl ? undefined : fallback.bg,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        fontSize: 20,
+        lineHeight: 1,
+      }}
+    >
+      {!meal.photoUrl && fallback.emoji}
+    </div>
+  );
+}
+
+/**
  * Home / Capture screen — real camera integration.
  *
  * Flow:
@@ -178,14 +271,7 @@ export default function CaptureScreen({
   const [pressed, setPressed] = useState(false);
   // Today summary now carries macro totals + the daily kcal target so the
   // progress bar can render without the Profile screen being open.
-  const [todaySummary, setTodaySummary] = useState<{
-    mealsLogged: number;
-    totalKcal: number;
-    totalProtein: number;
-    totalCarbs: number;
-    totalFat: number;
-    dailyKcalTarget: number;
-  } | null>(null);
+  const [todaySummary, setTodaySummary] = useState<TodaySummary | null>(null);
   const [recentMeals, setRecentMeals] = useState<MealEntry[]>([]);
   const [todayLoading, setTodayLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -358,6 +444,18 @@ export default function CaptureScreen({
   // ── Determine what image to show ──────────────────────────────────────
 
   const displayUrl = previewUrl ?? null;
+
+  // kcal ratio drives the over-target gradient on the headline progress bar.
+  const kcalRatio = (todaySummary?.totalKcal ?? 0) / Math.max(1, todaySummary?.dailyKcalTarget ?? 1);
+
+  // Macro mini-bars — pulled from the same MOCK_TARGETS source as NutrientsScreen
+  // so the two screens stay in lockstep.
+  const macroTargets = getMacroTargets();
+  const MACRO_METERS = [
+    { label: 'Protein', current: (s: TodaySummary) => s.totalProtein, target: () => macroTargets.protein, unit: 'g' as const, color: T.primary },
+    { label: 'Carbs',   current: (s: TodaySummary) => s.totalCarbs,   target: () => macroTargets.carbs,   unit: 'g' as const, color: T.accentAmber },
+    { label: 'Fat',     current: (s: TodaySummary) => s.totalFat,     target: () => macroTargets.fat,     unit: 'g' as const, color: T.accentGood },
+  ];
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -1120,114 +1218,40 @@ export default function CaptureScreen({
                 </span>
               </div>
 
-              {(() => {
-                const ratio = todaySummary.totalKcal / Math.max(1, todaySummary.dailyKcalTarget);
-                const over = ratio > 1;
-                return (
-                  <div style={{ marginBottom: 12 }}>
-                    <MiniBar
-                      ratio={ratio}
-                      fill={
-                        over
-                          ? `linear-gradient(90deg, ${T.accentWarn}, ${T.accentAmber})`
-                          : `linear-gradient(90deg, ${T.primary}, ${T.accentGood})`
-                      }
-                      height={6}
-                      ariaLabel="Today's kcal progress"
-                      ariaValueNow={Math.round(todaySummary.totalKcal)}
-                      ariaValueMax={todaySummary.dailyKcalTarget}
-                    />
-                  </div>
-                );
-              })()}
+              <div style={{ marginBottom: 12 }}>
+                <MiniBar
+                  ratio={kcalRatio}
+                  fill={
+                    kcalRatio > 1
+                      ? `linear-gradient(90deg, ${T.accentWarn}, ${T.accentAmber})`
+                      : `linear-gradient(90deg, ${T.primary}, ${T.accentGood})`
+                  }
+                  height={6}
+                  ariaLabel="Today's kcal progress"
+                  ariaValueNow={Math.round(todaySummary.totalKcal)}
+                  ariaValueMax={todaySummary.dailyKcalTarget}
+                />
+              </div>
 
-              {(() => {
-                // Pull targets from the same source as NutrientsScreen so
-                // these bars stay in lockstep with the per-meal breakdown.
-                const macroTargets = getMacroTargets();
-                const macros: Array<{
-                  label: string;
-                  current: number;
-                  target: number;
-                  color: string;
-                }> = [
-                  {
-                    label: 'Protein',
-                    current: todaySummary.totalProtein,
-                    target: macroTargets.protein,
-                    color: T.primary,
-                  },
-                  {
-                    label: 'Carbs',
-                    current: todaySummary.totalCarbs,
-                    target: macroTargets.carbs,
-                    color: T.accentAmber,
-                  },
-                  {
-                    label: 'Fat',
-                    current: todaySummary.totalFat,
-                    target: macroTargets.fat,
-                    color: T.accentGood,
-                  },
-                ];
-                return (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(3, 1fr)',
-                      gap: 10,
-                    }}
-                  >
-                    {macros.map((m) => {
-                      const ratio = m.current / Math.max(1, m.target);
-                      const over = ratio > 1;
-                      return (
-                        <div key={m.label}>
-                          <div
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'baseline',
-                              marginBottom: 4,
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontFamily: 'Inter',
-                                fontSize: 10,
-                                fontWeight: 600,
-                                color: T.inkSoft,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em',
-                              }}
-                            >
-                              {m.label}
-                            </span>
-                            <span
-                              className="tnum"
-                              style={{
-                                fontFamily: 'Inter',
-                                fontSize: 10,
-                                fontWeight: 600,
-                                color: over ? T.accentWarn : T.inkSoft,
-                              }}
-                            >
-                              {Math.round(m.current)}g
-                            </span>
-                          </div>
-                          <MiniBar
-                            ratio={ratio}
-                            fill={over ? T.accentWarn : m.color}
-                            height={4}
-                            delay={0.05}
-                            ariaLabel={`${m.label} progress`}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 10,
+                }}
+              >
+                {MACRO_METERS.map((m) => (
+                  <MacroMeter
+                    key={m.label}
+                    label={m.label}
+                    current={m.current(todaySummary)}
+                    target={m.target()}
+                    unit={m.unit}
+                    color={m.color}
+                    delay={0.05}
+                  />
+                ))}
+              </div>
             </>
           )}
         </motion.div>
@@ -1296,65 +1320,34 @@ export default function CaptureScreen({
 
           {recentMeals.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {recentMeals.map((meal) => {
-                // Resolve a thumbnail: prefer the captured photo; otherwise
-                // fall back to a deterministic gradient + emoji swatch so
-                // pre-existing seeded history (no photoUrl) still looks
-                // alive.
-                const fallback = meal.photoUrl ? null : pickThumbnailStyle(meal, descriptorEmojiMap);
-                const thumbBg = fallback?.bg;
-                const thumbEmoji = fallback?.emoji;
-                return (
-                  <motion.div
-                    key={meal.id}
-                    className="glass-card"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      borderRadius: 14,
-                      padding: '8px 14px 8px 8px',
-                    }}
-                  >
-                    {/* Thumbnail — 40×40 square. If we have a real photo,
-                        show it; otherwise gradient + emoji. */}
-                    <div
-                      aria-hidden="true"
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 10,
-                        flexShrink: 0,
-                        overflow: 'hidden',
-                        background: thumbBg ?? 'rgba(74, 58, 52, 0.08)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundImage: meal.photoUrl ? `url(${meal.photoUrl})` : undefined,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        fontSize: 20,
-                        lineHeight: 1,
-                      }}
-                    >
-                      {!meal.photoUrl && thumbEmoji}
-                    </div>
+              {recentMeals.map((meal) => (
+                <motion.div
+                  key={meal.id}
+                  className="glass-card"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    borderRadius: 14,
+                    padding: '8px 14px 8px 8px',
+                  }}
+                >
+                  <Thumbnail meal={meal} emojisByName={descriptorEmojiMap} />
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {meal.label}
-                      </div>
-                      <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft, marginTop: 2 }}>
-                        {formatRelative(meal.date)} · {meal.items.length} item{meal.items.length !== 1 ? 's' : ''}
-                      </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {meal.label}
                     </div>
-                    <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 700, color: T.accentAmber, flexShrink: 0, marginLeft: 8 }}>
-                      {Math.round(meal.totals.kcal)}
-                      <span style={{ fontSize: 10, fontWeight: 500, color: T.inkSoft }}> kcal</span>
+                    <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft, marginTop: 2 }}>
+                      {formatRelative(meal.date)} · {meal.items.length} item{meal.items.length !== 1 ? 's' : ''}
                     </div>
-                  </motion.div>
-                );
-              })}
+                  </div>
+                  <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 700, color: T.accentAmber, flexShrink: 0, marginLeft: 8 }}>
+                    {Math.round(meal.totals.kcal)}
+                    <span style={{ fontSize: 10, fontWeight: 500, color: T.inkSoft }}> kcal</span>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           )}
         </motion.div>

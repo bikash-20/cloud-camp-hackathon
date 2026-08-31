@@ -3,19 +3,11 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles } from 'lucide-react';
 import { T, NUTRITION_DB } from '../../data';
 import { resolveNutrition } from '../../lib/api';
+import { focusedNutrients } from '../../lib/personalize';
+import { MOCK_TARGETS } from '../../mocks/fixtures';
 import type { DetectedItem, NutrientContribution, UserProfile } from '../../types/schemas';
 import Bar from '../Bar';
 import useCountUp from '../useCountUp';
-
-const TARGETS = {
-  kcal: 720,
-  protein: 50,
-  carbs: 40,
-  fat: 65,
-  fiber: 30,
-  sodium: 1200,
-  sugar: 25,
-};
 
 interface MacroDonutProps {
   value: number;
@@ -144,7 +136,7 @@ function MacroDonut({ value, target, color, label, size = 88, stroke = 8, delay 
 
 interface ExplainabilityStripProps {
   contributions: NutrientContribution[];
-  flaggedNutrients: Array<{ nutrient: 'sodium' | 'sugar' | 'fiber'; threshold: number; }>;
+  flaggedNutrients: ReadonlyArray<{ nutrient: 'sodium' | 'sugar' | 'fiber'; threshold: number; }>;
 }
 
 /** SHAP-style "Why these flags?" panel — shows contributing items per flagged nutrient. */
@@ -560,25 +552,29 @@ interface NutrientsScreenProps {
  * animates count-up, and recomputes when grams change.
  */
 export default function NutrientsScreen({ detected = [], profile, onBack }: NutrientsScreenProps) {
-  // Synchronously derive totals so count-up animations feel responsive
+  // Synchronously derive totals so count-up animations feel responsive.
+  // Glycemic is a grams-weighted average (not a sum) — a small portion of
+  // a high-glycemic item shouldn't dominate the meal's glycemic reading.
   const totals = useMemo(() => {
-    return detected.reduce(
-      (acc, it) => {
-        const n = NUTRITION_DB[it.name];
-        if (!n) return acc;
-        const factor = it.grams / 100;
-        return {
-          protein: acc.protein + n.protein * factor,
-          carbs: acc.carbs + n.carbs * factor,
-          fat: acc.fat + n.fat * factor,
-          fiber: acc.fiber + n.fiber * factor,
-          sodium: acc.sodium + n.sodium * factor,
-          sugar: acc.sugar + n.sugar * factor,
-          glycemic: acc.glycemic + (n.glycemic * factor) / Math.max(1, it.grams / 100),
-        };
-      },
-      { protein: 0, carbs: 0, fat: 0, fiber: 0, sodium: 0, sugar: 0, glycemic: 0 },
-    );
+    const sums = { protein: 0, carbs: 0, fat: 0, fiber: 0, sodium: 0, sugar: 0, glycemicNum: 0, weight: 0 };
+    for (const it of detected) {
+      const n = NUTRITION_DB[it.name];
+      if (!n) continue;
+      const factor = it.grams / 100;
+      sums.protein += n.protein * factor;
+      sums.carbs   += n.carbs   * factor;
+      sums.fat     += n.fat     * factor;
+      sums.fiber   += n.fiber   * factor;
+      sums.sodium  += n.sodium  * factor;
+      sums.sugar   += n.sugar   * factor;
+      sums.glycemicNum += n.glycemic * factor;
+      sums.weight += factor;
+    }
+    return {
+      protein: sums.protein, carbs: sums.carbs, fat: sums.fat,
+      fiber: sums.fiber, sodium: sums.sodium, sugar: sums.sugar,
+      glycemic: sums.weight > 0 ? sums.glycemicNum / sums.weight : 0,
+    };
   }, [detected]);
 
   // Async nutrition resolution drives the explainability panel.
@@ -605,20 +601,13 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
   const sodium = useCountUp(Math.round(totals.sodium));
   const sugar = useCountUp(Math.round(totals.sugar));
 
-  const overCarbs = totals.carbs > TARGETS.carbs;
+  const overCarbs = totals.carbs > MOCK_TARGETS.carbs;
   const glycemicHigh = totals.glycemic > 0.65;
   const showWarning = overCarbs && glycemicHigh;
 
-  // Pick which nutrients get flagged based on user goal
-  const flaggedNutrients = profile?.goals.diabetic
-    ? [
-        { nutrient: 'sugar' as const, threshold: TARGETS.sugar },
-        { nutrient: 'fiber' as const, threshold: TARGETS.fiber },
-      ]
-    : [
-        { nutrient: 'sodium' as const, threshold: TARGETS.sodium },
-        { nutrient: 'fiber' as const, threshold: TARGETS.fiber },
-      ];
+  // Pick which nutrients get flagged based on user goal. Mirrors the same
+  // focus logic in `lib/personalize.ts` so the verdict strip can't drift.
+  const flaggedNutrients = focusedNutrients(profile);
 
   return (
     <div style={{ padding: '20px 24px 0' }}>
@@ -779,7 +768,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
         >
           <MacroDonut
             value={Math.round(protein)}
-            target={TARGETS.protein}
+            target={MOCK_TARGETS.protein}
             color={T.primary}
             label="Protein"
             delay={0.1}
@@ -794,7 +783,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
         >
           <MacroDonut
             value={Math.round(carbs)}
-            target={TARGETS.carbs}
+            target={MOCK_TARGETS.carbs}
             color={overCarbs ? T.accentWarn : T.primary}
             label="Carbs"
             delay={0.18}
@@ -809,7 +798,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
         >
           <MacroDonut
             value={Math.round(fat)}
-            target={TARGETS.fat}
+            target={MOCK_TARGETS.fat}
             color={T.accentGood}
             label="Fat"
             delay={0.26}
@@ -864,23 +853,23 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
 
         <Bar
           label="Fiber"
-          pct={Math.min(100, Math.round((totals.fiber / TARGETS.fiber) * 100))}
+          pct={Math.min(100, Math.round((totals.fiber / MOCK_TARGETS.fiber) * 100))}
           color={T.primary}
-          sub={`${Math.round(fiber)}g / target ${TARGETS.fiber}g`}
+          sub={`${Math.round(fiber)}g / target ${MOCK_TARGETS.fiber}g`}
           delay={0.4}
         />
         <Bar
           label="Sodium"
-          pct={Math.min(100, Math.round((totals.sodium / TARGETS.sodium) * 100))}
+          pct={Math.min(100, Math.round((totals.sodium / MOCK_TARGETS.sodium) * 100))}
           color={T.accentAmber}
-          sub={`${Math.round(sodium)}mg / ${TARGETS.sodium}mg`}
+          sub={`${Math.round(sodium)}mg / ${MOCK_TARGETS.sodium}mg`}
           delay={0.47}
         />
         <Bar
           label="Sugar"
-          pct={Math.min(100, Math.round((totals.sugar / TARGETS.sugar) * 100))}
+          pct={Math.min(100, Math.round((totals.sugar / MOCK_TARGETS.sugar) * 100))}
           color={T.accentWarn}
-          sub={`${Math.round(sugar)}g / ${TARGETS.sugar}g`}
+          sub={`${Math.round(sugar)}g / ${MOCK_TARGETS.sugar}g`}
           delay={0.54}
         />
       </motion.div>
@@ -937,7 +926,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
               }}
             >
               <b style={{ color: T.accentWarn }}>Why this is flagged:</b> carbs run{' '}
-              <b>{Math.round(totals.carbs)}g</b> against a {TARGETS.carbs}g target, and the
+              <b>{Math.round(totals.carbs)}g</b> against a {MOCK_TARGETS.carbs}g target, and the
               glycemic load is sitting at{' '}
               <b>{Math.round(totals.glycemic * 100)}%</b> of the prediabetic ceiling —
               that's a fast-digesting combo. Swapping half the rice for extra raita would
