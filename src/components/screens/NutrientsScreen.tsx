@@ -586,7 +586,9 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
       .then((res) => {
         if (!cancelled) setContributions(res.contributions);
       })
-      .catch(() => {
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('resolveNutrition failed:', err);
         if (!cancelled) setContributions([]);
       });
     return () => {

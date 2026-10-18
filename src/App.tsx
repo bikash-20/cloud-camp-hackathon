@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { T, TABS } from './data';
-import { getProfile, saveMeal, analyzeMeal } from './lib/api';
+import { getProfile, saveMeal, analyzeMeal, CANNED_DETECTED, CANNED_PIPELINE } from './lib/api';
 import { NUTRITION_DB } from './data';
 import { getSession } from './lib/auth';
 import { ThemeProvider } from './theme/ThemeContext';
@@ -113,49 +113,57 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
     setDirection(1);
     setPipelineToast('Cache check · Vision ID · HF validate · Reconcile');
 
-    const imageRef = imageDataUrl ? 'captured_photo.jpg' : 'chicken_biryani.jpg';
+    const imageRef = imageDataUrl || 'chicken_biryani.jpg';
+    let next: DetectedItem[] = [];
+    let trace: PipelineTrace[] = [];
     try {
-      const { detected: next, pipeline: trace } = await analyzeMeal(imageRef);
-      setDetected(next);
-      setPipeline(trace);
-
-      const totals = next.reduce(
-        (acc, it) => {
-          const n = NUTRITION_DB[it.name];
-          if (!n) return acc;
-          const factor = it.grams / 100;
-          return {
-            kcal: acc.kcal + n.kcal * factor,
-            protein: acc.protein + n.protein * factor,
-            carbs: acc.carbs + n.carbs * factor,
-            fat: acc.fat + n.fat * factor,
-            fiber: acc.fiber + n.fiber * factor,
-            sodium: acc.sodium + n.sodium * factor,
-            sugar: acc.sugar + n.sugar * factor,
-          };
-        },
-        { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sodium: 0, sugar: 0 },
-      );
-      const label = next.map((i) => i.name).join(', ') || 'Meal';
-      saveMeal({
-        label,
-        items: next,
-        totals,
-        photoUrl: imageDataUrl ?? null,
-        activeGoals: profile?.goals ?? { diabetic: false, protein: false, budget: false, mediter: false },
-      });
-
-      setTimeout(() => {
-        setPipelineToast(null);
-        goToTab(1);
-      }, 1100);
+      const result = await analyzeMeal(imageRef);
+      next = result.detected;
+      trace = result.pipeline;
     } catch (err) {
-      setPipelineToast('Pipeline error — using fallback');
-      setTimeout(() => {
-        setPipelineToast(null);
-        goToTab(1);
-      }, 1100);
+      // Live backend failed (network down, 5xx, CORS, etc). Log the
+      // error for the developer and fall back to the canned fixture
+      // so the demo still renders something — the user sees a
+      // pipeline-error toast but the app doesn't crash.
+      // eslint-disable-next-line no-console
+      console.error('analyzeMeal failed, falling back to canned fixture:', err);
+      next = CANNED_DETECTED;
+      trace = CANNED_PIPELINE;
+      setPipelineToast('Pipeline offline — using sample data');
     }
+    setDetected(next);
+    setPipeline(trace);
+
+    const totals = next.reduce(
+      (acc, it) => {
+        const n = NUTRITION_DB[it.name];
+        if (!n) return acc;
+        const factor = it.grams / 100;
+        return {
+          kcal: acc.kcal + n.kcal * factor,
+          protein: acc.protein + n.protein * factor,
+          carbs: acc.carbs + n.carbs * factor,
+          fat: acc.fat + n.fat * factor,
+          fiber: acc.fiber + n.fiber * factor,
+          sodium: acc.sodium + n.sodium * factor,
+          sugar: acc.sugar + n.sugar * factor,
+        };
+      },
+      { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sodium: 0, sugar: 0 },
+    );
+    const label = next.map((i) => i.name).join(', ') || 'Meal';
+    saveMeal({
+      label,
+      items: next,
+      totals,
+      photoUrl: imageDataUrl ?? null,
+      activeGoals: profile?.goals ?? { diabetic: false, protein: false, budget: false, mediter: false },
+    });
+
+    setTimeout(() => {
+      setPipelineToast(null);
+      goToTab(1);
+    }, 1400);
   };
 
   const handleRetake = () => {

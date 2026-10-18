@@ -1,15 +1,21 @@
 /**
- * Mock API client.
+ * API client.
  *
- * Mirrors the planned FastAPI endpoints from `app/api/*` in the blueprint.
- * Every function returns a Promise with simulated network latency so that
- * wiring against the real backend later is a drop-in swap — the UI never
- * has to change, only this file.
+ * The vision and nutrition flows now call the real FastAPI backend
+ * (`POST /api/vision/analyze`, `POST /api/nutrition/resolve`). The
+ * backend URL is read from `VITE_API_BASE` at build time (Vercel
+ * dashboard → Settings → Environment Variables). On localhost, the
+ * fallback is `http://localhost:8000` which assumes `uvicorn
+ * app.main:app --reload --port 8000` is running.
  *
- * To replace with a real backend:
- *   1. Delete the body of each function below.
- *   2. Replace with `fetch('/api/...')` calls.
- *   3. Keep the same exported signatures and return types.
+ * Profile, grocery, and meal history stay on localStorage so the
+ * Home / Grocery / Profile screens keep their instant, offline
+ * reads. Persisting those to the backend is a separate decision
+ * (it would require reconciling the localStorage cache with the
+ * `app/state.json` server state).
+ *
+ * To roll back to a fully-mocked build, set `VITE_API_BASE=""` in
+ * the deploy env — the routes fall back to the canned fixtures.
  */
 
 import type {
@@ -36,6 +42,66 @@ import {
   MOCK_TARGETS,
 } from '../mocks/fixtures';
 import { buildContributions, mealTotals } from './personalize';
+
+// ── Backend wiring ──────────────────────────────────────────────────────
+
+/**
+ * Base URL of the FastAPI backend. Empty string = run on the
+ * canned fixtures (the original mock behavior). Set on Vercel as
+ * `VITE_API_BASE=https://your-railway-app.up.railway.app` so the
+ * production PWA hits the live backend.
+ */
+const API_BASE: string = (import.meta.env.VITE_API_BASE ?? 'http://localhost:8000').replace(/\/+$/, '');
+
+/** True when a backend URL is configured and we should hit it. */
+const useLiveBackend = API_BASE.length > 0;
+
+class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+/** POST/GET JSON helper. Throws `ApiError` on non-2xx. */
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const resp = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(init?.headers ?? {}),
+    },
+  });
+  if (!resp.ok) {
+    let detail = resp.statusText;
+    try {
+      const body = await resp.json();
+      if (body && typeof body === 'object' && 'detail' in body) {
+        detail = String((body as { detail: unknown }).detail);
+      }
+    } catch {
+      // Body wasn't JSON; fall back to statusText.
+    }
+    throw new ApiError(resp.status, `API ${resp.status}: ${detail}`);
+  }
+  // 204 No Content → return undefined cast.
+  if (resp.status === 204) return undefined as T;
+  return (await resp.json()) as T;
+}
+
+/**
+ * Canned `AnalyzeResult` for offline / fallback paths. Exported so
+ * `App.tsx` can fall back to it when the live backend is unreachable,
+ * keeping the demo renderable instead of crashing on a network error.
+ */
+export const CANNED_DETECTED: DetectedItem[] = clone(MOCK_DETECTED);
+export const CANNED_PIPELINE: PipelineTrace[] = [
+  makeTrace('cache-check', 'Cache check', 'cache-hit'),
+  makeTrace('vision-id', 'Vision ID (offline)', 'fallback'),
+  makeTrace('hf-validate', 'HF validator (offline)', 'fallback'),
+  makeTrace('reconcile', 'Reconcile (skipped)', 'fallback'),
+];
 
 // ── In-memory mutable state (pretends to be a backend session) ──────────
 
@@ -89,45 +155,69 @@ function clone<T>(v: T): T {
  * POST /api/vision/analyze  →  { detected, pipeline }
  * Runs the dual vision pipeline (Gemini + HF validator) and returns ranked
  * detected items with a per-stage trace.
+ *
+ * Live mode (default): POSTs the data URL to the FastAPI backend, which
+ * checks the vector cache and runs the live pipeline (or the canned
+ * fallback when no API keys are configured).
+ *
+ * Mock mode (VITE_API_BASE=""): returns the canned fixture.
  */
-export async function analyzeMeal(_imageRef: string): Promise<AnalyzeResult> {
-  const pipeline: PipelineTrace[] = [
-    makeTrace('cache-check', 'Cache check', 'cache-hit'),
-    makeTrace('vision-id', 'Vision ID (Gemini)', 'done'),
-    makeTrace('hf-validate', 'HF validator', 'done'),
-    makeTrace('reconcile', 'Confidence-weighted reconcile', 'done'),
-  ];
-  await delay(180, 320);
-  return { detected: clone(MOCK_DETECTED), pipeline };
+export async function analyzeMeal(imageRef: string): Promise<AnalyzeResult> {
+  if (!useLiveBackend) {
+    const pipeline: PipelineTrace[] = [
+      makeTrace('cache-check', 'Cache check', 'cache-hit'),
+      makeTrace('vision-id', 'Vision ID (Gemini)', 'done'),
+      makeTrace('hf-validate', 'HF validator', 'done'),
+      makeTrace('reconcile', 'Confidence-weighted reconcile', 'done'),
+    ];
+    await delay(180, 320);
+    return { detected: clone(MOCK_DETECTED), pipeline };
+  }
+  return apiFetch<AnalyzeResult>('/api/vision/analyze', {
+    method: 'POST',
+    body: JSON.stringify({ image_ref: imageRef }),
+  });
 }
 
 // ── Nutrition resolution ────────────────────────────────────────────────
 
 /**
  * POST /api/nutrition/resolve  →  { resolved, contributions }
- * Runs the OFF → USDA → Fruityvice cascade (mocked as cache hit) and emits
- * SHAP-style contributions for the explainability panel.
+ * Runs the OFF → USDA → Fruityvice cascade and emits SHAP-style
+ * contributions for the explainability panel.
+ *
+ * Live mode: POSTs to the backend. The backend cascades through the
+ * three external DBs, computes contributions against `profile`, and
+ * returns the result.
+ *
+ * Mock mode (VITE_API_BASE=""): looks each item up in MOCK_NUTRITION_DB.
  */
 export async function resolveNutrition(
   items: DetectedItem[],
   profile?: UserProfile,
 ): Promise<ResolveNutritionResult> {
-  await delay(160, 280);
+  if (!useLiveBackend) {
+    await delay(160, 280);
 
-  const resolved: ResolvedItem[] = items.map((it) => {
-    const descriptor = MOCK_NUTRITION_DB[it.name] ?? null;
-    return {
-      ...it,
-      descriptor,
-      nutrition: descriptor ? { ...descriptor } : null,
-      source: descriptor ? 'cache' : 'estimated',
-      partial: descriptor == null,
-    };
+    const resolved: ResolvedItem[] = items.map((it) => {
+      const descriptor = MOCK_NUTRITION_DB[it.name] ?? null;
+      return {
+        ...it,
+        descriptor,
+        nutrition: descriptor ? { ...descriptor } : null,
+        source: descriptor ? 'cache' : 'estimated',
+        partial: descriptor == null,
+      };
+    });
+
+    const totals = mealTotals(resolved);
+    const contributions = buildContributions(resolved, totals, profile);
+    return { resolved, contributions };
+  }
+  return apiFetch<ResolveNutritionResult>('/api/nutrition/resolve', {
+    method: 'POST',
+    body: JSON.stringify({ items, profile: profile ?? null }),
   });
-
-  const totals = mealTotals(resolved);
-  const contributions = buildContributions(resolved, totals, profile);
-  return { resolved, contributions };
 }
 
 // ── Profile ─────────────────────────────────────────────────────────────
