@@ -19,6 +19,8 @@ from typing import Any
 
 import httpx
 
+from app.services._http_logging import log_http_failure
+
 
 log = logging.getLogger(__name__)
 
@@ -89,7 +91,7 @@ class HFClient:
             )
             resp.raise_for_status()
         except (httpx.HTTPError, ValueError) as exc:
-            log.warning("HF request failed: %s", exc)
+            log_http_failure("HF", exc, image_ref=image_ref)
             return []
 
         try:

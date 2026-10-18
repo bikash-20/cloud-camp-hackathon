@@ -27,6 +27,7 @@ from typing import Any
 import httpx
 
 from app.models.schemas import BBox, DetectedItem
+from app.services._http_logging import log_http_failure
 
 
 log = logging.getLogger(__name__)
@@ -123,7 +124,7 @@ class GeminiClient:
             )
             resp.raise_for_status()
         except (httpx.HTTPError, ValueError) as exc:
-            log.warning("Gemini request failed: %s", exc)
+            log_http_failure("Gemini", exc, image_ref=image_ref)
             return []
 
         return _parse_gemini_response(resp.json())

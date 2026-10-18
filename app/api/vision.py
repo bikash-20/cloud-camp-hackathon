@@ -22,7 +22,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.cache.sqlite_cache import TTLCache
@@ -38,6 +38,11 @@ from app.services.trace import make_trace
 
 
 router = APIRouter(prefix="/api/vision", tags=["vision"])
+
+# Body size cap. A 6 MP JPEG at quality 0.92 base64-encoded is ~1 MB;
+# 8 MB gives 8× headroom for larger phone cameras without leaving the
+# door open to a 50 MB payload that OOMs the worker.
+_MAX_REQUEST_BYTES = 8 * 1024 * 1024
 
 
 # Process-wide clients. Lazy-instantiated so tests that never call the
@@ -105,8 +110,28 @@ class AnalyzeRequest(BaseModel):
 
 
 @router.post("/analyze", response_model=AnalyzeResult)
-def analyze_meal(body: AnalyzeRequest) -> AnalyzeResult:
-    """Vision pipeline — see module docstring for the full flow."""
+async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
+    """Vision pipeline — see module docstring for the full flow.
+
+    A request-body size cap is enforced before we touch any cache or
+    external client. A 50 MB data-URL payload can OOM the worker, so
+    we reject with 413 long before the Gemini call goes out.
+    """
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            length = int(content_length)
+        except ValueError:
+            length = 0
+        if length > _MAX_REQUEST_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=(
+                    f"Request body {length} bytes exceeds the {_MAX_REQUEST_BYTES}-byte cap. "
+                    "Send a smaller image or switch to multipart upload."
+                ),
+            )
+
     pipeline: list[PipelineTrace] = [
         make_trace("cache-check", "Cache check", "running"),
     ]

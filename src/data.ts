@@ -11,6 +11,12 @@
  *   - Re-exports the canonical fixture exports for any caller that still
  *     imports from the legacy path (preserves backward compatibility while
  *     the migration is in flight).
+ *
+ * **Note for new code:** this file is a backward-compat shim. Prefer
+ * importing `T` from `src/theme/tokens` (or `useTokens()` from
+ * `src/theme/useTokens` for reactive theme), and mock data directly
+ * from `src/mocks/fixtures`. Existing call sites keep working via the
+ * re-exports below.
  */
 
 import type { FoodCategory } from './types/schemas';

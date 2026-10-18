@@ -3,7 +3,7 @@
 
 fastapi>=0.110,<1.0
 uvicorn[standard]>=0.27,<1.0
-pydantic>=2.6,<3.0
+pydantic>=2.6,<2.9
 httpx>=0.27,<1.0
 
 # Optional — OCR fallback for vision stub (disabled by default).
@@ -11,7 +11,14 @@ httpx>=0.27,<1.0
 
 # Cut (b): ChromaDB for in-process semantic image cache. Embedded mode
 # means no separate server; the persistent path is a local directory.
-chromadb>=0.4,<1.0
+# Pinned below 0.6 because the 0.6 line introduced breaking API changes
+# in PersistentClient + collection.get_or_create_collection.
+chromadb>=0.5,<0.6
+
+# python-multipart is required by FastAPI for multipart form parsing —
+# free insurance for the cut (b) file-upload path even though cut (a)
+# receives base64-in-JSON.
+python-multipart>=0.0.9,<1.0
 
 # Dev
 pytest>=8.0,<10.0

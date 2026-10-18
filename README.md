@@ -176,3 +176,19 @@ To swap mocks for real endpoints, replace the function bodies in `src/lib/api.ts
 ## License
 
 MIT
+
+## Documentation
+
+Comprehensive docs live in [`docs/`](./docs/README.md):
+
+- [Architecture overview](./docs/ARCHITECTURE.md) — the 5-minute orientation
+- [What happens when you upload a picture](./docs/IMAGE_UPLOAD_FLOW.md) — frame-by-frame trace from camera to saved meal
+- [Agent context](./docs/AGENT_CONTEXT.md) — for AI agents or new developers picking up the project
+- [Schema lockstep rules](./docs/schemas.md) — how `src/types/schemas.ts` ↔ `app/models/schemas.py` stay in sync
+- [Development guide](./docs/development.md) — setup, tests, smoke-testing the real backend
+- [Changelog](./docs/CHANGELOG.md) — what changed in the recent cleanup pass
+
+Per-area deep dives:
+- [Frontend](./docs/frontend/README.md) · [Components](./docs/frontend/components.md)
+- [Backend](./docs/backend/README.md) · [Services](./docs/backend/services.md)
+- [API reference](./docs/api/vision.md) (vision, nutrition, profile, grocery, meals)

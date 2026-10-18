@@ -19,6 +19,7 @@ from typing import Any
 import httpx
 
 from app.models.schemas import NutritionFacts
+from app.services._http_logging import log_http_failure
 
 
 log = logging.getLogger(__name__)
@@ -59,14 +60,14 @@ class FruityviceClient:
         try:
             resp = self._http().get(f"/fruit/{slug}")
         except (httpx.HTTPError, ValueError) as exc:
-            log.warning("Fruityvice lookup failed for %r: %s", name, exc)
+            log_http_failure("Fruityvice", exc, image_ref=name)
             return None
         if resp.status_code == 404:
             return None
         try:
             resp.raise_for_status()
         except httpx.HTTPError as exc:
-            log.warning("Fruityvice %r → %s", name, exc)
+            log_http_failure("Fruityvice", exc, image_ref=name)
             return None
         try:
             data: dict[str, Any] = resp.json()

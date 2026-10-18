@@ -184,6 +184,20 @@ export interface UserProfile {
  *  always renders a meaningful percentage. */
 export const DAILY_KCAL_TARGET_DEFAULT = 2000;
 
+/** Per-meal macro/micro ceilings used by the NutrientsScreen verdict UI.
+ *  Mirrors `app/models/schemas.py#MacroTargets`. NutrientsScreen
+ *  consumes the mock values (`MOCK_TARGETS`) at runtime; this interface
+ *  exists so the schema-drift guard has something to compare against. */
+export interface MacroTargets {
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  sodium: number;
+  sugar: number;
+}
+
 /** Resolve a profile's effective daily kcal target. Tolerates older stored
  *  profiles that pre-date the `dailyKcalTarget` field by falling back to the
  *  universal default. Always returns a positive finite number. */

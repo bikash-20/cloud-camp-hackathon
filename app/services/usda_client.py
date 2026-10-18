@@ -23,6 +23,7 @@ from typing import Any
 import httpx
 
 from app.models.schemas import NutritionFacts
+from app.services._http_logging import log_http_failure
 
 
 log = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ class USDAClient:
             )
             resp.raise_for_status()
         except (httpx.HTTPError, ValueError) as exc:
-            log.warning("USDA lookup failed for %r: %s", name, exc)
+            log_http_failure("USDA", exc, image_ref=name)
             return None
 
         data: dict[str, Any] = resp.json()

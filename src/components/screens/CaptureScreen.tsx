@@ -3,17 +3,20 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Camera, Sparkles, ScanLine, RotateCcw, X, Upload, UtensilsCrossed, History, ShoppingBag, ChevronRight } from 'lucide-react';
 import { T, USER_NAME, getGreeting, NUTRITION_DB } from '../../data';
 import { getTodaySummary, getMealHistory, getMacroTargets } from '../../lib/api';
+import { formatRelative, pickThumbnailStyle } from '../../lib/format';
+import { MiniBar, MacroMeter } from '../../components/Meter';
+import { MOCK_TABS } from '../../mocks/fixtures';
 import type { MealEntry, TodaySummary } from '../../types/schemas';
 
 type CapturePhase = 'idle' | 'camera' | 'captured';
 
-/** Tab indices match the order in src/mocks/fixtures.ts → MOCK_TABS. Kept
- *  here as a local mapping so we don't have to import the whole TABS array
- *  just to call `goToTab` from a quick-action chip. Only Grocery needs an
- *  index here today — Recent scrolls within the screen, Log Meal opens the
- *  camera card. If we add cross-tab navigation from Capture later, list it
- *  here. */
-const TAB_GROCERY = 4;
+/** Tab indices match the order in src/mocks/fixtures.ts → MOCK_TABS.
+ *  Resolved by id rather than hard-coded so adding/removing a tab in
+ *  `MOCK_TABS` doesn't silently break cross-tab navigation here. */
+const TAB_GROCERY = (() => {
+  const idx = MOCK_TABS.findIndex((t) => t.id === 'grocery');
+  return idx >= 0 ? idx : 4;
+})();
 
 interface CaptureScreenProps {
   /** Called with the captured image data URL when the user takes a photo. */
@@ -27,194 +30,6 @@ interface CaptureScreenProps {
   /** Optional callback to switch tabs (used by quick-action chips). */
   onNavigateTab?: (index: number) => void;
 }
-
-/** Format an ISO timestamp as a short relative string for the recent-meals
- *  list. We deliberately drop absolute time for the most-recent entries and
- *  fall back to "Yesterday" / weekday for older ones — phone-first UX, not a
- *  desktop dashboard.
- *
- *    < 1 min   → "just now"
- *    < 60 min  → "Nm ago"
- *    same day  → "Nh ago"
- *    −1 day    → "Yesterday"
- *    < 7 d     → weekday short
- *    else      → "Mon DD"
- *
- *  The "Nh ago" branch only fires when `then` and `now` land on the same
- *  calendar day — otherwise a meal logged at 23:00 yesterday and viewed at
- *  13:00 today (diffH = 14, dayDiff = 1) would incorrectly say "14h ago"
- *  instead of "Yesterday".
- */
-function formatRelative(iso: string, now: Date = new Date()): string {
-  const then = new Date(iso);
-  const diffMs = now.getTime() - then.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (then.toDateString() === now.toDateString()) {
-    const diffH = Math.floor(diffMin / 60);
-    return `${diffH}h ago`;
-  }
-  const dayDiff = Math.floor(diffMs / (24 * 60 * 60 * 1000));
-  if (dayDiff === 1) return 'Yesterday';
-  if (dayDiff < 7) return then.toLocaleDateString([], { weekday: 'short' });
-  return then.toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
-
-/** Hash a string into a stable integer 0..2^31. Used to deterministically
- *  pick a gradient stop pair for meals that don't have a captured photo. */
-function hashStr(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) {
-    h = (h << 5) - h + s.charCodeAt(i);
-    h |= 0;
-  }
-  return Math.abs(h);
-}
-
-/** Pick a deterministic gradient + emoji fallback for a meal thumbnail when
- *  there's no captured image. Tied to the meal.id so the same meal always
- *  renders the same swatch — important so the list feels stable across
- *  re-renders. The emoji is the descriptor's emoji for the first item that
- *  has one; falls back to a fork-and-knife glyph. */
-function pickThumbnailStyle(meal: MealEntry, descriptorEmojis: Record<string, string>) {
-  const h = hashStr(meal.id);
-  // Warm earth-tone gradients that read well on the cream card bg.
-  const palettes = [
-    'linear-gradient(135deg, #D0AE92, #A8836C)',
-    'linear-gradient(135deg, #B8C68A, #7A8C4F)',
-    'linear-gradient(135deg, #EBD7BE, #C9622D)',
-    'linear-gradient(135deg, #A8836C, #77574A)',
-  ];
-  const bg = palettes[h % palettes.length];
-  const firstItem = meal.items[0];
-  const emoji = (firstItem && descriptorEmojis[firstItem.name]) || '🍽';
-  return { bg, emoji };
-}
-
-/** Tiny animated progress bar used by both the daily-kcal bar and the three
- *  macro mini-bars. Kept local to this file because the existing `Bar`
- *  component is styled for the Nutrients screen (full label + subtext,
- *  drop-shadow, border) and doesn't fit the flatter Home aesthetic.
- *
- *  Pass `ariaValueNow`/`ariaValueMax` as raw numbers when the bar
- *  represents a real unit (kcal, grams) — screen readers will then
- *  announce e.g. "800 of 2000" instead of the dimensionless ratio. */
-function MiniBar({
-  ratio,
-  fill,
-  height,
-  delay,
-  ariaLabel,
-  ariaValueNow,
-  ariaValueMax,
-}: {
-  ratio: number;
-  fill: string;
-  height: number;
-  delay?: number;
-  ariaLabel?: string;
-  ariaValueNow?: number;
-  ariaValueMax?: number;
-}) {
-  const reduceMotion = useReducedMotion();
-  const pct = Math.min(1, Math.max(0, ratio));
-  return (
-    <div
-      style={{
-        position: 'relative',
-        height,
-        borderRadius: 999,
-        background: 'rgba(74, 58, 52, 0.10)',
-        overflow: 'hidden',
-      }}
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={ariaValueMax ?? 1}
-      aria-valuenow={ariaValueNow ?? pct}
-      aria-label={ariaLabel}
-    >
-      <motion.div
-        initial={{ width: 0 }}
-        animate={{ width: `${pct * 100}%` }}
-        transition={
-          reduceMotion
-            ? { duration: 0 }
-            : { type: 'spring', stiffness: 180, damping: 26, delay }
-        }
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: fill,
-          borderRadius: 999,
-        }}
-      />
-    </div>
-  );
-}
-
-/**
- * A labeled ratio bar — used by both the daily-kcal bar and the three
- * macro mini-bars in Today's Summary. Encapsulates the "over-target"
- * styling so the call sites only pass current + target.
- */
-function MacroMeter({
-  label,
-  current,
-  target,
-  unit,
-  color,
-  height = 4,
-  delay = 0,
-}: {
-  label: string;
-  current: number;
-  target: number;
-  /** "g" or "mg" — printed after the rounded current value. */
-  unit: 'g' | 'mg';
-  /** Bar color used when current ≤ target. */
-  color: string;
-  height?: number;
-  delay?: number;
-}) {
-  const ratio = current / Math.max(1, target);
-  const over = ratio > 1;
-  const fill = over
-    ? `linear-gradient(90deg, ${T.accentWarn}, ${T.accentAmber})`
-    : color;
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-        <span style={METER_LABEL_STYLE}>{label}</span>
-        <span className="tnum" style={{ ...METER_VALUE_STYLE, color: over ? T.accentWarn : T.inkSoft }}>
-          {Math.round(current)}{unit}
-        </span>
-      </div>
-      <MiniBar
-        ratio={ratio}
-        fill={fill}
-        height={height}
-        delay={delay}
-        ariaLabel={`${label} progress`}
-      />
-    </div>
-  );
-}
-
-const METER_LABEL_STYLE = {
-  fontFamily: 'Inter',
-  fontSize: 10,
-  fontWeight: 600,
-  color: T.inkSoft,
-  textTransform: 'uppercase' as const,
-  letterSpacing: '0.05em',
-};
-
-const METER_VALUE_STYLE = {
-  fontFamily: 'Inter',
-  fontSize: 10,
-  fontWeight: 600,
-};
 
 /** 40×40 thumbnail — prefers a captured photo, falls back to a deterministic
  *  gradient + emoji swatch keyed off `meal.id` so pre-existing seeded history
