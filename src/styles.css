@@ -1,6 +1,8 @@
 /* NutriVision — Earth-tone design tokens, resets, accessibility */
 
 :root {
+  --screen-gutter: 24px;
+
   /* Background gradient (warm earth: rich brown → sand → cream) */
   --bg-gradient-start: #77574A;
   --bg-gradient-mid:   #D0AE92;
@@ -373,6 +375,10 @@ p { margin: 0; }
 
 /* Mobile: allow body scroll, remove phone-frame centering */
 @media (max-width: 767px) {
+  :root {
+    --screen-gutter: 20px;
+  }
+
   body {
     background: linear-gradient(180deg, var(--bg-gradient-mid) 0%, var(--bg-gradient-end) 100%);
   }
@@ -380,6 +386,69 @@ p { margin: 0; }
   /* Macro donuts: stack vertically on very narrow screens */
   .glass-card .tnum {
     font-variant-numeric: tabular-nums lining-nums;
+  }
+}
+
+@media (max-width: 380px) {
+  :root {
+    --screen-gutter: 16px;
+  }
+
+  .profile-heading-row {
+    align-items: flex-start !important;
+    flex-direction: column;
+  }
+
+  .profile-heading-row h2 {
+    font-size: 21px !important;
+  }
+
+  .profile-heading-actions {
+    flex-wrap: wrap;
+  }
+
+  .profile-signed-in {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .macro-donut-card {
+    gap: 2px !important;
+    padding: 16px 8px !important;
+  }
+
+  .macro-donut-card > div {
+    min-width: 0;
+  }
+
+  .macro-donut-ring {
+    width: min(88px, 100%) !important;
+    height: auto !important;
+    aspect-ratio: 1;
+  }
+
+  .macro-donut-ring svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .macro-donut > div:last-child {
+    font-size: 11px !important;
+  }
+
+  .nav-tab-btn > div:first-child {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .nav-tab-halo {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .nav-tab-label {
+    font-size: 10px !important;
   }
 }
 

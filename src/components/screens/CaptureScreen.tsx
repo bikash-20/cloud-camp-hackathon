@@ -272,7 +272,7 @@ export default function CaptureScreen({
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: '20px 24px 0' }}>
+    <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
       {/* Hidden elements */}
       <canvas ref={canvasRef} style={{ display: 'none' }} aria-hidden="true" />
       <input
@@ -341,23 +341,9 @@ export default function CaptureScreen({
       </motion.p>
 
       {/* ── Capture card ──────────────────────────────────────────── */}
-      <motion.button
-        type="button"
-        onClick={phase === 'idle' && !captured ? handleTapCard : undefined}
-        disabled={captured}
-        aria-label={
-          captured
-            ? 'Photo captured, analyzing'
-            : phase === 'camera'
-              ? 'Tap shutter to take a photo'
-              : 'Tap to open camera'
-        }
-        whileHover={!captured && !reduceMotion ? { scale: 1.005 } : {}}
-        whileTap={!captured && !reduceMotion ? { scale: 0.98 } : {}}
-        transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+      <motion.div
         className="glass-card"
         style={{
-          all: 'unset',
           width: '100%',
           borderRadius: 24,
           aspectRatio: '4 / 3.5',
@@ -366,7 +352,6 @@ export default function CaptureScreen({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          cursor: captured ? 'default' : 'pointer',
           background:
             phase === 'camera' || phase === 'captured'
               ? 'linear-gradient(160deg, #77574A, #4A3A34)'
@@ -375,6 +360,7 @@ export default function CaptureScreen({
             pressed || captured
               ? `2px solid ${T.primary}`
               : `2px dashed ${T.cardBorder}`,
+          cursor: 'default',
           boxShadow:
             pressed || captured
               ? '0 14px 36px -14px rgba(46,37,34,0.55)'
@@ -405,38 +391,51 @@ export default function CaptureScreen({
         {/* ── Phase: idle — show CTA ─────────────────────────────── */}
         {phase === 'idle' && !captured && (
           <div style={{ textAlign: 'center', position: 'relative', padding: '0 20px' }}>
-            <motion.div
-              whileHover={!reduceMotion ? { scale: 1.04 } : {}}
-              whileTap={!reduceMotion ? { scale: 0.92 } : {}}
-              transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+            <motion.button
+              type="button"
+              onClick={handleTapCard}
+              whileHover={!reduceMotion ? { scale: 1.005 } : {}}
+              whileTap={!reduceMotion ? { scale: 0.98 } : {}}
+              transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+              aria-label="Open camera"
               style={{
-                width: 56,
-                height: 56,
-                borderRadius: '50%',
-                background: T.primary,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 20px',
-                boxShadow: '0 8px 24px rgba(46, 37, 34, 0.25)',
+                all: 'unset',
+                display: 'block',
+                width: '100%',
+                cursor: 'pointer',
+                textAlign: 'center',
               }}
             >
-              <Camera size={26} color="#FFFFFF" strokeWidth={2} />
-            </motion.div>
-            <div style={{ fontFamily: 'Inter', fontWeight: 600, fontSize: 18, color: T.ink }}>
-              Tap to open camera
-            </div>
-            <div style={{ fontFamily: 'Inter', fontSize: 14, color: T.inkSoft, marginTop: 6 }}>
-              Plate, ingredients, or a menu — all work
-            </div>
+              <motion.div
+                whileHover={!reduceMotion ? { scale: 1.04 } : {}}
+                whileTap={!reduceMotion ? { scale: 0.92 } : {}}
+                transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: '50%',
+                  background: T.primary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 20px',
+                  boxShadow: '0 8px 24px rgba(46, 37, 34, 0.25)',
+                }}
+              >
+                <Camera size={26} color="#FFFFFF" strokeWidth={2} />
+              </motion.div>
+              <div style={{ fontFamily: 'Inter', fontWeight: 600, fontSize: 18, color: T.ink }}>
+                Tap to open camera
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 14, color: T.inkSoft, marginTop: 6 }}>
+                Plate, ingredients, or a menu — all work
+              </div>
+            </motion.button>
 
             {/* Upload fallback button */}
             <motion.button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                fileInputRef.current?.click();
-              }}
+              onClick={() => fileInputRef.current?.click()}
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.96 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
@@ -756,7 +755,7 @@ export default function CaptureScreen({
             </motion.button>
           </>
         )}
-      </motion.button>
+      </motion.div>
 
       {/* ── Status / hint area ───────────────────────────────────── */}
       <AnimatePresence mode="wait">

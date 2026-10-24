@@ -168,7 +168,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
   };
 
   return (
-    <div style={{ padding: '20px 24px 0' }}>
+    <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}

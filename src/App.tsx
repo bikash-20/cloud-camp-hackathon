@@ -194,7 +194,10 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
   return (
     <>
       <PwaInstallBanner />
-      <PhoneFrame headerRight={<StepDots active={tab} onChange={goToTab} />}>
+      <PhoneFrame
+        headerRight={<StepDots active={tab} onChange={goToTab} />}
+        footer={<BottomNav active={tab} onChange={goToTab} />}
+      >
         <AnimatePresence mode="wait" custom={direction} initial={false}>
           <motion.div
             key={tab}
@@ -317,8 +320,6 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
             </motion.div>
           )}
         </AnimatePresence>
-
-        <BottomNav active={tab} onChange={goToTab} />
 
         <div
           role="status"

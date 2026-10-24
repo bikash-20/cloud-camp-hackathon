@@ -27,6 +27,7 @@ function MacroDonut({ value, target, color, label, size = 88, stroke = 8, delay 
   const overTarget = value > target;
   return (
     <motion.div
+      className="macro-donut"
       whileHover={{ y: -2, scale: 1.02 }}
       transition={{ type: 'spring', stiffness: 380, damping: 22 }}
       style={{
@@ -35,12 +36,15 @@ function MacroDonut({ value, target, color, label, size = 88, stroke = 8, delay 
         alignItems: 'center',
         gap: 6,
         flex: 1,
+        width: '100%',
+        minWidth: 0,
         padding: 4,
         borderRadius: 14,
         cursor: 'default',
       }}
     >
       <div
+        className="macro-donut-ring"
         style={{
           position: 'relative',
           width: size,
@@ -48,7 +52,12 @@ function MacroDonut({ value, target, color, label, size = 88, stroke = 8, delay 
           flexShrink: 0,
         }}
       >
-        <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          style={{ transform: 'rotate(-90deg)' }}
+        >
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -612,7 +621,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
   const flaggedNutrients = focusedNutrients(profile);
 
   return (
-    <div style={{ padding: '20px 24px 0' }}>
+    <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
       {detected.length === 0 && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -752,7 +761,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
           hidden: {},
           show: { transition: { staggerChildren: 0.08 } },
         }}
-        className="glass-card"
+        className="glass-card macro-donut-card"
         style={{
           display: 'flex',
           gap: 8,
@@ -766,7 +775,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
             hidden: { opacity: 0, y: 8 },
             show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
           }}
-          style={{ flex: 1 }}
+          style={{ flex: 1, minWidth: 0 }}
         >
           <MacroDonut
             value={Math.round(protein)}
@@ -781,7 +790,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
             hidden: { opacity: 0, y: 8 },
             show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
           }}
-          style={{ flex: 1 }}
+          style={{ flex: 1, minWidth: 0 }}
         >
           <MacroDonut
             value={Math.round(carbs)}
@@ -796,7 +805,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
             hidden: { opacity: 0, y: 8 },
             show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
           }}
-          style={{ flex: 1 }}
+          style={{ flex: 1, minWidth: 0 }}
         >
           <MacroDonut
             value={Math.round(fat)}

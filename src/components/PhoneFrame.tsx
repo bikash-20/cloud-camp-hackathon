@@ -5,6 +5,7 @@ import { T } from '../data';
 interface PhoneFrameProps {
   children: React.ReactNode;
   headerRight?: React.ReactNode;
+  footer?: React.ReactNode;
 }
 
 /**
@@ -13,7 +14,7 @@ interface PhoneFrameProps {
  * - Mobile (<768px): fills the viewport like a native app — no bezel, no shadow
  * - Desktop (≥768px): centered phone mockup with bezel + 3D tilt entrance
  */
-export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
+export default function PhoneFrame({ children, headerRight, footer }: PhoneFrameProps) {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -29,7 +30,8 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
     return (
       <div
         style={{
-          minHeight: '100dvh',
+          height: '100dvh',
+          minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
           position: 'relative',
@@ -92,13 +94,16 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
             position: 'relative',
             zIndex: 2,
             flex: 1,
+            minHeight: 0,
             overflowY: 'auto',
+            overscrollBehavior: 'contain',
             paddingTop: 8,
             paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           }}
         >
           {children}
         </div>
+        {footer}
       </div>
     );
   }
@@ -140,7 +145,9 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
             position: 'relative',
             borderRadius: 38,
             overflow: 'hidden',
-            minHeight: 760,
+            height: 760,
+            maxHeight: 'calc(100dvh - 80px)',
+            minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
             background: 'transparent',
@@ -201,7 +208,9 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
             style={{
               position: 'relative',
               zIndex: 2,
-              minHeight: 540,
+              minHeight: 0,
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
               paddingTop: 8,
               paddingBottom: 'env(safe-area-inset-bottom, 0px)',
               flex: 1,
@@ -209,6 +218,7 @@ export default function PhoneFrame({ children, headerRight }: PhoneFrameProps) {
           >
             {children}
           </div>
+          {footer}
         </div>
       </motion.div>
     </div>

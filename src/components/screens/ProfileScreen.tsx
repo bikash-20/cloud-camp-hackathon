@@ -205,7 +205,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
   };
 
   return (
-    <div style={{ padding: '20px 24px 0' }}>
+    <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
       {/* Signed-in chip — only renders when a session is present so the
           Profile screen still works for callers (tests, demos) that don't
           pass one through. */}
@@ -214,7 +214,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="glass-soft"
+          className="glass-soft profile-signed-in"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -244,6 +244,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
+        className="profile-heading-row"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -262,7 +263,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         >
           Your health profile
         </h2>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <div className="profile-heading-actions" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <ThemeToggle />
           <motion.button
             type="button"

@@ -64,7 +64,7 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
     <PhoneFrame>
       <div
         style={{
-          padding: '24px 24px 32px',
+          padding: '24px var(--screen-gutter, 24px) 32px',
           display: 'flex',
           flexDirection: 'column',
           gap: 18,
