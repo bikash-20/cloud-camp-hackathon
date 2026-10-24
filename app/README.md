@@ -41,13 +41,19 @@ Open <http://localhost:8000/docs> for the auto-generated Swagger UI.
 
 ### Deploy the backend to Render
 
-The repository-root `render.yaml` defines a free Python web service,
-installs `app/requirements.txt`, and starts the FastAPI app. Connect this
-GitHub repository as a Blueprint in Render and use `main` as its branch.
-Render will prompt for the `GEMINI_API_KEY` secret when it creates the
-service; enter a newly rotated key there, never in GitHub or Vercel.
-After Render deploys, set Vercel's `VITE_API_BASE` to the Render service's
-HTTPS origin and redeploy the frontend.
+The existing Render web service is connected to this repository's `main`
+branch and auto-deploys on commits. Its root directory must be the
+repository root (`.`), with build command
+`pip install -r app/requirements.txt`, start command
+`uvicorn app.main:app --host 0.0.0.0 --port $PORT`, and health check
+`/health`.
+
+In Render's Environment settings, set `GEMINI_API_KEY` to a newly
+rotated key and `CORS_ALLOW_ORIGINS` to
+`https://cloud-camp-hackathon.vercel.app`. Never put the Gemini key in
+GitHub or Vercel. After the backend is healthy, set Vercel's
+`VITE_API_BASE` to `https://cloud-camp-hackathon.onrender.com` and
+redeploy the frontend.
 
 The free service uses an ephemeral filesystem and may sleep while idle.
 Do not rely on the backend's local JSON state or caches as durable
