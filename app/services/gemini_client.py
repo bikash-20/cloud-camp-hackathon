@@ -1,7 +1,8 @@
 """Google Gemini vision client.
 
 Gemini 2.0 Flash is the default model — fast, cheap, decent on food
-photos. The API is `POST /v1beta/models/{model}:generateContent?key=...`
+photos. The API is `POST /v1beta/models/{model}:generateContent` with
+the API key in the `x-goog-api-key` header
 with a JSON body containing an `inline_data` block (base64 image) and
 a prompt asking for a JSON list of detected items.
 
@@ -46,6 +47,11 @@ return ONLY a JSON array (no prose, no code fences) of food items.
 
 Each element must match this shape exactly:
   {"name": "<food>", "confidence": <0–100 integer>, "grams": <estimated portion in grams>, "bbox": [x, y, w, h]}
+
+For South Asian and Bangladeshi meals, use a specific local dish name
+when the image supports it (for example: bhat, dal, khichuri, biryani,
+fish curry, bhorta, bhaji, roti, or paratha). Do not guess ingredients
+that are not visible; use a broader label when uncertain.
 
 `bbox` is the item's normalized bounding box in [0, 1] image space,
 optional. If you cannot detect any food, return [].
@@ -98,7 +104,7 @@ class GeminiClient:
         try:
             image_b64, mime = _read_image(image_ref)
         except (OSError, ValueError) as exc:
-            log.warning("Gemini: cannot read image %r: %s", image_ref, exc)
+            log.warning("Gemini: cannot read image (%s)", type(exc).__name__)
             return []
 
         body = {
@@ -120,14 +126,17 @@ class GeminiClient:
         url = f"{self.base_url}/{self.model}:generateContent"
         try:
             resp = self._http().post(
-                url, params={"key": self.api_key}, json=body
+                url,
+                headers={"x-goog-api-key": self.api_key},
+                json=body,
             )
             resp.raise_for_status()
+            payload = resp.json()
         except (httpx.HTTPError, ValueError) as exc:
             log_http_failure("Gemini", exc, image_ref=image_ref)
             return []
 
-        return _parse_gemini_response(resp.json())
+        return _parse_gemini_response(payload)
 
 
 def _read_image(image_ref: str) -> tuple[str, str]:

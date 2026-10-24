@@ -81,7 +81,7 @@ class HFClient:
         try:
             image_b64, mime = _read_image(image_ref)
         except (OSError, ValueError) as exc:
-            log.warning("HF: cannot read image %r: %s", image_ref, exc)
+            log.warning("HF: cannot read image (%s)", type(exc).__name__)
             return []
         url = f"{self.base_url}/{self.model}"
         try:

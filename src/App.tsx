@@ -219,8 +219,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
         >
           {tab === 0 && (
             <CaptureScreen
-              onCapture={(dataUrl) => handleCapture(dataUrl)}
-              onClick={() => handleCapture()}
+              onCapture={handleCapture}
               onReset={handleRetake}
               captured={captured}
               previewUrl={capturedImage}

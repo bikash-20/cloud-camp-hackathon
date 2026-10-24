@@ -28,15 +28,14 @@ _log = logging.getLogger(__name__)
 def log_http_failure(provider: str, exc: Exception, *, image_ref: str = "") -> None:
     """Log an external-API failure with severity graded by the error
     class. `provider` is a short label like `"Gemini"` or `"OFF"`."""
-    suffix = f" for {image_ref!r}" if image_ref else ""
+    suffix = " during image analysis" if image_ref else ""
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
         if status == 429:
             _log.error(
-                "%s rate-limited (429)%s — back off or rotate API key. body=%r",
+                "%s rate-limited (429)%s — back off or check the provider quota.",
                 provider,
                 suffix,
-                exc.response.text[:200],
             )
         elif status in (401, 403):
             _log.error(

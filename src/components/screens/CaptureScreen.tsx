@@ -20,9 +20,7 @@ const TAB_GROCERY = (() => {
 
 interface CaptureScreenProps {
   /** Called with the captured image data URL when the user takes a photo. */
-  onCapture?: (dataUrl: string) => void;
-  /** Legacy: called to trigger the analysis pipeline. */
-  onClick: () => void;
+  onCapture: (dataUrl: string) => void;
   onReset?: () => void;
   captured: boolean;
   /** Optional preview URL to show after capture (e.g. from parent state). */
@@ -66,13 +64,12 @@ function Thumbnail({ meal, emojisByName }: { meal: MealEntry; emojisByName: Reco
  *
  * Flow:
  *   idle  → tap card → request camera → camera
- *   camera → tap shutter → capture frame → captured (calls onCapture + onClick)
+ *   camera → tap shutter → capture frame → captured (calls onCapture)
  *   camera → tap "Use photo" button (file) → file picker → captured
  *   captured → retake → idle
  */
 export default function CaptureScreen({
   onCapture,
-  onClick,
   onReset,
   captured,
   previewUrl,
@@ -228,9 +225,8 @@ export default function CaptureScreen({
     stopCamera();
     setPhase('captured');
     setAnalyzing(true);
-    onCapture?.(dataUrl);
-    onClick();
-  }, [captureFrame, stopCamera, onCapture, onClick]);
+    onCapture(dataUrl);
+  }, [captureFrame, stopCamera, onCapture]);
 
   // ── File upload fallback ──────────────────────────────────────────────
 
@@ -245,14 +241,13 @@ export default function CaptureScreen({
         stopCamera();
         setPhase('captured');
         setAnalyzing(true);
-        onCapture?.(dataUrl);
-        onClick();
+        onCapture(dataUrl);
       };
       reader.readAsDataURL(file);
       // Reset input so the same file can be re-selected
       e.target.value = '';
     },
-    [stopCamera, onCapture, onClick],
+    [stopCamera, onCapture],
   );
 
   // ── Tap to start ──────────────────────────────────────────────────────

@@ -3,13 +3,13 @@
 Mirrors `src/lib/api.ts#analyzeMeal`. The frontend passes `image_ref`
 (a string like `'chicken_biryani.jpg'` or a base64 data URL); the route:
 
-  1. Looks up `image_ref` in the vector cache. On hit, returns cached
-     detections + a `cache-hit` trace stage.
-  2. Otherwise runs Gemini + HF in parallel (each only if its key is
-     set) and merges via `reconcile.merge`.
+  1. Looks up a SHA-256 digest of `image_ref` in the vector cache. On
+     hit, returns cached detections + a `cache-hit` trace stage.
+  2. Otherwise calls Gemini and then HF (each only if its key is set)
+     and merges via `reconcile.merge`.
   3. Applies `portion.estimate()` to each item.
-  4. Persists the merged list to both the vector cache and the TTL
-     cache, then returns it.
+  4. Persists the merged list to both caches using the digest, then
+     returns it. The uploaded image data is not used as a cache key.
   5. If neither client is configured, falls back to the canned
      `VISION_KEYED_DETECTED` so the demo continues to work without keys.
 
@@ -19,6 +19,7 @@ shape is `AnalyzeResult`. Only the internals change vs. cut (a).
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -103,6 +104,11 @@ def _vision_ttl_s() -> int:
     return 7 * 24 * 60 * 60
 
 
+def _cache_key(image_ref: str) -> str:
+    """Keep image contents and file paths out of persistent cache keys."""
+    return hashlib.sha256(image_ref.encode("utf-8")).hexdigest()
+
+
 class AnalyzeRequest(BaseModel):
     """Request body for `analyze_meal`."""
 
@@ -135,12 +141,13 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
     pipeline: list[PipelineTrace] = [
         make_trace("cache-check", "Cache check", "running"),
     ]
+    cache_key = _cache_key(body.image_ref)
 
     # 1. Vector cache (ChromaDB) — fast path. Falls through silently
     #    when chromadb is not installed or the path is unwritable.
     vector_cache = _get_vector_cache()
-    if vector_cache.has(body.image_ref):
-        cached = vector_cache.get(body.image_ref)
+    if vector_cache.has(cache_key):
+        cached = vector_cache.get(cache_key)
         if cached:
             pipeline[0].status = "cache-hit"
             pipeline.extend(
@@ -200,12 +207,12 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
     # 4. Persist so the next request for the same image_ref short-circuits.
     if detected:
         try:
-            vector_cache.put(body.image_ref, detected)
+            vector_cache.put(cache_key, detected)
         except Exception:  # noqa: BLE001 — cache writes must never 500 the route
             pass
         try:
             _get_sqlite_cache().put(
-                ("vision", body.image_ref),
+                ("vision", cache_key),
                 [d.model_dump() for d in detected],
                 ttl_s=_vision_ttl_s(),
             )

@@ -5,6 +5,14 @@ dist
 *.log
 *.tsbuildinfo
 
+# Local environment variables and credentials
+.env
+.env.*
+!.env.example
+app/.env
+app/.env.*
+!app/.env.example
+
 # Local AI onboarding brief (kept out of public repo)
 AI_CONTEXT.md
 

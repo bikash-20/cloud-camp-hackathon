@@ -72,6 +72,12 @@ def vision_clients(monkeypatch: pytest.MonkeyPatch):
 # ── Vision ──────────────────────────────────────────────────────────────
 
 
+def test_health_endpoint_returns_ok(client: TestClient) -> None:
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+
 def test_vision_analyze_known_ref(client: TestClient) -> None:
     """Known image_ref → canned DetectedItem list + 4-stage trace."""
     resp = client.post("/api/vision/analyze", json={"image_ref": "chicken_biryani.jpg"})
@@ -286,6 +292,55 @@ def test_vision_pipeline_uses_gemini_when_configured(
     assert trace["vision-id"] == "done"
     assert trace["hf-validate"] == "fallback"  # HF returned []
     assert trace["reconcile"] == "fallback"
+
+
+def test_vision_cache_does_not_persist_uploaded_image_data_url(
+    client: TestClient,
+    vision_clients,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Uploaded image bytes are represented by a digest in persistent caches."""
+    import hashlib
+
+    import app.api.vision as vision_mod
+    from app.models.schemas import DetectedItem
+
+    image_ref = "data:image/jpeg;base64,c2Vuc2l0aXZlLWltYWdl"
+    expected_key = hashlib.sha256(image_ref.encode("utf-8")).hexdigest()
+    vector_keys: list[str] = []
+    sqlite_keys: list[tuple[str, str]] = []
+
+    class _VectorCache:
+        def has(self, key: str) -> bool:
+            vector_keys.append(key)
+            return False
+
+        def put(self, key: str, _detected: list[DetectedItem]) -> None:
+            vector_keys.append(key)
+
+    class _SQLiteCache:
+        def put(
+            self,
+            key: tuple[str, str],
+            _value: list[dict[str, object]],
+            *,
+            ttl_s: int,
+        ) -> None:
+            sqlite_keys.append(key)
+
+    gemini, hf = vision_clients
+    gemini.set_return([DetectedItem(name="Khichuri", confidence=94, grams=250)])
+    hf.set_return([])
+    monkeypatch.setattr(vision_mod, "_get_vector_cache", lambda: _VectorCache())
+    monkeypatch.setattr(vision_mod, "_get_sqlite_cache", lambda: _SQLiteCache())
+
+    response = client.post("/api/vision/analyze", json={"image_ref": image_ref})
+
+    assert response.status_code == 200
+    assert vector_keys == [expected_key, expected_key]
+    assert sqlite_keys == [("vision", expected_key)]
+    assert image_ref not in vector_keys
+    assert all(image_ref not in key for _, key in sqlite_keys)
 
 
 def test_vision_pipeline_falls_back_to_canned_when_no_clients(

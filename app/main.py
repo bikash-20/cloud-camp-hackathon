@@ -76,11 +76,12 @@ def create_app() -> FastAPI:
     """Build the FastAPI app. Factored out so tests can instantiate
     it with a fresh state file via `app.dependency_overrides`."""
     app = FastAPI(
-        title="NutriVision AI backend (cut a)",
+        title="NutriVision AI backend",
         version="0.1.0",
         description=(
-            "Lean FastAPI skeleton mirroring `src/lib/api.ts`. No real "
-            "vision or USDA/HF integration — see README for cut (b)."
+            "FastAPI backend for meal vision, nutrition, profile, grocery, "
+            "and meal APIs. Gemini and Hugging Face vision providers are "
+            "used when their server-side credentials are configured."
         ),
         lifespan=lifespan,
     )
@@ -106,9 +107,13 @@ def create_app() -> FastAPI:
         """Tiny index — the real value is at /docs."""
         return {
             "service": "nutrivision-backend",
-            "cut": "a (contract-only skeleton)",
             "docs": "/docs",
         }
+
+    @app.get("/health", tags=["meta"])
+    def health() -> dict[str, str]:
+        """Liveness endpoint used by the hosting platform."""
+        return {"status": "ok"}
 
     return app
 

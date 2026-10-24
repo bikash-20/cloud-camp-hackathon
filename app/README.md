@@ -1,12 +1,10 @@
-# NutriVision AI backend — cut (a)
+# NutriVision AI backend
 
-Lean FastAPI skeleton that mirrors the frontend's mock API surface
-(`src/lib/api.ts`). The shape is locked; the internals are stubs that
-return canned data or look up via Open Food Facts (no API key needed).
-
-This ships in **cut (a)** only — real Gemini / HF / USDA integration
-lands in cut (b). See `NutriVision_AI_Blueprint.md` at the repo root
-for the full picture.
+FastAPI backend for the frontend API in `src/lib/api.ts`. It can call
+Gemini for meal-photo detection and Hugging Face for optional label
+validation when server-side credentials are configured. Without those
+credentials, vision uses seeded examples for known fixture names and
+returns no detections for unknown image references.
 
 ## What this is
 
@@ -16,26 +14,44 @@ TypeScript interfaces in `src/types/schemas.ts`.
 
 ## What this is **not**
 
-- Not a deployed service. It runs locally only.
-- Not a real vision pipeline. Vision returns canned detections keyed
-  off `image_ref` strings (`"chicken_biryani.jpg"` is the only seeded
-  ref).
-- Not a full nutrition cascade. OFF is the only live source; USDA and
-  Fruityvice slots are stubbed for cut (b).
-- Not connected to the deployed Vercel demo. The frontend keeps using
-  mocks until you explicitly wire it (see "Swapping mocks for the
-  backend" below).
+- Not deployed by this repository. You must deploy this FastAPI service
+  separately and configure the frontend to use its HTTPS URL.
+- Not production-ready persistence or authentication. Profile, grocery,
+  and meal state is JSON-file-backed; frontend demo authentication is
+  client-side.
+- Not guaranteed to identify every dish. Gemini may return uncertain or
+  empty results; review detections before relying on nutrition estimates.
 
 ## Quick start
 
+From the repository root, install `app/requirements.txt`, set
+`GEMINI_API_KEY` in the server process environment, and start:
+
 ```bash
-cd nutrivision-demo/app
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
+Keep the Gemini key only in the backend host's secret settings (or a
+local, gitignored environment file). Never put it in a `VITE_*` variable
+or frontend code. For the deployed Vercel frontend, set
+`VITE_API_BASE` to the deployed backend's HTTPS origin and set
+`CORS_ALLOW_ORIGINS` on the backend to include the Vercel site origin.
+
 Open <http://localhost:8000/docs> for the auto-generated Swagger UI.
+
+### Deploy the backend to Render
+
+The repository-root `render.yaml` defines a free Python web service,
+installs `app/requirements.txt`, and starts the FastAPI app. Connect this
+GitHub repository as a Blueprint in Render and use `main` as its branch.
+Render will prompt for the `GEMINI_API_KEY` secret when it creates the
+service; enter a newly rotated key there, never in GitHub or Vercel.
+After Render deploys, set Vercel's `VITE_API_BASE` to the Render service's
+HTTPS origin and redeploy the frontend.
+
+The free service uses an ephemeral filesystem and may sleep while idle.
+Do not rely on the backend's local JSON state or caches as durable
+production storage.
 
 ### Try it from curl
 
@@ -49,13 +65,15 @@ curl -s -X POST http://localhost:8000/api/vision/analyze \
 
 ### Run the contract tests
 
+From the repository root, after installing `app/requirements.txt`:
+
 ```bash
-cd nutrivision-demo
-PYTHONPATH=app python3 -m pytest app/tests/ -v
+python -m pytest app/tests/ -v
 ```
 
-16 tests cover every endpoint round-trip + the three negative paths
-documented in the cut-(a) plan.
+The backend suite covers endpoint contracts, cache behavior, provider
+request construction, and failure paths. Provider tests use mocked HTTP
+responses and do not call Gemini or Hugging Face.
 
 ## Layout
 
@@ -129,19 +147,18 @@ to update in the same commit. The contract tests in
 `app/tests/test_contract.py` exist to catch drift the moment a
 schema changes — if you rename a field on one side, pytest will fail.
 
-## Swapping mocks for the backend (cut b)
+## Connecting the frontend to the backend
 
 When you want to point the frontend at this skeleton:
 
-1. Start the server locally on port 8000.
-2. In `src/lib/api.ts`, change every `await delay(...)` + mock body
-   to a real `fetch('/api/...')` call.
-3. The frontend already lives at `http://localhost:5173` (Vite) — CORS
-   is pre-wired for that origin in `app/main.py`.
-
-The deployed Vercel demo continues to ship the frontend-only build —
-it does **not** talk to this skeleton. That's deliberate; demos
-shouldn't depend on locally-running infrastructure.
+1. Run the backend locally on port 8000.
+2. Set `VITE_API_BASE=http://localhost:8000` in the frontend's local
+   Vite environment and restart the dev server.
+3. The backend's default CORS list allows `http://localhost:5173` and
+   `http://127.0.0.1:5173`. Set `CORS_ALLOW_ORIGINS` for other origins.
+4. For production, configure the Vercel `VITE_API_BASE` at build time
+   and deploy the backend separately with its own secrets and CORS
+   allow-list. Vercel does not host this Python API automatically.
 
 ## Environment variables
 
@@ -150,16 +167,14 @@ shouldn't depend on locally-running infrastructure.
 | `STATE_PATH` | `app/state.json` | JSON file backing the state store. Relative paths resolve against the repo root when running from anywhere. |
 | `OFF_BASE_URL` | `https://world.openfoodfacts.org` | Open Food Facts base URL. Free, no key required. |
 | `OCR_ENABLED` | `false` | Set to `true` to enable Tesseract OCR fallback (requires `pip install pytesseract` AND the Tesseract binary on PATH). |
-| `GEMINI_API_KEY` | — | Cut (b). |
-| `HF_API_TOKEN` | — | Cut (b). |
-| `USDA_API_KEY` | — | Cut (b). |
+| `GEMINI_API_KEY` | — | Enables Gemini photo detection. Backend secret only. |
+| `GEMINI_MODEL` | `gemini-2.0-flash` | Gemini model name. |
+| `HF_API_TOKEN` | — | Enables optional Hugging Face validation. |
+| `USDA_API_KEY` | `DEMO_KEY` | USDA FoodData Central nutrition lookup. |
 
 See `.env.example` for a copy-paste template.
 
 ## What's next
 
-- **Cut (b):** real Gemini vision, HF validator, USDA cascade.
-  No contract changes — only the internals of `api/vision.py` and
-  `api/nutrition.py` change.
-- **Cut (c):** SQLite response cache, ChromaDB semantic cache, real
-  portion estimation, Firebase auth. Still no contract changes.
+- Replace JSON-file demo state with durable database storage and add
+  server-side user authentication before production use.
