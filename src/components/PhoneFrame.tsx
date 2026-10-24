@@ -108,119 +108,32 @@ export default function PhoneFrame({ children, headerRight, footer }: PhoneFrame
     );
   }
 
-  // ── Desktop: phone mockup with bezel ────────────────────────────────
+  // ── Desktop: full-width app shell ───────────────────────────────────
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '40px 16px',
-      }}
+    <motion.div
+      className="app-desktop-shell"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ opacity: { duration: 0.4 }, y: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
     >
-      <motion.div
-        initial={{ opacity: 0, y: 32, rotateX: 8, rotateY: -6, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, rotateX: 1.5, rotateY: -1.5, scale: 1 }}
-        transition={{
-          opacity: { duration: 0.5 },
-          y: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
-          rotateX: { duration: 0.9, ease: [0.22, 1, 0.36, 1] },
-          rotateY: { duration: 0.9, ease: [0.22, 1, 0.36, 1] },
-          scale: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
-        }}
-        style={{
-          width: 360,
-          maxWidth: '100%',
-          borderRadius: 44,
-          background: 'transparent',
-          boxShadow: 'var(--shadow-phone)',
-          position: 'relative',
-          transformStyle: 'preserve-3d',
-          perspective: 1200,
-        }}
-      >
-        <div
-          style={{
-            position: 'relative',
-            borderRadius: 38,
-            overflow: 'hidden',
-            height: 760,
-            maxHeight: 'calc(100dvh - 80px)',
-            minHeight: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            background: 'transparent',
-          }}
-        >
-          {/* Layer 0: sage vertical gradient */}
-          <div className="sage-bg" />
+      <div className="sage-bg" />
 
-          {/* Layer 1: app header */}
-          <div
-            style={{
-              position: 'relative',
-              zIndex: 3,
-              // Reserve safe-area top so the header doesn't get clipped by
-              // the browser URL bar on mobile or any OS chrome.
-              paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)',
-              paddingBottom: 12,
-              paddingLeft: 22,
-              paddingRight: 22,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              background: 'transparent',
-              flexShrink: 0,
-            }}
-          >
-            <div
-              style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <img
-              src="/icon-32.png"
-              alt=""
-              aria-hidden="true"
-              width={24}
-              height={24}
-              style={{ borderRadius: 6 }}
-            />
-            <span
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                fontWeight: 600,
-                fontSize: 20,
-                color: T.earth6,
-              }}
-            >
-              NutriVision
-            </span>
-          </div>
-          {headerRight}
+      <header className="app-desktop-header">
+        <div className="app-desktop-brand">
+          <img
+            src="/icon-32.png"
+            alt=""
+            aria-hidden="true"
+            width={28}
+            height={28}
+          />
+          <span>NutriVision</span>
         </div>
+        {headerRight}
+      </header>
 
-        {/* Layer 3: screen content */}
-          <div
-            style={{
-              position: 'relative',
-              zIndex: 2,
-              minHeight: 0,
-              overflowY: 'auto',
-              overscrollBehavior: 'contain',
-              paddingTop: 8,
-              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-              flex: 1,
-            }}
-          >
-            {children}
-          </div>
-          {footer}
-        </div>
-      </motion.div>
-    </div>
+      <main className="app-desktop-content">{children}</main>
+      {footer}
+    </motion.div>
   );
 }

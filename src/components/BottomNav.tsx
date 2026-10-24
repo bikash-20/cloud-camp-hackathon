@@ -33,6 +33,7 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
 
   return (
     <div
+      className="bottom-nav-container"
       style={{
         position: 'absolute',
         left: 0,

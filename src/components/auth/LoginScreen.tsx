@@ -69,6 +69,9 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
           flexDirection: 'column',
           gap: 18,
           minHeight: '100%',
+          width: '100%',
+          maxWidth: 480,
+          marginInline: 'auto',
         }}
       >
         {/* Header */}

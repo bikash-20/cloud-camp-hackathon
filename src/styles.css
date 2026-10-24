@@ -120,6 +120,85 @@ p { margin: 0; }
   pointer-events: none;
 }
 
+.app-desktop-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    var(--bg-gradient-start) 0%,
+    var(--bg-gradient-mid) 50%,
+    var(--bg-gradient-end) 100%
+  );
+}
+
+.app-desktop-header {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px clamp(24px, 4vw, 64px);
+  border-bottom: 1px solid rgba(249, 242, 228, 0.32);
+  background: rgba(249, 242, 228, 0.18);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.app-desktop-brand {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--earth-6);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.app-desktop-brand img {
+  border-radius: 7px;
+}
+
+.app-desktop-content {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  width: 100%;
+  max-width: 1480px;
+  min-height: 0;
+  margin-inline: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px clamp(24px, 4vw, 64px) 132px;
+}
+
+.app-desktop-content > [role='tabpanel'] {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+}
+
+.bottom-nav-container {
+  display: flex;
+  justify-content: center;
+}
+
+.bottom-nav-container > .glass-card {
+  width: 100%;
+}
+
+.capture-preview-card {
+  max-width: 960px;
+  margin-inline: auto;
+}
+
 /* === GLASS / CARD UTILITIES ============================================== */
 
 .glass-card {
@@ -450,12 +529,27 @@ p { margin: 0; }
   .nav-tab-label {
     font-size: 10px !important;
   }
+
+  .capture-quick-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    overflow: visible !important;
+  }
 }
 
-/* Tablet+: constrain content width for readability */
+/* Desktop navigation stays compact while the screen content uses the workspace. */
 @media (min-width: 768px) {
-  .glass-card {
-    max-width: 100%;
+  .bottom-nav-container {
+    left: 50% !important;
+    right: auto !important;
+    width: min(720px, calc(100vw - 48px));
+    padding: 0 !important;
+    transform: translateX(-50%);
+  }
+
+  .capture-preview-card {
+    aspect-ratio: 16 / 9 !important;
   }
 }
 

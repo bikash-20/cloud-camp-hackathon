@@ -119,10 +119,6 @@ export default function CaptureScreen({
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
       setPhase('camera');
     } catch (err: unknown) {
       const msg =
@@ -136,6 +132,23 @@ export default function CaptureScreen({
       fileInputRef.current?.click();
     }
   }, []);
+
+  useEffect(() => {
+    if (phase !== 'camera') return;
+
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+
+    video.srcObject = stream;
+    void video.play().catch(() => {
+      if (streamRef.current !== stream) return;
+      setCameraError('Camera unavailable');
+      stopCamera();
+      setPhase('idle');
+      fileInputRef.current?.click();
+    });
+  }, [phase, stopCamera]);
 
   // Load today's summary and recent meals on mount
   useEffect(() => {
@@ -342,7 +355,7 @@ export default function CaptureScreen({
 
       {/* ── Capture card ──────────────────────────────────────────── */}
       <motion.div
-        className="glass-card"
+        className="glass-card capture-preview-card"
         style={{
           width: '100%',
           borderRadius: 24,
@@ -853,6 +866,7 @@ export default function CaptureScreen({
       {/* ── Quick Actions (only when idle) ─────────────────────── */}
       {phase === 'idle' && !captured && (
         <motion.div
+          className="capture-quick-actions"
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.25 }}

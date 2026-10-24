@@ -198,62 +198,55 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
         headerRight={<StepDots active={tab} onChange={goToTab} />}
         footer={<BottomNav active={tab} onChange={goToTab} />}
       >
-        <AnimatePresence mode="wait" custom={direction} initial={false}>
-          <motion.div
-            key={tab}
-            custom={direction}
-            initial={
-              reduceMotion
-                ? { opacity: 0 }
-                : { opacity: 0, x: 24 * direction }
-            }
-            animate={{ opacity: 1, x: 0 }}
-            exit={
-              reduceMotion
-                ? { opacity: 0 }
-                : { opacity: 0, x: -24 * direction }
-            }
-            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-            style={{
-              paddingBottom: 110,
-              position: 'relative',
-              zIndex: 1,
-            }}
-            id={`panel-${TABS[tab].id}`}
-            role="tabpanel"
-            aria-labelledby={`tab-${TABS[tab].id}`}
-          >
-            {tab === 0 && (
-              <CaptureScreen
-                onCapture={(dataUrl) => handleCapture(dataUrl)}
-                onClick={() => handleCapture()}
-                onReset={handleRetake}
-                captured={captured}
-                previewUrl={capturedImage}
-                onNavigateTab={goToTab}
-              />
-            )}
-            {tab === 1 && (
-              <ResultsScreen
-                detected={detected}
-                onChangeDetected={setDetected}
-                onViewNutrients={() => goToTab(2)}
-                profile={profile}
-                capturedImage={capturedImage}
-              />
-            )}
-            {tab === 2 && <NutrientsScreen detected={detected} profile={profile} onBack={() => goToTab(1)} />}
-            {tab === 3 && (
-              <ProfileScreen
-                profile={profile}
-                onProfileChange={setProfile}
-                session={session}
-                onSignOut={onSignOut}
-              />
-            )}
-            {tab === 4 && <GroceryScreen profile={profile} />}
-          </motion.div>
-        </AnimatePresence>
+        <motion.div
+          key={tab}
+          custom={direction}
+          initial={
+            reduceMotion
+              ? { opacity: 0 }
+              : { opacity: 0, x: 24 * direction }
+          }
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+          style={{
+            paddingBottom: 110,
+            position: 'relative',
+            zIndex: 1,
+          }}
+          id={`panel-${TABS[tab].id}`}
+          role="tabpanel"
+          aria-labelledby={`tab-${TABS[tab].id}`}
+        >
+          {tab === 0 && (
+            <CaptureScreen
+              onCapture={(dataUrl) => handleCapture(dataUrl)}
+              onClick={() => handleCapture()}
+              onReset={handleRetake}
+              captured={captured}
+              previewUrl={capturedImage}
+              onNavigateTab={goToTab}
+            />
+          )}
+          {tab === 1 && (
+            <ResultsScreen
+              detected={detected}
+              onChangeDetected={setDetected}
+              onViewNutrients={() => goToTab(2)}
+              profile={profile}
+              capturedImage={capturedImage}
+            />
+          )}
+          {tab === 2 && <NutrientsScreen detected={detected} profile={profile} onBack={() => goToTab(1)} />}
+          {tab === 3 && (
+            <ProfileScreen
+              profile={profile}
+              onProfileChange={setProfile}
+              session={session}
+              onSignOut={onSignOut}
+            />
+          )}
+          {tab === 4 && <GroceryScreen profile={profile} />}
+        </motion.div>
 
         <AnimatePresence>
           {pipelineToast && (
