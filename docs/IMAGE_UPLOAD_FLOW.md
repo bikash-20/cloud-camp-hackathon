@@ -1,32 +1,27 @@
 # Image Upload Flow
 
-> **TL;DR:** A user taps the camera shutter on `CaptureScreen`, the
+> **TL;DR:** A user captures or uploads a photo on `CaptureScreen`, the
 > photo becomes a JPEG data URL, the app calls `analyzeMeal(dataUrl)`,
-> the backend checks the vector cache, runs Gemini + HuggingFace in
-> parallel if no cache hit, reconciles the two outputs, estimates
+> the backend checks the vector cache, runs configured vision providers
+> if no cache hit, reconciles available outputs, estimates
 > portions, and returns a list of `DetectedItem` plus a per-stage
 > `PipelineTrace`. The app then calls `resolveNutrition` to attach
 > per-100g nutrition from the OFF → USDA → Fruityvice cascade. The
-> user confirms; a `MealEntry` is built and saved to localStorage (and
-> `app/state.json` on the backend).
+> user confirms; a `MealEntry` is built and saved to browser localStorage.
 
 This file is the frame-by-frame trace. Every step links to the actual
 code, and every byte format is documented inline.
 
 ---
 
-## 0. Where we are right now
+## 0. Current behavior and limitations
 
-**Important context:** the frontend (`src/lib/api.ts`) is still running
-on the **mock API** in production. The backend is fully cut-b-ready
-but not yet wired into the deployed PWA. The trace below is what
-**actually happens today** (with `delay()` simulating latency) and
-what **will happen** once `api.ts` is swapped to real `fetch()` calls.
-The byte-level wire format is identical in both cases — that's the
-whole point of the mock.
-
-To verify the real backend works end-to-end today, see
-[development.md](./development.md#smoke-testing-the-real-backend).
+Image analysis calls the FastAPI backend when `VITE_API_BASE` is
+configured. An uploaded photo is never replaced with canned vision
+detections if the backend or vision provider is unavailable. Profile,
+grocery, authentication, and portions of meal history still use seeded
+or browser-local demo state; see the production limitations in
+[README.md](../README.md#backend).
 
 ---
 
@@ -61,16 +56,8 @@ to `App.tsx#UserApp` and stores the data URL in app-level state.
 
 **File:** `src/lib/api.ts#analyzeMeal`
 
-```ts
-export async function analyzeMeal(imageRef: string): Promise<AnalyzeResult> {
-  await delay(700, 1400);  // simulated latency
-  const detected = MOCK_DETECTED[imageRef] ?? MOCK_DETECTED.default;
-  const pipeline: PipelineTrace[] = [/* canned stages */];
-  return { detected, pipeline };
-}
-```
-
-**Wire format** (what the real backend will receive):
+`analyzeMeal` sends the uploaded image data URL to the backend.
+**Wire format:**
 ```http
 POST /api/vision/analyze HTTP/1.1
 Host: localhost:8000
@@ -104,10 +91,9 @@ can OOM a worker; the cap exists to prevent that.
 
 **File:** `app/api/vision.py#analyze_meal`
 
-The route runs 9 named stages, each surfacing as a `PipelineTrace`
-entry in the response. The toast on `ResultsScreen` reads these
-entries to render the animated "Cache check → Vision ID → HF validator
-→ Reconcile → Nutrition → Portion → Personalize → Explain" strip.
+The route runs four named stages, each surfacing as a `PipelineTrace`
+entry in the response: cache check, vision identification, optional
+Hugging Face validation, and reconciliation.
 
 ### Stage 1: cache-check (always first)
 
@@ -117,18 +103,17 @@ pipeline: list[PipelineTrace] = [
 ]
 ```
 
-Two caches are checked:
-- **Vector cache** (`app/cache/vector_cache.py`, ChromaDB) — semantic
-  match on image embedding. If `vector_cache.has(image_ref)` returns
-  truthy and `vector_cache.get(image_ref)` returns a non-empty list, the
+The vector cache is checked:
+- **Vector cache** (`app/cache/vector_cache.py`, ChromaDB) — exact
+  match on the SHA-256 digest of the image data URL. If
+  `vector_cache.has(cache_key)` returns
+  truthy and `vector_cache.get(cache_key)` returns a non-empty list, the
   stage flips to `cache-hit` and three more cache-hit stages are
   appended (`vision-id`, `hf-validate`, `reconcile`). The route returns
   immediately.
-- **SQLite TTL cache** (`app/cache/sqlite_cache.py`) — exact-string
-  match. Consulted only on the live-pipeline path, used as a redundant
-  fallback when the vector cache is cold.
-
-On miss, the stage flips to `done` and execution continues.
+On miss, the stage flips to `done` and execution continues. Successful
+results are also written to a SQLite TTL cache, but this route does not
+currently read that cache.
 
 ### Stage 2: vision-id (Gemini, if configured)
 
@@ -148,8 +133,9 @@ On miss, the stage flips to `done` and execution continues.
    JSON in ```json ... ``` fences) and emits a list of `DetectedItem`.
 
 If `GEMINI_API_KEY` is unset, `is_configured()` returns `False` and the
-client short-circuits to `[]`. The route then sets the `vision-id`
-stage to `fallback` (not an error — the demo degrades cleanly).
+client short-circuits to `[]`. A configured Hugging Face provider can
+still provide detections; if neither provider is configured, the route
+returns HTTP 503.
 
 ### Stage 3: hf-validate (HuggingFace, if configured)
 
@@ -161,7 +147,8 @@ stage to `fallback` (not an error — the demo degrades cleanly).
 3. Returns top-K labels as `{name, confidence, bbox?}`.
 4. Same severity-graded logging as Gemini.
 
-If `HF_API_TOKEN` is unset, returns `[]`. Stage is `fallback`.
+If `HF_API_TOKEN` is unset, returns `[]`; Gemini can still provide
+detections.
 
 ### Stage 4: reconcile (confidence-weighted merge)
 
@@ -174,7 +161,8 @@ If `HF_API_TOKEN` is unset, returns `[]`. Stage is `fallback`.
   kept.
 - Returns a single `list[DetectedItem]`.
 
-Stage status is `done` if both clients returned data, `fallback` if only one did, `done` if the canned fixture was used.
+Stage status reflects cache or configured provider results. A missing
+provider is an HTTP 503, not a canned fixture response.
 
 ### Stage 5: portion (per-item)
 
@@ -216,8 +204,7 @@ regardless.
 return AnalyzeResult(detected=detected, pipeline=pipeline)
 ```
 
-Pydantic serializes the response. The frontend's
-`analyzeMeal()` (when swapped to real `fetch`) will receive:
+Pydantic serializes the response. The backend returns:
 
 ```json
 {
@@ -260,7 +247,7 @@ The user can edit portions, rename items, replace with alternatives, delete item
 
 ## 5. `resolveNutrition(items, profile)`
 
-**File:** `src/lib/api.ts#resolveNutrition` (current mock) / `app/api/nutrition.py#resolve` (real)
+**File:** `src/lib/api.ts#resolveNutrition` (local demo fallback when `VITE_API_BASE` is empty; otherwise the backend route)
 
 After the user confirms the items on `ResultsScreen`, the app calls:
 
@@ -357,7 +344,7 @@ today" progress bar updates immediately.
 ## 9. Persistence summary
 
 | What | Where | When |
-|---|---|---|
+|---|---|
 | Captured photo (data URL) | Component state → `mealHistory[i].photoUrl` in localStorage | On save |
 | Detected items | Component state | While editing on `ResultsScreen` |
 | Resolved nutrition | `MealEntry.totals` | On save |
@@ -375,9 +362,8 @@ today" progress bar updates immediately.
 |---|---|---|
 | No `getUserMedia` (laptop with no camera) | File-upload fallback button | `CaptureScreen` |
 | User denies camera permission | Inline error, file-upload fallback | `CaptureScreen` |
-| Backend 413 (body too large) | Toast: "Image too large" | `App.tsx` error boundary (real backend only) |
-| Backend 5xx | Toast: "Analysis failed", Retry button | `App.tsx` error boundary (real backend only) |
-| No `GEMINI_API_KEY` and no `HF_API_TOKEN` | Canned fixture via `VISION_KEYED_DETECTED` — no error | `app/api/vision.py` |
+| Backend 413 (body too large) or 5xx | Analysis error with retry action; no sample meal is saved | `App.tsx`, `ResultsScreen.tsx` |
+| No `GEMINI_API_KEY` and no `HF_API_TOKEN` | HTTP 503 and analysis error; no sample detections | `app/api/vision.py` |
 | No nutrition DB matches an item | `source: 'estimated'`, `partial: true` | `app/api/nutrition.py` |
 | localStorage quota exceeded | Toast: "Storage full" | `src/lib/storage.ts` swallows and warns |
 
@@ -385,16 +371,14 @@ today" progress bar updates immediately.
 
 ## 11. Latency budget
 
-| Stage | Mock (today) | Real (cut-b) |
+| Stage | Behavior |
 |---|---|---|
-| Capture + render preview | ~50 ms | ~50 ms |
-| `analyzeMeal` round-trip | 700–1400 ms (simulated) | 1.5–4 s (Gemini) + 0.5–1 s (HF, parallel) |
-| Cache hit | 50 ms | ~30 ms |
-| `resolveNutrition` cascade | 200–400 ms (mock DB lookup) | 1–3 s (3 HTTP calls) |
-| Total | ~1–2 s | ~2–7 s |
+| Capture + render preview | ~50 ms |
+| `analyzeMeal` round-trip | Provider latency; depends on configured Gemini and optional HF |
+| Cache hit | ~30 ms |
+| `resolveNutrition` cascade | Depends on external nutrition providers and cache |
 
-The 8 MB body cap exists to keep the worst-case `analyzeMeal` request
-under the typical browser/server timeout.
+The 8 MB body cap limits image request size to protect the service.
 
 ---
 

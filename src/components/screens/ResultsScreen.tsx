@@ -45,54 +45,14 @@ function totalsFor(detected: DetectedItem[]): Totals {
   );
 }
 
-/**
- * Inline GI chip — only renders when diabetic profile is active and the item
- * has a known glycemic value. Visualizes the blueprint's personalize layer.
- */
-function GIIndicator({ glycemic, diabeticMode }: { glycemic: number; diabeticMode: boolean }) {
-  if (!diabeticMode) return null;
-  const isHigh = glycemic > 0.5;
-  const isLow = glycemic < 0.1;
-  if (!isHigh && !isLow) return null;
-  return (
-    <motion.span
-      initial={{ opacity: 0, scale: 0.85 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.85 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-      className="gi-chip"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 3,
-        padding: '2px 6px',
-        borderRadius: 999,
-        fontFamily: 'Inter',
-        fontSize: 9.5,
-        fontWeight: 700,
-        letterSpacing: '0.02em',
-        background: isHigh ? 'rgba(201, 98, 45, 0.16)' : 'rgba(122, 140, 79, 0.18)',
-        color: isHigh ? '#A14B22' : '#4F6630',
-        border: isHigh
-          ? '1px solid rgba(201, 98, 45, 0.40)'
-          : '1px solid rgba(122, 140, 79, 0.45)',
-        textTransform: 'uppercase',
-        whiteSpace: 'nowrap',
-        flexShrink: 0,
-      }}
-      title={`Glycemic share ${(glycemic * 100).toFixed(0)}% — ${isHigh ? 'high-GI, may spike blood sugar' : 'low-GI, gentle on blood sugar'}`}
-    >
-      {isHigh ? '↑ high-GI' : '↓ low-GI'}
-    </motion.span>
-  );
-}
-
 interface ResultsScreenProps {
   detected?: DetectedItem[];
   onChangeDetected?: (next: DetectedItem[]) => void;
   onViewNutrients?: () => void;
   profile?: UserProfile;
   capturedImage?: string | null;
+  analysisMessage?: string | null;
+  onRetake?: () => void;
 }
 
 export default function ResultsScreen({
@@ -101,6 +61,8 @@ export default function ResultsScreen({
   onViewNutrients,
   profile,
   capturedImage,
+  analysisMessage,
+  onRetake,
 }: ResultsScreenProps) {
   const { foodName } = useLanguage();
   const [detected, setDetected] = useState(detectedProp ?? []);
@@ -319,6 +281,47 @@ export default function ResultsScreen({
         <StepIndicator step={step} onStep={setStep} />
       </div>
 
+      {analysisMessage && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            margin: '0 0 12px',
+            padding: '12px 14px',
+            borderRadius: 12,
+            background: 'rgba(201, 98, 45, 0.12)',
+            border: '1px solid rgba(201, 98, 45, 0.3)',
+            color: T.ink,
+            fontFamily: 'Inter',
+            fontSize: 12,
+          }}
+        >
+          <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{analysisMessage}</span>
+          {onRetake && (
+            <button
+              type="button"
+              onClick={onRetake}
+              style={{
+                flexShrink: 0,
+                border: 0,
+                borderRadius: 999,
+                padding: '8px 12px',
+                background: T.primary,
+                color: '#FFFFFF',
+                font: 'inherit',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Try again
+            </button>
+          )}
+        </div>
+      )}
+
       <div
         style={{
           display: 'flex',
@@ -480,13 +483,9 @@ export default function ResultsScreen({
             const meta = NUTRITION_DB[it.name];
             return (
               <div key={it.name} style={{ position: 'relative' }}>
-                {diabeticMode && meta && (
-                  <div style={{ position: 'absolute', right: 70, top: 14, zIndex: 2 }}>
-                    <GIIndicator glycemic={meta.glycemic} diabeticMode={diabeticMode} />
-                  </div>
-                )}
                 <ExpandableRow
                   item={it}
+                  glycemic={diabeticMode ? meta?.glycemic : undefined}
                   isConfirmed={!!confirmed[it.name]}
                   isSelected={!!selected[it.name]}
                   multiSelect={multiSelect}

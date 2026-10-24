@@ -210,9 +210,8 @@ Sets `startedAt` to now, `finishedAt` to None.
 
 ### `ocr.py`
 Optional Tesseract wrapper. Currently a no-op (best-effort, no
-detection mapping in cut (b)). Exposed as a fallback when both
-vision clients are unconfigured AND `image_ref` doesn't match the
-canned fixture.
+detection mapping). It is not invoked as a fallback by the vision
+route.
 
 ```python
 from app.services.ocr import is_enabled, extract_text
@@ -261,25 +260,26 @@ hits = cache.get(("vision", image_ref))  # list | None
 SQLite-backed. Key is a tuple (route, identifier). Entries expire
 after `ttl_s`. Survives restarts.
 
-**Used by:** `app/api/vision.py` (TTL cache, redundant fallback).
+**Used by:** `app/api/vision.py` (writes only; the route does not read this cache yet).
 
 ---
 
 ### `cache/vector_cache.py`
-ChromaDB-backed semantic image cache.
+ChromaDB-backed exact-ID cache. Despite the class name, the current
+implementation does not compute image embeddings or semantic matches.
 
 ```python
 from app.cache.vector_cache import VectorCache
 
 cache = VectorCache()
-if cache.has(image_ref):
-    items = cache.get(image_ref)
-    cache.put(image_ref, items)
+if cache.has(image_digest):
+    items = cache.get(image_digest)
+    cache.put(image_digest, items)
 ```
 
-Uses ChromaDB's default embedding model. `has()` and `get()` are
-no-ops (return `False` / `None`) if ChromaDB is not installed or
-the path is unwritable.
+`image_digest` is a SHA-256 digest of the uploaded image data URL.
+`has()` and `get()` are no-ops (return `False` / `None`) if ChromaDB
+is not installed or the path is unwritable.
 
 **Used by:** `app/api/vision.py` (the primary fast path).
 
@@ -311,11 +311,10 @@ severity table.
 ## Seed data
 
 ### `seed/fixtures.py`
-Canned data used when external services are unconfigured:
+Seed data used for default profile, nutrition, and grocery behavior.
+Vision requests do not use seeded detections as a provider fallback.
 
-- `VISION_KEYED_DETECTED` — `{image_ref: [DetectedItem, ...]}`
-  lookup for the canned fixture path
 - `DEFAULT_PROFILE` — factory-fresh profile for Reset
 - `default_grocery_items()` — seed grocery list
 
-**Used by:** `app/api/vision.py`, `app/services/state.py`.
+**Used by:** `app/services/state.py`.

@@ -11,7 +11,7 @@ import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
 interface ItemMeta {
   protein: number; carbs: number; fat: number; kcal: number;
-  fiber: number; sodium: number; sugar: number;
+  fiber: number; sodium: number; sugar: number; glycemic: number;
   emoji: string; category: string;
   alternatives: string[]; pairings: string[];
 }
@@ -28,6 +28,7 @@ function itemNutrition(item: DetectedItem): ItemMeta | null {
     fiber: n.fiber * factor,
     sodium: n.sodium * factor,
     sugar: n.sugar * factor,
+    glycemic: n.glycemic,
     emoji: n.emoji,
     category: n.category,
     alternatives: n.alternatives,
@@ -57,6 +58,7 @@ interface ExpandableRowProps {
   onRename?: (oldName: string, newName: string) => void;
   onReplace?: (oldName: string, newName: string) => void;
   onAddPairing?: (name: string, pairing: string) => void;
+  glycemic?: number;
 }
 
 /**
@@ -75,6 +77,7 @@ export default function ExpandableRow({
   onRename,
   onReplace,
   onAddPairing,
+  glycemic,
 }: ExpandableRowProps) {
   const reduceMotion = useReducedMotion();
   const { foodName } = useLanguage();
@@ -279,8 +282,9 @@ export default function ExpandableRow({
           <div
             style={{
               display: 'flex',
+              flexWrap: 'wrap',
               alignItems: 'center',
-              gap: 10,
+              gap: 6,
               marginTop: 4,
               fontFamily: 'Inter',
               fontSize: 12,
@@ -288,6 +292,32 @@ export default function ExpandableRow({
             }}
           >
             <span className="tnum">~{item.grams}g</span>
+            {glycemic !== undefined && (glycemic > 0.5 || glycemic < 0.1) && (
+              <span
+                className="gi-chip"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '2px 6px',
+                  borderRadius: 999,
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                  letterSpacing: '0.02em',
+                  background: glycemic > 0.5 ? 'rgba(201, 98, 45, 0.16)' : 'rgba(122, 140, 79, 0.18)',
+                  color: glycemic > 0.5 ? '#A14B22' : '#4F6630',
+                  border: glycemic > 0.5
+                    ? '1px solid rgba(201, 98, 45, 0.40)'
+                    : '1px solid rgba(122, 140, 79, 0.45)',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+                title={glycemic > 0.5
+                  ? 'High glycemic impact'
+                  : 'Low glycemic impact'}
+              >
+                {glycemic > 0.5 ? '↑ high-GI' : '↓ low-GI'}
+              </span>
+            )}
             {badge.tier === 'low' && (
               <span style={{ color: T.accentWarn, fontWeight: 600 }}>
                 Tap to confirm

@@ -87,7 +87,7 @@ responses and do not call Gemini or Hugging Face.
 app/
 ├── main.py                  FastAPI app, CORS, lifespan, router wiring
 ├── models/schemas.py        Pydantic v2 — 1:1 with src/types/schemas.ts
-├── seed/fixtures.py         Server-side mirror of MOCK_DETECTED, etc.
+├── seed/fixtures.py         Seeded default profile, nutrition, and grocery data
 ├── services/
 │   ├── state.py             JSON-file-backed in-memory store
 │   ├── off_client.py        Open Food Facts HTTP client

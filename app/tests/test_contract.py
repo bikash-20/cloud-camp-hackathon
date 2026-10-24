@@ -58,8 +58,7 @@ class _FakeStage:
 
 @pytest.fixture
 def vision_clients(monkeypatch: pytest.MonkeyPatch):
-    """Wire Gemini + HF with controllable returns; canned fallback stays
-    untouched so the trace still exercises the 4-stage shape."""
+    """Wire Gemini + HF with controllable returns for contract tests."""
     import app.api.vision as vision_mod
 
     gemini = _FakeStage()
@@ -76,26 +75,6 @@ def test_health_endpoint_returns_ok(client: TestClient) -> None:
     resp = client.get("/health")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
-
-
-def test_vision_analyze_known_ref(client: TestClient) -> None:
-    """Known image_ref → canned DetectedItem list + 4-stage trace."""
-    resp = client.post("/api/vision/analyze", json={"image_ref": "chicken_biryani.jpg"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert {d["name"] for d in body["detected"]} == {
-        "Chicken biryani", "Cucumber raita", "Mixed salad", "Pickled onion",
-    }
-    assert [t["stage"] for t in body["pipeline"]] == [
-        "cache-check", "vision-id", "hf-validate", "reconcile",
-    ]
-
-
-def test_vision_analyze_unknown_ref_returns_empty(client: TestClient) -> None:
-    """Unknown image_ref → empty list with the same trace."""
-    resp = client.post("/api/vision/analyze", json={"image_ref": "unknown.jpg"})
-    assert resp.status_code == 200
-    assert resp.json()["detected"] == []
 
 
 # ── Nutrition ───────────────────────────────────────────────────────────
@@ -306,7 +285,7 @@ def test_vision_cache_does_not_persist_uploaded_image_data_url(
     from app.models.schemas import DetectedItem
 
     image_ref = "data:image/jpeg;base64,c2Vuc2l0aXZlLWltYWdl"
-    expected_key = hashlib.sha256(image_ref.encode("utf-8")).hexdigest()
+    expected_key = hashlib.sha256(f"live-vision-v1:{image_ref}".encode("utf-8")).hexdigest()
     vector_keys: list[str] = []
     sqlite_keys: list[tuple[str, str]] = []
 
@@ -343,14 +322,11 @@ def test_vision_cache_does_not_persist_uploaded_image_data_url(
     assert all(image_ref not in key for _, key in sqlite_keys)
 
 
-def test_vision_pipeline_falls_back_to_canned_when_no_clients(
+def test_vision_pipeline_rejects_requests_when_no_provider_is_configured(
     client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No env vars set → no clients configured → canned fixture wins.
-
-    Use a fresh image_ref so the vector cache (populated by earlier
-    tests) doesn't shadow the canned fixture path."""
-    import app.api.vision as vision_mod
+    """Without a real provider, the API must not return sample detections."""
 
     class _NotConfigured:
         def is_configured(self) -> bool:
@@ -365,23 +341,15 @@ def test_vision_pipeline_falls_back_to_canned_when_no_clients(
         def close(self):
             pass
 
-    import app.api.vision as vm
-    vm._get_gemini = lambda: _NotConfigured()  # type: ignore[assignment]
-    vm._get_hf = lambda: _NotConfigured()  # type: ignore[assignment]
+    import app.api.vision as vision_mod
+    monkeypatch.setattr(vision_mod, "_get_gemini", lambda: _NotConfigured())
+    monkeypatch.setattr(vision_mod, "_get_hf", lambda: _NotConfigured())
 
-    # Use a ref not in the canned map so we exercise the "no clients +
-    # miss in canned → empty list" branch instead of the cache-hit
-    # branch that earlier tests triggered.
     resp = client.post(
-        "/api/vision/analyze", json={"image_ref": "unknown_no_clients.jpg"}
+        "/api/vision/analyze", json={"image_ref": "chicken_biryani.jpg"}
     )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["detected"] == []
-    # Trace marks every stage as fallback (no real client).
-    trace = {t["stage"]: t["status"] for t in body["pipeline"]}
-    assert trace["vision-id"] == "fallback"
-    assert trace["hf-validate"] == "fallback"
+    assert resp.status_code == 503
+    assert "No vision provider is configured" in resp.json()["detail"]
 
 
 # ── Cut (b): nutrition cascade end-to-end ──────────────────────────────

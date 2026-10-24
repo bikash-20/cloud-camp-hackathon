@@ -162,16 +162,26 @@ src/
 - **Motion**: spring physics via framer-motion, respects `prefers-reduced-motion`
 - **Accessibility**: aria labels, focus-visible, sr-only, keyboard navigation
 
-## Backend (Planned)
+## Backend
 
-The frontend currently runs on a **mock API** (`src/lib/api.ts`) with in-memory state and simulated latency. The planned backend stack:
+The image-analysis and nutrition-resolution flows call the FastAPI service:
 
 - **FastAPI** (Python 3.11)
-- **Gemini 2.0 Flash** (primary vision) + **HuggingFace** classifier (validator)
+- **Gemini 2.0 Flash** (primary vision) + optional **Hugging Face** classifier (validator)
 - **Nutrition cascade**: Open Food Facts → USDA → Fruityvice
-- **Cache**: SQLite (exact match) + ChromaDB (semantic image match)
+- **Cache**: ChromaDB lookup plus SQLite TTL writes (SQLite is not yet read by the vision route)
 
-To swap mocks for real endpoints, replace the function bodies in `src/lib/api.ts` with `fetch()` calls. No component changes needed.
+Set `VITE_API_BASE` to the backend URL in the Vercel project settings. Set
+`GEMINI_API_KEY` on the backend host (Render); `HF_API_TOKEN` is optional.
+The image-analysis route returns an error when no vision provider is
+configured and never substitutes sample detections for an uploaded photo.
+
+**Production limitation:** authentication, profile/grocery/meal persistence,
+and several dashboard values still use seeded or browser-local demo data.
+The backend currently stores state in a JSON file and is not a multi-user
+database. Do not treat those features as production-ready or deploy them
+for real user accounts until authentication and durable per-user storage
+are implemented.
 
 ## License
 

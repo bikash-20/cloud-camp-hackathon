@@ -95,16 +95,12 @@ The reserved stages (`nutrition`, `portion`, `personalize`,
 `explain`) are placeholders for future cut-c work. They exist in the
 schema so the toast UI doesn't need to change when they're wired up.
 
-### Behavior when no API keys are set
+### Behavior when no vision provider is configured
 
 If `GEMINI_API_KEY` and `HF_API_TOKEN` are both unset, the route
-falls back to a canned fixture: `VISION_KEYED_DETECTED[image_ref]`
-or `VISION_KEYED_DETECTED['default']`. The `vision-id` and
-`hf-validate` stages are marked `fallback`. `reconcile` is also
-`fallback`.
-
-This is the demo mode — the app stays functional end-to-end without
-any external services.
+returns HTTP 503. Gemini is sufficient; Hugging Face is optional.
+The client surfaces the failure and does not substitute sample
+detections for the uploaded photo.
 
 ### Cache writes
 
@@ -124,19 +120,14 @@ regardless.
 |---|---|
 | `413 Payload Too Large` | Request body > 8 MB |
 | `422 Unprocessable Entity` | Request body fails Pydantic validation (e.g. missing `image_ref`) |
-| `500 Internal Server Error` | Should not happen — all expected failures are caught and degraded |
+| `500 Internal Server Error` | Unexpected route or cache failure |
 
 ### Example (curl)
 
-```bash
-curl -X POST http://localhost:8000/api/vision/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"image_ref": "chicken_biryani.jpg"}'
-```
-
-The canned fixture `chicken_biryani.jpg` triggers a known-good
-response. Other strings return the canned `default` fixture when
-both clients are unconfigured.
+Send a valid image data URL in `image_ref` and configure at least one
+vision provider. A sample filename is not an image and does not trigger
+a fixture response. Tests should use controlled provider responses.
+When no provider is configured, requests return HTTP 503.
 
 ### See also
 

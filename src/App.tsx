@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { T, TABS } from './data';
-import { getProfile, saveMeal, analyzeMeal, CANNED_DETECTED, CANNED_PIPELINE } from './lib/api';
+import { getProfile, saveMeal, analyzeMeal } from './lib/api';
 import { NUTRITION_DB } from './data';
 import { getSession } from './lib/auth';
 import { ThemeProvider } from './theme/ThemeContext';
@@ -96,6 +96,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [pipeline, setPipeline] = useState<PipelineTrace[]>([]);
   const [pipelineToast, setPipelineToast] = useState<string | null>(null);
+  const [analysisMessage, setAnalysisMessage] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -114,27 +115,26 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
 
   const handleCapture = async (imageDataUrl?: string) => {
     setCaptured(true);
+    setAnalysisMessage(null);
     if (imageDataUrl) setCapturedImage(imageDataUrl);
     setDirection(1);
-    setPipelineToast('Cache check · Vision ID · HF validate · Reconcile');
+    setPipelineToast(translate('Analyzing photo…'));
 
-    const imageRef = imageDataUrl || 'chicken_biryani.jpg';
     let next: DetectedItem[] = [];
     let trace: PipelineTrace[] = [];
     try {
-      const result = await analyzeMeal(imageRef);
+      if (!imageDataUrl) throw new Error('A photo is required to analyze a meal');
+      const result = await analyzeMeal(imageDataUrl);
       next = result.detected;
       trace = result.pipeline;
+      if (next.length === 0) {
+        setAnalysisMessage(translate('No food was detected. Try a clearer photo.'));
+      }
     } catch (err) {
-      // Live backend failed (network down, 5xx, CORS, etc). Log the
-      // error for the developer and fall back to the canned fixture
-      // so the demo still renders something — the user sees a
-      // pipeline-error toast but the app doesn't crash.
       // eslint-disable-next-line no-console
-      console.error('analyzeMeal failed, falling back to canned fixture:', err);
-      next = CANNED_DETECTED;
-      trace = CANNED_PIPELINE;
-      setPipelineToast('Pipeline offline — using sample data');
+      console.error('Meal analysis failed:', err);
+      setAnalysisMessage(translate('Could not analyze this photo. Check your connection and provider setup.'));
+      setPipelineToast(translate('Analysis unavailable — no sample results shown.'));
     }
     setDetected(next);
     setPipeline(trace);
@@ -157,13 +157,15 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
       { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sodium: 0, sugar: 0 },
     );
     const label = next.map((i) => i.name).join(', ') || 'Meal';
-    saveMeal({
-      label,
-      items: next,
-      totals,
-      photoUrl: imageDataUrl ?? null,
-      activeGoals: profile?.goals ?? { diabetic: false, protein: false, budget: false, mediter: false },
-    });
+    if (next.length > 0) {
+      void saveMeal({
+        label,
+        items: next,
+        totals,
+        photoUrl: imageDataUrl ?? null,
+        activeGoals: profile?.goals ?? { diabetic: false, protein: false, budget: false, mediter: false },
+      });
+    }
 
     setTimeout(() => {
       setPipelineToast(null);
@@ -176,6 +178,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
     setCapturedImage(null);
     setDetected([]);
     setPipeline([]);
+    setAnalysisMessage(null);
   };
 
   if (!profile) {
@@ -244,6 +247,11 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
               onViewNutrients={() => goToTab(2)}
               profile={profile}
               capturedImage={capturedImage}
+              analysisMessage={analysisMessage}
+              onRetake={() => {
+                handleRetake();
+                goToTab(0);
+              }}
             />
           )}
           {tab === 2 && <NutrientsScreen detected={detected} profile={profile} onBack={() => goToTab(1)} />}

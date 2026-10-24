@@ -1,17 +1,17 @@
 """Vision pipeline route.
 
 Mirrors `src/lib/api.ts#analyzeMeal`. The frontend passes `image_ref`
-(a string like `'chicken_biryani.jpg'` or a base64 data URL); the route:
+(a base64 data URL); the route:
 
   1. Looks up a SHA-256 digest of `image_ref` in the vector cache. On
      hit, returns cached detections + a `cache-hit` trace stage.
-  2. Otherwise calls Gemini and then HF (each only if its key is set)
+  2. Otherwise calls Gemini and HF sequentially (each only if its key is set)
      and merges via `reconcile.merge`.
   3. Applies `portion.estimate()` to each item.
   4. Persists the merged list to both caches using the digest, then
      returns it. The uploaded image data is not used as a cache key.
-  5. If neither client is configured, falls back to the canned
-     `VISION_KEYED_DETECTED` so the demo continues to work without keys.
+  5. If neither provider is configured, returns 503. No sample detections
+     are substituted for an uploaded image.
 
 The contract is locked: request shape is `AnalyzeRequest`, response
 shape is `AnalyzeResult`. Only the internals change vs. cut (a).
@@ -29,8 +29,6 @@ from pydantic import BaseModel
 from app.cache.sqlite_cache import TTLCache
 from app.cache.vector_cache import VectorCache
 from app.models.schemas import AnalyzeResult, DetectedItem, PipelineTrace
-from app.seed.fixtures import VISION_KEYED_DETECTED
-from app.services import ocr
 from app.services import portion as portion_svc
 from app.services import reconcile as reconcile_svc
 from app.services.gemini_client import GeminiClient
@@ -105,8 +103,8 @@ def _vision_ttl_s() -> int:
 
 
 def _cache_key(image_ref: str) -> str:
-    """Keep image contents and file paths out of persistent cache keys."""
-    return hashlib.sha256(image_ref.encode("utf-8")).hexdigest()
+    """Namespace live-analysis cache entries away from earlier demo fixtures."""
+    return hashlib.sha256(f"live-vision-v1:{image_ref}".encode("utf-8")).hexdigest()
 
 
 class AnalyzeRequest(BaseModel):
@@ -142,6 +140,13 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
         make_trace("cache-check", "Cache check", "running"),
     ]
     cache_key = _cache_key(body.image_ref)
+    gemini = _get_gemini()
+    hf = _get_hf()
+    if not gemini.is_configured() and not hf.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No vision provider is configured. Set GEMINI_API_KEY or HF_API_TOKEN.",
+        )
 
     # 1. Vector cache (ChromaDB) — fast path. Falls through silently
     #    when chromadb is not installed or the path is unwritable.
@@ -161,8 +166,6 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
     pipeline[0].status = "done"
 
     # 2. Live pipeline: Gemini (if key) || HF (if key).
-    gemini = _get_gemini()
-    hf = _get_hf()
     gemini_items = gemini.detect(body.image_ref) if gemini.is_configured() else []
     hf_labels = hf.classify(body.image_ref) if hf.is_configured() else []
 
@@ -189,16 +192,12 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
             ]
         )
     else:
-        # 3. No keys → canned fixture, identical to cut (a).
-        detected = VISION_KEYED_DETECTED.get(body.image_ref) or []
-        if not detected and ocr.is_enabled():
-            # OCR fallback: best-effort, no detection mapping in cut (b).
-            ocr.extract_text(body.image_ref)
+        detected = []
         pipeline.extend(
             [
-                make_trace("vision-id", "Vision ID (stub)", "fallback"),
-                make_trace("hf-validate", "HF validator (stub)", "fallback"),
-                make_trace("reconcile", "Reconcile (skipped)", "fallback"),
+                make_trace("vision-id", "Vision ID (no detections)", "fallback"),
+                make_trace("hf-validate", "HF validator (no detections)", "fallback"),
+                make_trace("reconcile", "Reconcile (no detections)", "fallback"),
             ]
         )
 

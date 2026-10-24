@@ -242,7 +242,7 @@ app/
 │   ├── sqlite_cache.py           # TTL exact-match
 │   └── vector_cache.py           # ChromaDB semantic
 ├── seed/
-│   └── fixtures.py               # VISION_KEYED_DETECTED, DEFAULT_PROFILE, etc.
+│   └── fixtures.py               # DEFAULT_PROFILE, nutrition, grocery seeds
 ├── data/                         # JSON data files (seed data)
 └── tests/
     ├── conftest.py

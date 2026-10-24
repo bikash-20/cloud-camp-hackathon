@@ -132,11 +132,3 @@ DEFAULT_GROCERY_GROUPS: list[GroceryGroup] = [
 # in-memory state store on first boot.
 def default_grocery_items() -> list[GroceryItem]:
     return [item for group in DEFAULT_GROCERY_GROUPS for item in group.items]
-
-
-# Keyed canned detected sets, used by the vision stub. The frontend
-# passes `image_ref` as a string; the skeleton looks it up here and
-# returns the matching list (or empty if unknown).
-VISION_KEYED_DETECTED: dict[str, list[DetectedItem]] = {
-    "chicken_biryani.jpg": DETECTED,
-}

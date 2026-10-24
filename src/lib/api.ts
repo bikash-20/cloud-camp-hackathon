@@ -25,7 +25,6 @@ import type {
   GroceryItem,
   GroceryList,
   MealEntry,
-  PipelineTrace,
   ResolveNutritionResult,
   ResolvedItem,
   TodaySummary,
@@ -35,7 +34,6 @@ import type {
 import { resolveDailyKcalTarget } from '../types/schemas';
 import * as storage from './storage';
 import {
-  MOCK_DETECTED,
   MOCK_GROCERY_GROUPS,
   MOCK_NUTRITION_DB,
   MOCK_PROFILE,
@@ -46,9 +44,8 @@ import { buildContributions, mealTotals } from './personalize';
 // ── Backend wiring ──────────────────────────────────────────────────────
 
 /**
- * Base URL of the FastAPI backend. Empty string = run on the
- * canned fixtures (the original mock behavior). Set on Vercel as
- * `VITE_API_BASE=https://your-railway-app.up.railway.app` so the
+ * Base URL of the FastAPI backend. Set on Vercel as
+ * `VITE_API_BASE=https://your-service.onrender.com` so the
  * production PWA hits the live backend.
  */
 const API_BASE: string = (import.meta.env.VITE_API_BASE ?? 'http://localhost:8000').replace(/\/+$/, '');
@@ -90,19 +87,6 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await resp.json()) as T;
 }
 
-/**
- * Canned `AnalyzeResult` for offline / fallback paths. Exported so
- * `App.tsx` can fall back to it when the live backend is unreachable,
- * keeping the demo renderable instead of crashing on a network error.
- */
-export const CANNED_DETECTED: DetectedItem[] = clone(MOCK_DETECTED);
-export const CANNED_PIPELINE: PipelineTrace[] = [
-  makeTrace('cache-check', 'Cache check', 'cache-hit'),
-  makeTrace('vision-id', 'Vision ID (offline)', 'fallback'),
-  makeTrace('hf-validate', 'HF validator (offline)', 'fallback'),
-  makeTrace('reconcile', 'Reconcile (skipped)', 'fallback'),
-];
-
 // ── In-memory mutable state (pretends to be a backend session) ──────────
 
 let profileState: UserProfile = storage.loadOrDefault('profile', structuredClone(MOCK_PROFILE));
@@ -141,10 +125,6 @@ function delay(min: number, max: number): Promise<void> {
  */
 export const DEFAULT_PROFILE: UserProfile = structuredClone(MOCK_PROFILE);
 
-function makeTrace(stage: PipelineTrace['stage'], label: string, status: PipelineTrace['status'] = 'done'): PipelineTrace {
-  return { stage, status, startedAt: Date.now(), finishedAt: Date.now(), label };
-}
-
 function clone<T>(v: T): T {
   return structuredClone(v);
 }
@@ -156,22 +136,12 @@ function clone<T>(v: T): T {
  * Runs the dual vision pipeline (Gemini + HF validator) and returns ranked
  * detected items with a per-stage trace.
  *
- * Live mode (default): POSTs the data URL to the FastAPI backend, which
- * checks the vector cache and runs the live pipeline (or the canned
- * fallback when no API keys are configured).
- *
- * Mock mode (VITE_API_BASE=""): returns the canned fixture.
+ * POSTs the image to the FastAPI backend. Analysis never substitutes a
+ * canned meal when the backend is unreachable or not configured.
  */
 export async function analyzeMeal(imageRef: string): Promise<AnalyzeResult> {
   if (!useLiveBackend) {
-    const pipeline: PipelineTrace[] = [
-      makeTrace('cache-check', 'Cache check', 'cache-hit'),
-      makeTrace('vision-id', 'Vision ID (Gemini)', 'done'),
-      makeTrace('hf-validate', 'HF validator', 'done'),
-      makeTrace('reconcile', 'Confidence-weighted reconcile', 'done'),
-    ];
-    await delay(180, 320);
-    return { detected: clone(MOCK_DETECTED), pipeline };
+    throw new ApiError(0, 'Backend URL is not configured');
   }
   return apiFetch<AnalyzeResult>('/api/vision/analyze', {
     method: 'POST',
