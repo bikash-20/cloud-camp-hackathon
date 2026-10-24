@@ -1,8 +1,9 @@
 # Frontend
 
-React 18 + Vite + TypeScript PWA. Currently uses a mock API client
-(`src/lib/api.ts`); designed so that swapping to real `fetch()`
-calls is a one-file change.
+React 18 + Vite + TypeScript PWA. It uses a hybrid API client
+(`src/lib/api.ts`): image analysis and nutrition resolution call the
+FastAPI backend when `VITE_API_BASE` is configured; profile, grocery,
+meal history, and authentication remain browser-local/demo behavior.
 
 ## App shell
 
@@ -21,7 +22,7 @@ calls is a one-file change.
 4. Otherwise → renders `<UserApp session={session}>`.
 
 `UserApp`:
-1. Reads profile, today summary, and meal history from the mock API.
+1. Reads profile, today summary, and meal history from browser-local state.
 2. Owns the `activeTab` state (`0..4` for the 5 main tabs).
 3. Renders `<PhoneFrame>` wrapping the active `<Screen>`.
 4. Renders `<BottomNav>` for tab switching.
@@ -66,15 +67,16 @@ in `MOCK_TABS` doesn't break navigation.
 - **localStorage** (`src/lib/storage.ts`): persistent profile,
   meal history, grocery list, theme preference, auth session.
 
-The mock API client (`src/lib/api.ts`) reads/writes localStorage
-on every mutation. Swapping to real `fetch()` calls would route
-mutations through the backend instead.
+Profile, meal history, and grocery mutations currently read/write
+localStorage; they are not synchronized to per-user backend storage.
 
-## Mock API layer
+## API and local demo state
 
 **File:** `src/lib/api.ts`
 
-This file is the swap target. It exports:
+This file contains live backend calls for `analyzeMeal` and, when
+configured, `resolveNutrition`. Other functions still use localStorage,
+seed data, or local calculations:
 
 - `analyzeMeal(imageRef)` → `AnalyzeResult`
 - `resolveNutrition(items, profile)` → `ResolveNutritionResult`
@@ -90,11 +92,9 @@ This file is the swap target. It exports:
 - `clearGrocery()` / `generateGroceryFromMeals()`
 - `DEFAULT_PROFILE` (factory-fresh profile for Reset)
 
-Every function returns a `Promise` with simulated latency
-(`delay(min, max)`). Swapping to real `fetch()` calls preserves the
-signatures and return types, so screens don't need to change.
-
-The file header comment documents the swap procedure.
+The fallback in `resolveNutrition` is for local demo mode only. Vision
+analysis never returns canned detections: it fails clearly if the
+backend URL/provider is unavailable.
 
 ## Helpers (`src/lib/`)
 

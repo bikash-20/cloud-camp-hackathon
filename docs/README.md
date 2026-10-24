@@ -12,7 +12,7 @@ here.
 | Trace what happens when a user uploads a picture | [IMAGE_UPLOAD_FLOW.md](./IMAGE_UPLOAD_FLOW.md) |
 | Pick up this codebase as an AI agent | [AGENT_CONTEXT.md](./AGENT_CONTEXT.md) |
 | Set up the project locally and run tests | [development.md](./development.md) |
-| Deploy the frontend to Vercel + backend to Railway | [deployment.md](./deployment.md) |
+| Deploy the frontend to Vercel + backend to Render | [deployment.md](./deployment.md) |
 | See what was changed in the recent cleanup | [CHANGELOG.md](./CHANGELOG.md) |
 | Add or modify a shared type | [schemas.md](./schemas.md) |
 
@@ -20,7 +20,7 @@ here.
 
 ### Frontend (`src/`)
 
-- [frontend/README.md](./frontend/README.md) — app shell, state, mock API, theme system
+- [frontend/README.md](./frontend/README.md) — app shell, hybrid API/local state, theme system
 - [frontend/components.md](./frontend/components.md) — every component, grouped
 
 ### Backend (`app/`)

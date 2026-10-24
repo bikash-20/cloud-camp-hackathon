@@ -18,7 +18,7 @@ Built for **Cloud Camp Hackathon** by [bikash-20](https://github.com/bikash-20).
 - Live preview with viewfinder overlay and shutter animation
 
 ### Results & Review
-- Dual vision pipeline output (Gemini + HuggingFace validator)
+- Gemini food detection with optional Hugging Face label validation
 - Confidence scores with color-coded badges (high/medium/low)
 - Sortable food items (by confidence, calories, name, portion size)
 - Portion editing with +/- 25g controls

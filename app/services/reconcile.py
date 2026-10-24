@@ -10,8 +10,8 @@ Merge rules:
   2. Gemini-only items pass through unchanged.
   3. HF-only items are kept with `confidence = score * 100`.
 
-If both sources are empty the result is empty (the route handler then
-falls back to the canned fixture).
+If both sources are empty the result is empty; the route returns an
+empty detection list rather than substituting fixture data.
 """
 
 from __future__ import annotations

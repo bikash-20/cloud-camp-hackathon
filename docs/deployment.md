@@ -1,6 +1,6 @@
 # Deployment
 
-How to deploy the frontend (Vercel) and backend (Railway) so the
+How to deploy the frontend (Vercel) and backend (Render) so the
 live PWA talks to the live backend.
 
 ## Overview
@@ -9,16 +9,15 @@ live PWA talks to the live backend.
 ┌──────────────────────────────────┐
 │  Vercel                          │
 │  (frontend — Vite static build)  │   ← static SPA, auto-deploys
-│  https://nutrivision.vercel.app  │     from `main` branch
+│  https://cloud-camp-hackathon.vercel.app │ from `main` branch
 └──────────────┬───────────────────┘
-               │  HTTPS, VITE_API_BASE header at build time
-               │  cross-origin fetch with credentials
+               │  HTTPS, VITE_API_BASE environment at build time
+               │  cross-origin API requests
                ▼
 ┌──────────────────────────────────┐
-│  Railway / Render / Fly          │
+│  Render                          │
 │  (backend — FastAPI on uvicorn)  │   ← long-running service
-│  https://nutrivision-api.railway │     with HTTPS + secrets
-│  .app                            │
+│  <your-service>.onrender.com     │     with HTTPS + secrets
 └──────────────┬───────────────────┘
                │
                ▼
@@ -52,10 +51,12 @@ In Vercel → Project Settings → Environment Variables:
 
 | Name | Value | Notes |
 |---|---|---|
-| `VITE_API_BASE` | `https://<your-railway-app>.up.railway.app` | **No trailing slash.** Used by `src/lib/api.ts#apiFetch()` to route vision + nutrition calls. |
+| `VITE_API_BASE` | `https://<your-render-service>.onrender.com` | **No trailing slash or `/api` suffix.** Used for vision + nutrition calls. |
 
 Set it for **Production**, **Preview**, and **Development** as
-needed. Empty string = run on canned fixtures (no backend).
+needed. An empty value disables live backend calls; image analysis will
+show an error rather than sample detections, while other demo state
+remains browser-local.
 
 ### First deploy / re-deploy
 
@@ -67,58 +68,49 @@ takes effect).
 ### Verify
 
 Once deployed, open the PWA. The browser DevTools Network tab
-should show `POST /api/vision/analyze` going to your Railway URL
+should show `POST /api/vision/analyze` going to your Render URL
 when you capture a photo.
 
 ---
 
-## Backend — Railway
+## Backend — Render
 
-The FastAPI app in `app/` is set up for Railway's Nixpacks builder
-with **zero config**: Railway detects Python, reads
-`requirements.txt`, and runs `uvicorn app.main:app --host 0.0.0.0
---port $PORT`.
+Create a Render Web Service from this GitHub repository.
 
-### One-time setup
+### Service settings
 
-1. **Create a Railway project** at <https://railway.app>.
-2. **Deploy from GitHub**: point Railway at this repo, set the
-   **root directory** to `app/`. Railway will install
-   `requirements.txt` and start uvicorn.
-3. **Set environment variables** in the Railway dashboard:
+| Setting | Value |
+|---|---|
+| Branch | `main` |
+| Root directory | `.` (repository root) |
+| Build command | `pip install -r app/requirements.txt` |
+| Start command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Health check path | `/health` |
 
-   | Name | Value |
-   |---|---|
-   | `GEMINI_API_KEY` | `sk-...` (from <https://aistudio.google.com/app/apikey>) |
-   | `HF_API_TOKEN` | `hf_...` (from <https://huggingface.co/settings/tokens>) |
-   | `USDA_API_KEY` | `DEMO_KEY` (works without signup; rate-limited) |
-   | `CORS_ALLOW_ORIGINS` | `https://nutrivision.vercel.app,http://localhost:5173` |
-   | `STATE_PATH` | leave as default (`/app/state.json`) |
-   | `PORT` | Railway sets this automatically |
+Set these service environment variables:
 
-4. **Set the start command** (under Settings → Deploy):
-   ```
-   uvicorn app.main:app --host 0.0.0.0 --port $PORT
-   ```
+| Name | Value |
+|---|---|
+| `GEMINI_API_KEY` | Newly generated Gemini key (required for Gemini vision) |
+| `HF_API_TOKEN` | Optional Hugging Face token |
+| `CORS_ALLOW_ORIGINS` | `https://cloud-camp-hackathon.vercel.app` |
+| `USDA_API_KEY` | Optional; default is `DEMO_KEY` |
+| `STATE_PATH` | Leave default unless using persistent storage |
 
-5. **Generate a domain**: Settings → Networking → Generate Domain.
-   Railway gives you a `*.up.railway.app` URL.
+Render assigns an HTTPS service URL after the first successful deploy.
+Set Vercel's `VITE_API_BASE` to that URL (origin only), then redeploy
+the frontend so Vite includes the new build-time variable.
 
 ### Verify
 
-Once Railway has the deploy URL:
+After Render has assigned the service URL:
 
 ```bash
-curl https://<your-app>.up.railway.app/
-# {"service":"nutrivision-backend","cut":"a (contract-only skeleton)","docs":"/docs"}
+curl https://<your-service>.onrender.com/health
+# {"status":"ok"}
 
-curl https://<your-app>.up.railway.app/docs
+curl https://<your-service>.onrender.com/docs
 # Swagger UI
-
-# With keys set, a real call:
-curl -X POST https://<your-app>.up.railway.app/api/vision/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"image_ref": "data:image/jpeg;base64,/9j/4AAQ..."}'
 ```
 
 ### CORS
@@ -126,20 +118,18 @@ curl -X POST https://<your-app>.up.railway.app/api/vision/analyze \
 `CORS_ALLOW_ORIGINS` is comma-separated. For local dev + Vercel
 production:
 ```
-CORS_ALLOW_ORIGINS=http://localhost:5173,https://nutrivision.vercel.app
+CORS_ALLOW_ORIGINS=http://localhost:5173,https://cloud-camp-hackathon.vercel.app
 ```
 
 Without this, the browser will block cross-origin requests from
-the Vercel frontend to the Railway backend.
+the Vercel frontend to the Render backend.
 
 ### Persistent state
 
-By default, `STATE_PATH=/app/state.json` is an **ephemeral**
-filesystem on Railway — it gets wiped on every redeploy. For the
-demo this is fine (state is per-session anyway, and the frontend
-holds the source of truth in localStorage). For production
-persistence, attach a Railway volume to `/app` and set
-`STATE_PATH=/app/data/state.json`.
+The JSON state, ChromaDB cache, and SQLite cache are file-backed and
+may be lost on redeploy or service replacement unless persistent disk
+storage is configured. This is demo-scale state, not durable
+multi-user persistence.
 
 The ChromaDB vector cache and SQLite TTL cache have the same
 limitation — they'll rebuild from real traffic after each redeploy,
@@ -155,19 +145,20 @@ After both deploys are live and `VITE_API_BASE` is set on Vercel:
 2. Tap the camera button → take a photo.
 3. Open DevTools → Network tab. You should see:
    ```
-   POST https://<railway>.up.railway.app/api/vision/analyze  → 200
-   POST https://<railway>.up.railway.app/api/nutrition/resolve  → 200
+   POST https://<render-service>.onrender.com/api/vision/analyze  → 200
+   POST https://<render-service>.onrender.com/api/nutrition/resolve  → 200
    ```
-4. The Results screen should show the real detected items from
-   Gemini + HF, with confidence scores from real numbers.
+4. The Results screen should show detections from Gemini and optional
+   HF validation, with confidence scores returned by the provider.
 5. The Nutrients screen should show per-100g nutrition from the
    OFF → USDA → Fruityvice cascade (look at the `source` field
    on each `ResolvedItem` in DevTools).
 6. Save the meal → verify it appears in the meal history.
 
-If the live backend is unreachable, the app falls back to the
-canned fixture and shows a "Pipeline offline — using sample data"
-toast. Check the browser console for the underlying error.
+If the live backend or provider is unavailable, the app shows an
+analysis error and does not save or display a canned detection. Check
+the browser console, backend health endpoint, CORS origin, and provider
+environment variables.
 
 ---
 
@@ -177,13 +168,12 @@ If something goes wrong in production:
 
 - **Frontend**: Vercel dashboard → Deployments → click the
   previous green deployment → "Promote to Production".
-- **Backend**: Railway dashboard → Deployments → click the
+- **Backend**: Render dashboard → Events → select the
   previous successful deploy → "Rollback".
 
-The mock mode (`VITE_API_BASE=""`) also works as a frontend-only
-rollback: set the env var to empty string, redeploy Vercel. The
-app will use the canned fixtures without ever touching the
-backend.
+Setting `VITE_API_BASE` to an empty value disables backend calls, but
+does not restore canned photo-analysis results. Use this only for
+frontend-local/demo behavior.
 
 ---
 
@@ -192,7 +182,7 @@ backend.
 | Service | Free tier | Demo cost |
 |---|---|---|
 | Vercel | Unlimited static deploys on hobby plan | $0 |
-| Railway | $5/mo credit, ~500 hrs of `1GB/1vCPU` | ~$1-2/mo for cut-b demo traffic |
+| Render | Free service may sleep while idle | Depends on service plan and usage |
 | Gemini 2.0 Flash | 15 RPM, 1M tokens/min | $0 for the demo |
 | HuggingFace Inference | Free tier, ~1000 req/day | $0 |
 | Open Food Facts | Free, no key | $0 |

@@ -16,10 +16,10 @@ meal history.
 - **Demo:** <https://cloud-camp-hackathon.vercel.app>
 - **Blueprint:** `NutriVision_AI_Blueprint.md` (root) — the original design doc.
 
-The codebase is **cut (a) contract + cut (b) integrations**: the
-schemas are locked and the backend is feature-complete, but the
-frontend still uses a mock API client. The swap to real `fetch()`
-calls in `src/lib/api.ts` is the next cut.
+The backend has real vision and nutrition integrations, and the
+frontend calls those endpoints when `VITE_API_BASE` is configured.
+The rest of the app still contains seeded/browser-local demo state;
+authentication and durable per-user persistence are not implemented.
 
 ## The one thing you MUST understand
 
@@ -112,7 +112,7 @@ list with one-paragraph purposes.
 | `services/ocr.py` | Optional Tesseract wrapper |
 | `services/_http_logging.py` | Severity-graded HTTP failure logger |
 | `cache/sqlite_cache.py` | TTL exact-match cache |
-| `cache/vector_cache.py` | ChromaDB semantic image cache |
+| `cache/vector_cache.py` | ChromaDB exact-ID detection cache |
 | `tests/test_schema_drift.py` | **Schema-drift guard** (23 parametrized cases) |
 | `tests/test_contract.py` | Pydantic ↔ TS contract tests |
 | `tests/test_cascade.py` | OFF → USDA → Fruityvice cascade tests |
@@ -145,24 +145,15 @@ list with one-paragraph purposes.
 1. Pick the right router file under `app/api/`. If none fits, create a new one and register it in `app/main.py`.
 2. Define request/response models in `app/api/<file>.py` (using `app.models.schemas` types where possible — don't redefine).
 3. Add a Pydantic `BaseModel` for the request body if it's not a primitive.
-4. Add a mock in `src/lib/api.ts` that returns the new shape.
+4. Add the frontend API call and only add a local demo fallback if that behavior is intentional.
 5. Add a test in `app/tests/test_contract.py` or a new file.
 
-### "I want to swap a mock API call to a real fetch()"
+### "I want to wire a frontend operation to the backend"
 
-1. In `src/lib/api.ts`, find the function (e.g. `analyzeMeal`).
-2. Delete the mock body, replace with:
-   ```ts
-   const resp = await fetch('/api/vision/analyze', {
-     method: 'POST',
-     headers: { 'Content-Type': 'application/json' },
-     body: JSON.stringify({ image_ref: imageRef }),
-   });
-   if (!resp.ok) throw new Error(`analyzeMeal ${resp.status}`);
-   return resp.json() as Promise<AnalyzeResult>;
-   ```
-3. The function signature and return type are unchanged. The screens don't need to change.
-4. Run `npm run typecheck && npm test` to verify.
+1. Inspect the matching route in `app/api/` and schema in both language trees.
+2. Follow the existing `apiFetch` pattern in `src/lib/api.ts`, including clear handling for non-2xx responses.
+3. Confirm Vercel's `VITE_API_BASE` and backend CORS configuration are set for deployment.
+4. Add/adjust contract tests and run frontend and backend checks.
 
 ### "I want to add a new tab to the bottom nav"
 
@@ -194,7 +185,7 @@ list with one-paragraph purposes.
 1. Use `pytest` with the fixtures from `app/tests/conftest.py`.
 2. For HTTP route tests, use FastAPI's `TestClient` against `app.main:app`.
 3. For pure functions (reconcile, portion, etc.), call the function directly.
-4. For external HTTP, mock with `respx` or use the canned fixtures in `app/seed/fixtures.py`.
+4. For external HTTP, mock with `respx`; use `app/seed/fixtures.py` only for seeded domain data.
 5. Run `cd app && python -m pytest tests/ -q`.
 
 ## Test commands
@@ -223,7 +214,7 @@ All of the above pass today (66 backend, 23 drift, 21 frontend).
 |---|---|---|
 | `STATE_PATH` | `app/state.json` | JSON file backing the state singleton |
 | `CORS_ALLOW_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated CORS allow-list |
-| `GEMINI_API_KEY` | (unset) | Enables real Gemini vision. If unset, falls back to canned fixture. |
+| `GEMINI_API_KEY` | (unset) | Enables Gemini vision. If both provider keys are unset, analysis returns HTTP 503. |
 | `GEMINI_MODEL` | `gemini-2.0-flash` | Model name |
 | `GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/models` | Override for testing |
 | `HF_API_TOKEN` | (unset) | Enables HF validator |

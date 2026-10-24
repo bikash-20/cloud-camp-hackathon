@@ -1,7 +1,5 @@
-"""NutriVision AI backend (cut a — contract-only skeleton).
+"""NutriVision AI backend.
 
-A lean FastAPI service that mirrors the frontend's mock API surface
-(`src/lib/api.ts`) so the two can be wired together without shape
-drift. Vision and most nutrition lookups are stubbed; Open Food Facts
-is the only live external dependency and runs without API keys.
+A FastAPI service with vision and nutrition integrations and API
+contracts mirrored by the frontend's `src/types/schemas.ts`.
 """

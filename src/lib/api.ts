@@ -14,8 +14,9 @@
  * (it would require reconciling the localStorage cache with the
  * `app/state.json` server state).
  *
- * To roll back to a fully-mocked build, set `VITE_API_BASE=""` in
- * the deploy env — the routes fall back to the canned fixtures.
+ * If `VITE_API_BASE` is empty, vision analysis reports that the backend
+ * is unavailable; nutrition may use its local demo lookup. Profile,
+ * grocery, and meal-history operations remain browser-local either way.
  */
 
 import type {
@@ -107,9 +108,7 @@ function persist<T>(key: string, get: () => T): T {
 
 // ── Utility ─────────────────────────────────────────────────────────────
 
-// @demo-only — replace with real fetch() when backend lands.
-// The random delay simulates realistic network latency so the UI feels real.
-// Keep Math.random() so screenshots / Playwright snapshots are not deterministic.
+// Simulated latency for local demo-state operations.
 function delay(min: number, max: number): Promise<void> {
   const ms = Math.floor(min + Math.random() * (max - min));
   return new Promise((r) => setTimeout(r, ms));

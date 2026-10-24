@@ -92,8 +92,7 @@ class GeminiClient:
             self._client = None
 
     def is_configured(self) -> bool:
-        """True iff a key is set — the route handler uses this to
-        decide between real Gemini and the canned fallback."""
+        """True iff a key is set — the route uses this to select a provider."""
         return bool(self.api_key)
 
     def detect(self, image_ref: str) -> list[DetectedItem]:
@@ -101,7 +100,8 @@ class GeminiClient:
 
         `image_ref` is a base64 data URL (`data:image/jpeg;base64,…`)
         or a local file path. Returns `[]` on any error so callers can
-        fall back to HF / canned fixtures without a try/except.
+        fall back to Hugging Face or return no detections without
+        raising an exception.
         """
         if not self.is_configured():
             return []

@@ -162,7 +162,7 @@ cp app/.env.example app/.env
 |---|---|---|
 | `STATE_PATH` | `app/state.json` | JSON file backing the state singleton |
 | `CORS_ALLOW_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated CORS allow-list |
-| `GEMINI_API_KEY` | (unset) | Enables real Gemini vision. If unset, falls back to canned fixture. |
+| `GEMINI_API_KEY` | (unset) | Enables Gemini vision. If both vision provider keys are unset, analysis returns HTTP 503. |
 | `GEMINI_MODEL` | `gemini-2.0-flash` | Model name |
 | `GEMINI_BASE_URL` | (unset) | Override for testing against a mock Gemini |
 | `HF_API_TOKEN` | (unset) | Enables HF validator |
@@ -175,18 +175,15 @@ cp app/.env.example app/.env
 
 ## Smoke-testing the real backend
 
-The frontend is still on the mock API. To exercise the real backend
-end-to-end without swapping `api.ts`:
+To exercise the real backend locally, set `VITE_API_BASE=http://localhost:8000`
+for the Vite dev server and start the backend from the repository root:
 
 ```bash
-# Terminal 1
-cd app
+# Terminal 1 (repository root; set GEMINI_API_KEY in this shell)
 uvicorn app.main:app --reload --port 8000
 
-# Terminal 2
-curl -X POST http://localhost:8000/api/vision/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"image_ref": "chicken_biryani.jpg"}'
+# Terminal 2 (repository root)
+npm run dev
 
 curl http://localhost:8000/api/nutrition/targets
 
@@ -195,9 +192,9 @@ curl http://localhost:8000/api/profile
 curl http://localhost:8000/api/meals/today
 ```
 
-The canned fixture `chicken_biryani.jpg` triggers a known-good
-response. Other `image_ref` strings return the canned `default`
-fixture when both clients are unconfigured.
+Upload an actual photo in the frontend. The API expects a valid image
+data URL and at least one configured provider; with no provider it
+returns HTTP 503 rather than sample detections.
 
 ### CORS env var
 

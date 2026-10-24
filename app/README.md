@@ -1,10 +1,10 @@
 # NutriVision AI backend
 
-FastAPI backend for the frontend API in `src/lib/api.ts`. It can call
-Gemini for meal-photo detection and Hugging Face for optional label
-validation when server-side credentials are configured. Without those
-credentials, vision uses seeded examples for known fixture names and
-returns no detections for unknown image references.
+FastAPI backend for the frontend API in `src/lib/api.ts`. It calls
+Gemini for meal-photo detection and can use Hugging Face for optional
+label validation when server-side credentials are configured. Without
+either provider, vision requests return HTTP 503; sample detections are
+never substituted for an uploaded image.
 
 ## What this is
 
@@ -41,19 +41,19 @@ Open <http://localhost:8000/docs> for the auto-generated Swagger UI.
 
 ### Deploy the backend to Render
 
-The existing Render web service is connected to this repository's `main`
-branch and auto-deploys on commits. Its root directory must be the
-repository root (`.`), with build command
+Create a Render Web Service connected to this repository's `main`
+branch. Set its root directory to the repository root (`.`), with build command
 `pip install -r app/requirements.txt`, start command
 `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, and health check
 `/health`.
 
 In Render's Environment settings, set `GEMINI_API_KEY` to a newly
 rotated key and `CORS_ALLOW_ORIGINS` to
-`https://cloud-camp-hackathon.vercel.app`. Never put the Gemini key in
-GitHub or Vercel. After the backend is healthy, set Vercel's
-`VITE_API_BASE` to `https://cloud-camp-hackathon.onrender.com` and
-redeploy the frontend.
+`https://cloud-camp-hackathon.vercel.app`. `HF_API_TOKEN` is optional;
+Gemini alone is sufficient for photo analysis. Never put provider keys
+in GitHub or in `VITE_*` variables. After the service is healthy, copy
+its assigned HTTPS URL and set Vercel's `VITE_API_BASE` to that URL
+(origin only, no `/api` suffix), then redeploy the frontend.
 
 The free service uses an ephemeral filesystem and may sleep while idle.
 Do not rely on the backend's local JSON state or caches as durable
@@ -64,10 +64,10 @@ production storage.
 ```bash
 curl -s http://localhost:8000/api/profile | jq .
 curl -s 'http://localhost:8000/api/grocery?budget=500' | jq '.groups[].category'
-curl -s -X POST http://localhost:8000/api/vision/analyze \
-  -H 'Content-Type: application/json' \
-  -d '{"image_ref":"chicken_biryani.jpg"}' | jq '.detected[].name'
 ```
+
+For vision, send an actual image as a `data:image/...;base64,...`
+value in `image_ref`; a sample filename is not a valid photo.
 
 ### Run the contract tests
 
