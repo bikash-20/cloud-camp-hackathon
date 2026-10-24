@@ -1,5 +1,49 @@
 /* NutriVision — Earth-tone design tokens, resets, accessibility */
 
+html[data-language='bn'],
+html[data-language='bn'] body,
+html[data-language='bn'] button,
+html[data-language='bn'] input,
+html[data-language='bn'] select,
+html[data-language='bn'] textarea {
+  font-family: 'Noto Sans Bengali', Inter, system-ui, sans-serif;
+}
+
+.language-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgba(74, 58, 52, 0.16);
+  border-radius: 999px;
+  background: rgba(249, 242, 228, 0.82);
+  box-shadow: 0 2px 8px rgba(46, 37, 34, 0.08);
+  flex: 0 0 auto;
+}
+
+.language-toggle button {
+  min-height: 34px;
+  min-width: 48px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink, #4A3A34);
+  font: 600 11px/1.2 Inter, 'Noto Sans Bengali', sans-serif;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.language-toggle button[aria-pressed='true'] {
+  background: #4A3A34;
+  color: #FFFFFF;
+}
+
+.language-toggle button:focus-visible {
+  outline: 2px solid #77574A;
+  outline-offset: 2px;
+}
+
 :root {
   --screen-gutter: 24px;
 

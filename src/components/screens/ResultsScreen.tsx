@@ -13,6 +13,7 @@ import ExpandableRow from '../ExpandableRow';
 import BulkActionBar from '../BulkActionBar';
 import SmartActionSheet from '../SmartActionSheet';
 import AddCustomModal from '../AddCustomModal';
+import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 
 const container = {
   hidden: {},
@@ -101,6 +102,7 @@ export default function ResultsScreen({
   profile,
   capturedImage,
 }: ResultsScreenProps) {
+  const { foodName } = useLanguage();
   const [detected, setDetected] = useState(detectedProp ?? []);
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
   const [sortKey, setSortKey] = useState<typeof SORT_OPTIONS[number]['key']>('conf');
@@ -282,7 +284,7 @@ export default function ResultsScreen({
 
   const onShare = () => {
     const lines = detected
-      .map((d, i) => `${i + 1}. ${d.name} — ${d.grams}g (${d.confidence}%)`)
+      .map((d, i) => `${i + 1}. ${foodName(d.name, d.name_bn)} — ${d.grams}g (${d.confidence}%)`)
       .join('\n');
     if (navigator?.clipboard) navigator.clipboard.writeText(lines).catch(() => {});
     triggerToast('Copied to clipboard');
@@ -299,6 +301,7 @@ export default function ResultsScreen({
     : sorted;
 
   return (
+    <LocalizedContent>
     <div style={{ padding: '12px 16px 0', position: 'relative' }}>
       <div
         style={{
@@ -345,7 +348,7 @@ export default function ResultsScreen({
               margin: '2px 0 0',
             }}
           >
-            {detected.length} item{detected.length === 1 ? '' : 's'} · {Math.round(totals.kcal)} kcal
+            {detected.length} {detected.length === 1 ? 'item' : 'items'} · {Math.round(totals.kcal)} kcal
           </p>
         </div>
         <motion.button
@@ -557,7 +560,7 @@ export default function ResultsScreen({
                     minHeight: 32,
                   }}
                 >
-                  {h.emoji} Add {h.name}
+                  {h.emoji} {foodName(h.name)} {foodName('Add')}
                 </motion.button>
               ))}
             </div>
@@ -676,5 +679,6 @@ export default function ResultsScreen({
         )}
       </AnimatePresence>
     </div>
+    </LocalizedContent>
   );
 }

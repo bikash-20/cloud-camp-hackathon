@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowUpDown, Check } from 'lucide-react';
 import { T } from '../data';
+import { LocalizedContent } from '../i18n/LanguageContext';
 
 export const SORT_OPTIONS: Array<{ key: 'conf' | 'kcal' | 'grams' | 'name'; label: string }> = [
   { key: 'conf',  label: 'By Confidence' },
@@ -39,6 +40,7 @@ export default function SortMenu({ value, onChange }: SortMenuProps) {
   const current = SORT_OPTIONS.find((o) => o.key === value) ?? SORT_OPTIONS[0];
 
   return (
+    <LocalizedContent>
     <div ref={ref} style={{ position: 'relative' }}>
       <motion.button
         type="button"
@@ -135,5 +137,6 @@ export default function SortMenu({ value, onChange }: SortMenuProps) {
         )}
       </AnimatePresence>
     </div>
+    </LocalizedContent>
   );
 }

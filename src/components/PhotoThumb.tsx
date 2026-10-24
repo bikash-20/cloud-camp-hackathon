@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ScanLine } from 'lucide-react';
 import { T } from '../data';
+import { LocalizedContent } from '../i18n/LanguageContext';
 
 interface PhotoThumbProps {
   /** Data URL or image URL of the captured photo. */
@@ -24,6 +25,7 @@ export default function PhotoThumb({ src }: PhotoThumbProps) {
   };
 
   return (
+    <LocalizedContent>
     <div
       style={{
         position: 'absolute',
@@ -135,5 +137,6 @@ export default function PhotoThumb({ src }: PhotoThumbProps) {
         )}
       </motion.button>
     </div>
+    </LocalizedContent>
   );
 }

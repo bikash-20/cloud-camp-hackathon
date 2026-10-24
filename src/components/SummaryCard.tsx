@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Flame } from 'lucide-react';
 import { T } from '../data';
 import useCountUp from './useCountUp';
+import { LocalizedContent } from '../i18n/LanguageContext';
 
 interface Totals {
   kcal: number;
@@ -33,6 +34,7 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
   ];
 
   return (
+    <LocalizedContent>
     <motion.div
       layout
       className="glass-card"
@@ -59,7 +61,7 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
               whiteSpace: 'nowrap',
             }}
           >
-            🍽️ {itemCount} item{itemCount === 1 ? '' : 's'}
+            🍽️ {itemCount} {itemCount === 1 ? 'item' : 'items'}
           </div>
           <span style={{ color: T.inkMuted, fontSize: 12 }}>·</span>
           <span
@@ -168,5 +170,6 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
         )}
       </AnimatePresence>
     </motion.div>
+    </LocalizedContent>
   );
 }

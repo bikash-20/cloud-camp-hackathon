@@ -8,6 +8,7 @@ import { MOCK_TARGETS } from '../../mocks/fixtures';
 import type { DetectedItem, NutrientContribution, UserProfile } from '../../types/schemas';
 import Bar from '../Bar';
 import useCountUp from '../useCountUp';
+import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 
 interface MacroDonutProps {
   value: number;
@@ -21,6 +22,7 @@ interface MacroDonutProps {
 
 function MacroDonut({ value, target, color, label, size = 88, stroke = 8, delay = 0 }: MacroDonutProps) {
   const reduceMotion = useReducedMotion();
+  const { translate } = useLanguage();
   const pct = Math.min(100, Math.round((value / target) * 100));
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -137,7 +139,7 @@ function MacroDonut({ value, target, color, label, size = 88, stroke = 8, delay 
           color: T.ink,
         }}
       >
-        {label}
+        {translate(label)}
       </div>
     </motion.div>
   );
@@ -150,6 +152,7 @@ interface ExplainabilityStripProps {
 
 /** SHAP-style "Why these flags?" panel — shows contributing items per flagged nutrient. */
 function ExplainabilityStrip({ contributions, flaggedNutrients }: ExplainabilityStripProps) {
+  const { foodName } = useLanguage();
   const flagged = flaggedNutrients
     .map((f) => ({
       ...f,
@@ -162,7 +165,8 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
   if (flagged.length === 0) return null;
 
   return (
-    <motion.div
+    <LocalizedContent>
+      <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: 0.42 }}
@@ -266,7 +270,7 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {c.itemName}
+                    {foodName(c.itemName)}
                   </span>
                   <div
                     style={{
@@ -307,7 +311,8 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
           </div>
         ))}
       </div>
-    </motion.div>
+      </motion.div>
+    </LocalizedContent>
   );
 }
 
@@ -326,6 +331,8 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
 interface ItemVerdict {
   itemName: string;
   reason: string;
+  nutrient: NutrientContribution['nutrient'];
+  amount: number;
   tone: 'good' | 'warn';
   share: number; // for sorting the "top offender" pick
 }
@@ -339,6 +346,8 @@ function buildItemVerdicts(contributions: NutrientContribution[]): ItemVerdict[]
     const candidate: ItemVerdict = {
       itemName: c.itemName,
       reason: c.reason,
+      nutrient: c.nutrient,
+      amount: c.amount,
       tone: c.tone ?? (c.flagged ? 'warn' : 'good'),
       share: c.share,
     };
@@ -360,25 +369,85 @@ function buildItemVerdicts(contributions: NutrientContribution[]): ItemVerdict[]
 function buildMealVerdict(
   verdicts: ItemVerdict[],
   isDiabetic: boolean,
+  language: 'en' | 'bn',
+  foodName: (name: string) => string,
 ): string {
   if (verdicts.length === 0) {
-    return 'No major flags — this meal sits comfortably within your active goals.';
+    return language === 'bn'
+      ? 'উল্লেখযোগ্য কোনো সতর্কতা নেই—এই খাবার আপনার সক্রিয় লক্ষ্যগুলোর সঙ্গে সামঞ্জস্যপূর্ণ।'
+      : 'No major flags — this meal sits comfortably within your active goals.';
   }
   const topWarn = verdicts.filter((v) => v.tone === 'warn').slice(0, 2);
   if (topWarn.length === 0) {
+    if (language === 'bn') {
+      return isDiabetic
+        ? 'ডায়াবেটিস-বান্ধব সীমা অতিক্রম করেনি—সক্রিয় লক্ষ্যের জন্য খাবারটি সুষম।'
+        : 'সোডিয়াম বা আঁশের সীমা অতিক্রম করেনি—সব মিলিয়ে খাবারটি সুষম।';
+    }
     return isDiabetic
       ? 'Nothing crossed your diabetic-friendly thresholds — well-balanced for the active goal.'
       : 'Nothing crossed your sodium or fiber thresholds — a balanced plate overall.';
   }
-  const names = topWarn.map((v) => v.itemName).join(' and ');
-  const nutrientMatch = topWarn[0].reason.toLowerCase().includes('sodium')
+  const names = topWarn.map((v) => foodName(v.itemName)).join(language === 'bn' ? ' এবং ' : ' and ');
+  if (language === 'bn') {
+    const nutrientMatch = {
+      sodium: 'সোডিয়ামের পরিমাণ',
+      sugar: 'চিনির পরিমাণ',
+      fiber: 'আঁশের ঘাটতি',
+      protein: 'প্রোটিনের পরিমাণ',
+      carbs: 'কার্বোহাইড্রেটের পরিমাণ',
+      fat: 'চর্বির পরিমাণ',
+      kcal: 'ক্যালরির পরিমাণ',
+    }[topWarn[0].nutrient];
+    return `মূলত ${names}-এর কারণে—এই খাবারে ${nutrientMatch} লক্ষ্য করার মতো।`;
+  }
+  const nutrientMatch = topWarn[0].nutrient === 'sodium'
     ? 'sodium load'
-    : topWarn[0].reason.toLowerCase().includes('sugar')
+    : topWarn[0].nutrient === 'sugar'
       ? 'sugar spike'
-      : topWarn[0].reason.toLowerCase().includes('fiber')
+      : topWarn[0].nutrient === 'fiber'
         ? 'fiber gap'
         : 'flagged nutrient';
   return `Driven mostly by ${names} — that's where the ${nutrientMatch} is coming from for this meal.`;
+}
+
+export function localizedItemReason(
+  verdict: ItemVerdict,
+  language: 'en' | 'bn',
+  foodName: (name: string) => string,
+): string {
+  if (language === 'en') return verdict.reason;
+
+  const name = foodName(verdict.itemName);
+  const amount = verdict.nutrient === 'sodium'
+    ? Math.round(verdict.amount)
+    : Math.round(verdict.amount * 10) / 10;
+
+  if (verdict.tone === 'warn') {
+    switch (verdict.nutrient) {
+      case 'sodium':
+        return `${name} থেকে ${amount} মিলিগ্রাম সোডিয়াম পাওয়া যায়—এটি আপনার দৈনিক সীমার ${Math.round((verdict.amount / MOCK_TARGETS.sodium) * 100)}%।`;
+      case 'sugar':
+        return `${name}-এ ${amount} গ্রাম চিনি রয়েছে—প্রিডায়াবেটিস-বান্ধব খাবারের জন্য এটি উল্লেখযোগ্য পরিমাণ।`;
+      case 'fiber':
+        return `${name} ${amount} গ্রাম আঁশের ভালো উৎস—এটি পুরো খাবারকে লক্ষ্যের কাছাকাছি আনে।`;
+      case 'protein':
+        return `${name}-এ ${amount} গ্রাম প্রোটিন রয়েছে—একটি খাবারের জন্য ভালো পরিমাণ।`;
+      default:
+        return `${name} এই খাবারে উল্লেখযোগ্য পরিমাণ ${verdict.nutrient} যোগ করে।`;
+    }
+  }
+
+  switch (verdict.nutrient) {
+    case 'sugar':
+      return `${name} থেকে মাত্র প্রায় ${amount} গ্রাম চিনি পাওয়া যায়—আপনার প্রিডায়াবেটিস-বান্ধব লক্ষ্যের মধ্যে রয়েছে।`;
+    case 'fiber':
+      return `${name} থেকে মাত্র প্রায় ${amount} গ্রাম আঁশ পাওয়া যায়—পুরো খাবারটি দৈনিক ৩০ গ্রামের লক্ষ্য পূরণ করে না। পরেরবার পূর্ণশস্য বা ডাল যোগ করুন।`;
+    case 'protein':
+      return `${name}-এ প্রোটিন কম (প্রায় ${amount} গ্রাম)—সঙ্গে ডাল বা পনির যোগ করতে পারেন।`;
+    default:
+      return `${name} থেকে অল্প পরিমাণ ${verdict.nutrient} পাওয়া যায়।`;
+  }
 }
 
 interface ExplainabilityVerdictsProps {
@@ -387,12 +456,19 @@ interface ExplainabilityVerdictsProps {
 }
 
 function ExplainabilityVerdicts({ contributions, profile }: ExplainabilityVerdictsProps) {
+  const { language, foodName } = useLanguage();
   const verdicts = useMemo(() => buildItemVerdicts(contributions), [contributions]);
   if (verdicts.length === 0) return null;
-  const mealVerdict = buildMealVerdict(verdicts, !!profile?.goals.diabetic);
+  const mealVerdict = buildMealVerdict(
+    verdicts,
+    !!profile?.goals.diabetic,
+    language,
+    foodName,
+  );
 
   return (
-    <motion.div
+    <LocalizedContent>
+      <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: 0.46 }}
@@ -508,7 +584,7 @@ function ExplainabilityVerdicts({ contributions, profile }: ExplainabilityVerdic
                 color: T.ink,
               }}
             >
-              {v.reason}
+              {localizedItemReason(v, language, foodName)}
             </div>
           </motion.div>
         ))}
@@ -546,7 +622,8 @@ function ExplainabilityVerdicts({ contributions, profile }: ExplainabilityVerdic
         <br />
         {mealVerdict}
       </div>
-    </motion.div>
+      </motion.div>
+    </LocalizedContent>
   );
 }
 
@@ -561,6 +638,7 @@ interface NutrientsScreenProps {
  * animates count-up, and recomputes when grams change.
  */
 export default function NutrientsScreen({ detected = [], profile, onBack }: NutrientsScreenProps) {
+  const { foodName, language } = useLanguage();
   // Synchronously derive totals so count-up animations feel responsive.
   // Glycemic is a grams-weighted average (not a sum) — a small portion of
   // a high-glycemic item shouldn't dominate the meal's glycemic reading.
@@ -621,6 +699,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
   const flaggedNutrients = focusedNutrients(profile);
 
   return (
+    <LocalizedContent>
     <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
       {detected.length === 0 && (
         <motion.div
@@ -708,7 +787,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
                 ...detected.map((d) => {
                   const n = NUTRITION_DB[d.name];
                   const kcal = n ? Math.round(n.kcal * d.grams / 100) : '?';
-                  return `  ${d.name} (${d.grams}g) - ${kcal} kcal`;
+                  return `  ${foodName(d.name, d.name_bn)} (${d.grams}g) - ${kcal} kcal`;
                 }),
               ].join('\n');
               if (navigator?.clipboard) navigator.clipboard.writeText(lines).catch(() => {});
@@ -936,16 +1015,30 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
                 lineHeight: 1.5,
               }}
             >
-              <b style={{ color: T.accentWarn }}>Why this is flagged:</b> carbs run{' '}
-              <b>{Math.round(totals.carbs)}g</b> against a {MOCK_TARGETS.carbs}g target, and the
-              glycemic load is sitting at{' '}
-              <b>{Math.round(totals.glycemic * 100)}%</b> of the prediabetic ceiling —
-              that's a fast-digesting combo. Swapping half the rice for extra raita would
-              bring both back into range without losing the plate's protein.
+              {language === 'bn' ? (
+                <>
+                  <b style={{ color: T.accentWarn }}>সতর্কতার কারণ:</b> কার্বোহাইড্রেটের পরিমাণ{' '}
+                  <b>{Math.round(totals.carbs)} গ্রাম</b>, যেখানে লক্ষ্য {MOCK_TARGETS.carbs} গ্রাম;
+                  গ্লাইসেমিক লোড প্রিডায়াবেটিসের সর্বোচ্চ সীমার{' '}
+                  <b>{Math.round(totals.glycemic * 100)}%</b>। দ্রুত হজম হওয়া এই সমন্বয়টি এড়াতে
+                  ভাতের অর্ধেকের বদলে অতিরিক্ত রায়তা নিলে প্রোটিন অক্ষুণ্ণ রেখেই দুই মান লক্ষ্যের
+                  মধ্যে আনা যাবে।
+                </>
+              ) : (
+                <>
+                  <b style={{ color: T.accentWarn }}>Why this is flagged:</b> carbs run{' '}
+                  <b>{Math.round(totals.carbs)}g</b> against a {MOCK_TARGETS.carbs}g target, and the
+                  glycemic load is sitting at{' '}
+                  <b>{Math.round(totals.glycemic * 100)}%</b> of the prediabetic ceiling —
+                  that's a fast-digesting combo. Swapping half the rice for extra raita would
+                  bring both back into range without losing the plate's protein.
+                </>
+              )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+    </LocalizedContent>
   );
 }

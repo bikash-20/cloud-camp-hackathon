@@ -13,6 +13,7 @@ import type {
 import { DAILY_KCAL_TARGET_DEFAULT } from '../../types/schemas';
 import { DEFAULT_PROFILE, updateProfile, getUserStats } from '../../lib/api';
 import { logout } from '../../lib/auth';
+import { LocalizedContent } from '../../i18n/LanguageContext';
 import Pill from '../Pill';
 import Chip from '../Chip';
 import SectionLabel from '../SectionLabel';
@@ -36,7 +37,7 @@ const PREFS: DietaryPreference[] = [
 ];
 
 const ALLERGENS: Allergen[] = [
-  'Peanuts', 'Tree nuts', 'Shell shellfish', 'Soy', 'Eggs', 'Dairy', 'Gluten', 'Sesame',
+  'Peanuts', 'Tree nuts', 'Shellfish', 'Soy', 'Eggs', 'Dairy', 'Gluten', 'Sesame',
 ];
 
 const toggleIn = (setState: React.Dispatch<React.SetStateAction<Record<string, boolean>>>) =>
@@ -59,7 +60,12 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
     Object.fromEntries(profile.preferences.map((p) => [p, true])),
   );
   const [allergens, setAllergens] = useState<Record<string, boolean>>(
-    Object.fromEntries(profile.allergens.map((a) => [a, true])),
+    Object.fromEntries(
+      profile.allergens.map((allergen) => [
+        allergen === 'Shell shellfish' ? 'Shellfish' : allergen,
+        true,
+      ]),
+    ),
   );
   const [budget, setBudget] = useState(profile.budget);
   const [serving, setServing] = useState(profile.serving);
@@ -205,6 +211,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
   };
 
   return (
+    <LocalizedContent>
     <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
       {/* Signed-in chip — only renders when a session is present so the
           Profile screen still works for callers (tests, demos) that don't
@@ -648,6 +655,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         )}
       </AnimatePresence>
     </div>
+    </LocalizedContent>
   );
 }
 
@@ -663,111 +671,113 @@ interface StepperRowProps {
 function StepperRow({ valueLabel, onDec, onInc, decLabel, incLabel, hint }: StepperRowProps) {
   const reduceMotion = useReducedMotion();
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.28 }}
-        className="glass-card"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 14,
-          borderRadius: 18,
-          padding: '12px 16px',
-        }}
-      >
-        <motion.button
-          type="button"
-          onClick={onDec}
-          aria-label={decLabel}
-          whileHover={!reduceMotion ? { scale: 1.08 } : {}}
-          whileTap={!reduceMotion ? { scale: 0.88 } : {}}
-          transition={{ type: 'spring', stiffness: 380, damping: 18 }}
+    <LocalizedContent>
+      <>
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.28 }}
+          className="glass-card"
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            border: '1px solid rgba(74, 58, 52, 0.15)',
-            background: 'rgba(249, 242, 228, 0.7)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            padding: 0,
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
+            gap: 14,
+            borderRadius: 18,
+            padding: '12px 16px',
           }}
         >
-          <Minus size={14} color={T.ink} strokeWidth={2.2} />
-        </motion.button>
+          <motion.button
+            type="button"
+            onClick={onDec}
+            aria-label={decLabel}
+            whileHover={!reduceMotion ? { scale: 1.08 } : {}}
+            whileTap={!reduceMotion ? { scale: 0.88 } : {}}
+            transition={{ type: 'spring', stiffness: 380, damping: 18 }}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              border: '1px solid rgba(74, 58, 52, 0.15)',
+              background: 'rgba(249, 242, 228, 0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              padding: 0,
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+            }}
+          >
+            <Minus size={14} color={T.ink} strokeWidth={2.2} />
+          </motion.button>
 
+          <div
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 18,
+              fontWeight: 700,
+              color: T.ink,
+              overflow: 'hidden',
+              minHeight: 28,
+              position: 'relative',
+            }}
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={valueLabel}
+                initial={reduceMotion ? { opacity: 0 } : { y: 8, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={reduceMotion ? { opacity: 0 } : { y: -8, opacity: 0 }}
+                transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                style={{ display: 'inline-block' }}
+                className="tnum"
+              >
+                {valueLabel}
+              </motion.span>
+            </AnimatePresence>
+          </div>
+
+          <motion.button
+            type="button"
+            onClick={onInc}
+            aria-label={incLabel}
+            whileHover={!reduceMotion ? { scale: 1.08 } : {}}
+            whileTap={!reduceMotion ? { scale: 0.88 } : {}}
+            transition={{ type: 'spring', stiffness: 380, damping: 18 }}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              border: '1px solid rgba(74, 58, 52, 0.15)',
+              background: 'rgba(249, 242, 228, 0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              padding: 0,
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+            }}
+          >
+            <Plus size={14} color={T.ink} strokeWidth={2.2} />
+          </motion.button>
+        </motion.div>
         <div
           style={{
-            flex: 1,
+            fontFamily: 'Inter',
+            fontSize: 11,
+            color: T.inkSoft,
+            marginTop: 6,
             textAlign: 'center',
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 18,
-            fontWeight: 700,
-            color: T.ink,
-            overflow: 'hidden',
-            minHeight: 28,
-            position: 'relative',
           }}
-          aria-live="polite"
-          aria-atomic="true"
         >
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span
-              key={valueLabel}
-              initial={reduceMotion ? { opacity: 0 } : { y: 8, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={reduceMotion ? { opacity: 0 } : { y: -8, opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-              style={{ display: 'inline-block' }}
-              className="tnum"
-            >
-              {valueLabel}
-            </motion.span>
-          </AnimatePresence>
+          {hint}
         </div>
-
-        <motion.button
-          type="button"
-          onClick={onInc}
-          aria-label={incLabel}
-          whileHover={!reduceMotion ? { scale: 1.08 } : {}}
-          whileTap={!reduceMotion ? { scale: 0.88 } : {}}
-          transition={{ type: 'spring', stiffness: 380, damping: 18 }}
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            border: '1px solid rgba(74, 58, 52, 0.15)',
-            background: 'rgba(249, 242, 228, 0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            padding: 0,
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-          }}
-        >
-          <Plus size={14} color={T.ink} strokeWidth={2.2} />
-        </motion.button>
-      </motion.div>
-      <div
-        style={{
-          fontFamily: 'Inter',
-          fontSize: 11,
-          color: T.inkSoft,
-          marginTop: 6,
-          textAlign: 'center',
-        }}
-      >
-        {hint}
-      </div>
-    </>
+      </>
+    </LocalizedContent>
   );
 }

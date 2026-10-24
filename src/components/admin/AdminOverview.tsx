@@ -6,6 +6,7 @@ import { getMealHistory } from '../../lib/api';
 import type { AuthSession, MealEntry } from '../../types/schemas';
 import KpiCard from './KpiCard';
 import Sparkline from './Sparkline';
+import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 
 interface AdminOverviewProps {
   /** Currently signed-in admin — drives the "you" pill in the header. */
@@ -52,9 +53,9 @@ function countFlagged(meals: MealEntry[]): { flagged: number; total: number } {
 }
 
 /** Short day-of-week label (Mon, Tue, …) for the sparkline axis. */
-function dayLabel(key: string): string {
+function dayLabel(key: string, language: string): string {
   const d = new Date(`${key}T00:00:00`);
-  return d.toLocaleDateString([], { weekday: 'short' });
+  return d.toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en', { weekday: 'short' });
 }
 
 /**
@@ -79,6 +80,7 @@ function dayLabel(key: string): string {
  */
 export default function AdminOverview({ session }: AdminOverviewProps) {
   const reduceMotion = useReducedMotion();
+  const { language } = useLanguage();
   const [realMeals, setRealMeals] = useState<MealEntry[] | null>(null);
 
   useEffect(() => {
@@ -138,13 +140,14 @@ export default function AdminOverview({ session }: AdminOverviewProps) {
     }
     return {
       values: days.map((k) => counts.get(k) ?? 0),
-      labels: days.map(dayLabel),
+      labels: days.map((day) => dayLabel(day, language)),
     };
-  }, [realMeals]);
+  }, [language, realMeals]);
 
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
+    <LocalizedContent>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Header */}
       <motion.header
@@ -310,5 +313,6 @@ export default function AdminOverview({ session }: AdminOverviewProps) {
         />
       </motion.section>
     </div>
+    </LocalizedContent>
   );
 }

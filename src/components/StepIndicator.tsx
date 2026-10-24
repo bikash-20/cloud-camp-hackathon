@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { T, STEP_LABELS } from '../data';
+import { LocalizedContent } from '../i18n/LanguageContext';
 
 interface StepIndicatorProps {
   step: number;
@@ -10,6 +11,7 @@ interface StepIndicatorProps {
 /** 3-step horizontal indicator (Review → Adjust → Confirm). */
 export default function StepIndicator({ step, onStep }: StepIndicatorProps) {
   return (
+    <LocalizedContent>
     <div
       style={{
         display: 'flex',
@@ -106,5 +108,6 @@ export default function StepIndicator({ step, onStep }: StepIndicatorProps) {
         );
       })}
     </div>
+    </LocalizedContent>
   );
 }

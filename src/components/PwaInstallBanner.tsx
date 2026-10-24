@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, X, Smartphone } from 'lucide-react';
 import { T } from '../data';
+import { LocalizedContent } from '../i18n/LanguageContext';
 
 const DISMISS_KEY = 'nutrivision-pwa-install-dismissed';
 const DISMISS_EXPIRY_MS = 24 * 60 * 60 * 1000; // Re-show after 24 hours
@@ -103,6 +104,7 @@ export default function PwaInstallBanner() {
   if (installed || !showBanner || !deferredPrompt) return null;
 
   return (
+    <LocalizedContent>
     <AnimatePresence>
       {showBanner && (
         <motion.div
@@ -255,5 +257,6 @@ export default function PwaInstallBanner() {
         </motion.div>
       )}
     </AnimatePresence>
+    </LocalizedContent>
   );
 }

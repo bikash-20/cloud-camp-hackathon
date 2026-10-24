@@ -68,6 +68,8 @@ class DetectedItem(BaseModel):
     validator) before nutrition is resolved."""
 
     name: str
+    """Optional Bengali display name; `name` remains canonical for nutrition lookup."""
+    name_bn: str | None = None
     """Confidence 0–100; <70 is flagged low-confidence."""
     confidence: float
     """Estimated portion size in grams."""
@@ -184,6 +186,7 @@ DietaryPreference = Literal[
 Allergen = Literal[
     "Peanuts",
     "Tree nuts",
+    "Shellfish",
     "Shell shellfish",
     "Soy",
     "Eggs",

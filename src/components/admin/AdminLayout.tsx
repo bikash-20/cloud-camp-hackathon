@@ -3,6 +3,8 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { LogOut, LayoutDashboard, Users as UsersIcon, Trophy, AlertTriangle, ChevronDown } from 'lucide-react';
 import type { AuthSession } from '../../types/schemas';
 import { logout } from '../../lib/auth';
+import LanguageToggle from '../../i18n/LanguageToggle';
+import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 
 interface AdminLayoutProps {
   session: AuthSession;
@@ -47,6 +49,7 @@ export default function AdminLayout({ session, children }: AdminLayoutProps) {
 
   if (isMobile) {
     return (
+      <LocalizedContent>
       <div
         style={{
           minHeight: '100dvh',
@@ -110,37 +113,40 @@ export default function AdminLayout({ session, children }: AdminLayoutProps) {
             </div>
           </div>
 
-          <motion.button
-            type="button"
-            onClick={() => setNavOpen((s) => !s)}
-            whileTap={{ scale: 0.94 }}
-            aria-label={navOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={navOpen}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '7px 11px',
-              borderRadius: 10,
-              background: 'rgba(249, 242, 228, 0.08)',
-              border: '1px solid rgba(249, 242, 228, 0.10)',
-              color: '#F9F2E4',
-              fontFamily: 'Inter',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Menu
-            <ChevronDown
-              size={13}
-              strokeWidth={2.5}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <LanguageToggle />
+            <motion.button
+              type="button"
+              onClick={() => setNavOpen((s) => !s)}
+              whileTap={{ scale: 0.94 }}
+              aria-label={navOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={navOpen}
               style={{
-                transform: navOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: reduceMotion ? undefined : 'transform 200ms ease',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '7px 11px',
+                borderRadius: 10,
+                background: 'rgba(249, 242, 228, 0.08)',
+                border: '1px solid rgba(249, 242, 228, 0.10)',
+                color: '#F9F2E4',
+                fontFamily: 'Inter',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
               }}
-            />
-          </motion.button>
+            >
+              Menu
+              <ChevronDown
+                size={13}
+                strokeWidth={2.5}
+                style={{
+                  transform: navOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: reduceMotion ? undefined : 'transform 200ms ease',
+                }}
+              />
+            </motion.button>
+          </div>
         </header>
 
         {/* Dropdown menu */}
@@ -232,11 +238,13 @@ export default function AdminLayout({ session, children }: AdminLayoutProps) {
         {/* Main pane */}
         <main style={{ padding: '20px 18px 40px' }}>{children}</main>
       </div>
+      </LocalizedContent>
     );
   }
 
   // ── Desktop layout ───────────────────────────────────────────────────────
   return (
+    <LocalizedContent>
     <div
       style={{
         minHeight: '100vh',
@@ -296,6 +304,7 @@ export default function AdminLayout({ session, children }: AdminLayoutProps) {
             </div>
           </div>
         </div>
+        <LanguageToggle />
 
         <nav aria-label="Admin sections" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <NavLink icon={<LayoutDashboard size={14} />} label="Overview" active />
@@ -382,6 +391,7 @@ export default function AdminLayout({ session, children }: AdminLayoutProps) {
         {children}
       </main>
     </div>
+    </LocalizedContent>
   );
 }
 
@@ -400,6 +410,7 @@ function NavLink({
   disabled?: boolean;
   hint?: string;
 }) {
+  const { translate } = useLanguage();
   return (
     <div
       aria-current={active ? 'page' : undefined}
@@ -429,7 +440,7 @@ function NavLink({
         >
           {icon}
         </span>
-        {label}
+        {translate(label)}
       </span>
       {hint && (
         <span
@@ -441,7 +452,7 @@ function NavLink({
             letterSpacing: '0.08em',
           }}
         >
-          {hint}
+          {translate(hint)}
         </span>
       )}
     </div>

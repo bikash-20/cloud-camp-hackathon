@@ -3,6 +3,7 @@ import {
   Camera, ScanLine, Activity, User, ShoppingBag,
 } from 'lucide-react';
 import { T, TABS } from '../data';
+import { LocalizedContent } from '../i18n/LanguageContext';
 
 const ICONS: Record<string, typeof Camera> = { Camera, ScanLine, Activity, User, ShoppingBag };
 
@@ -32,6 +33,7 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
   };
 
   return (
+    <LocalizedContent>
     <div
       className="bottom-nav-container"
       style={{
@@ -176,5 +178,6 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
         })}
       </motion.div>
     </div>
+    </LocalizedContent>
   );
 }

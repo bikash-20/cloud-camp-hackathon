@@ -7,6 +7,7 @@ import { T, NUTRITION_DB, CATEGORY_TILES } from '../data';
 import type { DetectedItem, FoodDescriptor } from '../types/schemas';
 import Chip from './Chip';
 import AddCustomModal from './AddCustomModal';
+import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
 interface ItemMeta {
   protein: number; carbs: number; fat: number; kcal: number;
@@ -76,6 +77,8 @@ export default function ExpandableRow({
   onAddPairing,
 }: ExpandableRowProps) {
   const reduceMotion = useReducedMotion();
+  const { foodName } = useLanguage();
+  const displayName = foodName(item.name, item.name_bn);
   const [expanded, setExpanded] = useState(false);
   const [sliderOpen, setSliderOpen] = useState(false);
   const [ripple, setRipple] = useState<{ x: number; y: number } | null>(null);
@@ -134,6 +137,7 @@ export default function ExpandableRow({
   useEffect(() => setDraftName(item.name), [item.name]);
 
   return (
+    <LocalizedContent>
     <motion.div
       layout
       drag={multiSelect ? false : 'x'}
@@ -226,7 +230,7 @@ export default function ExpandableRow({
                 }
               }}
               onClick={(e) => e.stopPropagation()}
-              aria-label={`Rename ${item.name}`}
+              aria-label={`Rename ${displayName}`}
               style={{
                 width: '100%',
                 fontFamily: 'Inter',
@@ -262,7 +266,7 @@ export default function ExpandableRow({
                   minWidth: 0,
                 }}
               >
-                {item.name}
+                {displayName}
               </span>
               {meta && (
                 <span className="kcal-chip" aria-label={`${Math.round(meta.kcal)} calories`}>
@@ -460,7 +464,7 @@ export default function ExpandableRow({
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.88 }}
                   transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                  aria-label={`Decrease ${item.name} by 25g`}
+                  aria-label={`Decrease ${displayName} by 25g`}
                   style={{
                     width: 36,
                     height: 36,
@@ -491,7 +495,7 @@ export default function ExpandableRow({
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.88 }}
                   transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                  aria-label={`Increase ${item.name} by 25g. Long-press for slider editor.`}
+                  aria-label={`Increase ${displayName} by 25g. Long-press for slider editor.`}
                   style={{
                     width: 36,
                     height: 36,
@@ -575,7 +579,7 @@ export default function ExpandableRow({
                       step={5}
                       value={item.grams}
                       onChange={(e) => onGramsChange?.(item.name, Number(e.target.value) - item.grams, true)}
-                      aria-label={`Portion size in grams for ${item.name}`}
+                      aria-label={`Portion size in grams for ${displayName}`}
                       style={{ width: '100%', accentColor: T.primary }}
                     />
                   </motion.div>
@@ -656,7 +660,7 @@ export default function ExpandableRow({
                   whileHover={{ x: 1, scale: 1.02 }}
                   whileTap={{ scale: 0.96 }}
                   transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                  aria-label={`Remove ${item.name}`}
+                  aria-label={`Remove ${displayName}`}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -683,7 +687,7 @@ export default function ExpandableRow({
                     whileHover={{ scale: 1.04 }}
                     whileTap={{ scale: 0.96 }}
                     transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                    aria-label={`Confirm ${item.name}`}
+                    aria-label={`Confirm ${displayName}`}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -715,7 +719,7 @@ export default function ExpandableRow({
                     whileHover={{ scale: 1.04 }}
                     whileTap={{ scale: 0.96 }}
                     transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                    aria-label={`Rename ${item.name}`}
+                    aria-label={`Rename ${displayName}`}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -749,5 +753,6 @@ export default function ExpandableRow({
         defaultGrams={item.grams}
       />
     </motion.div>
+    </LocalizedContent>
   );
 }

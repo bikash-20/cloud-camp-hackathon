@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { T, TABS } from '../data';
+import { LocalizedContent } from '../i18n/LanguageContext';
 
 interface StepDotsProps {
   active: number;
@@ -11,6 +12,7 @@ interface StepDotsProps {
  */
 export default function StepDots({ active, onChange }: StepDotsProps) {
   return (
+    <LocalizedContent>
     <div
       style={{ display: 'flex', gap: 5, alignItems: 'center' }}
       role="progressbar"
@@ -87,5 +89,6 @@ export default function StepDots({ active, onChange }: StepDotsProps) {
         );
       })}
     </div>
+    </LocalizedContent>
   );
 }

@@ -5,6 +5,8 @@ import { T } from '../../data';
 import { login, SEEDED_ACCOUNTS } from '../../lib/auth';
 import type { AuthSession } from '../../types/schemas';
 import PhoneFrame from '../PhoneFrame';
+import LanguageToggle from '../../i18n/LanguageToggle';
+import { LocalizedContent } from '../../i18n/LanguageContext';
 
 interface LoginScreenProps {
   /** Called with the new session once login succeeds. */
@@ -61,7 +63,8 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <PhoneFrame>
+    <LocalizedContent>
+    <PhoneFrame headerRight={<LanguageToggle />}>
       <div
         style={{
           padding: '24px var(--screen-gutter, 24px) 32px',
@@ -325,6 +328,7 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
         </motion.div>
       </div>
     </PhoneFrame>
+    </LocalizedContent>
   );
 }
 

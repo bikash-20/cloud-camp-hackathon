@@ -28,8 +28,10 @@ def test_detect_sends_image_and_parses_local_food_response() -> None:
                             "parts": [
                                 {
                                     "text": (
-                                        '[{"name":"Khichuri","confidence":94,'
-                                        '"grams":250},{"name":"Ilish macher jhol",'
+                                        '[{"name":"Khichuri","name_bn":"খিচুড়ি",'
+                                        '"confidence":94,"grams":250},'
+                                        '{"name":"Ilish macher jhol",'
+                                        '"name_bn":"ইলিশের ঝোল",'
                                         '"confidence":88,"grams":160}]'
                                     )
                                 }
@@ -64,6 +66,7 @@ def test_detect_sends_image_and_parses_local_food_response() -> None:
         ("Khichuri", 94),
         ("Ilish macher jhol", 88),
     ]
+    assert [item.name_bn for item in detected] == ["খিচুড়ি", "ইলিশের ঝোল"]
 
 
 def test_unconfigured_client_does_not_make_a_request() -> None:

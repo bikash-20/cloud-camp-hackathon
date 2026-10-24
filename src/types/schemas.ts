@@ -61,6 +61,8 @@ export interface FoodDescriptor extends NutritionFacts {
 export interface DetectedItem {
   /** Canonical food name; should match a key in NUTRITION_DB */
   name: string;
+  /** Optional Bengali display name; `name` remains canonical for data lookups. */
+  name_bn?: string | null;
   /** Confidence 0–100; <70 is flagged low-confidence */
   confidence: number;
   /** Estimated portion size in grams */
@@ -155,6 +157,7 @@ export type DietaryPreference =
 export type Allergen =
   | 'Peanuts'
   | 'Tree nuts'
+  | 'Shellfish'
   | 'Shell shellfish'
   | 'Soy'
   | 'Eggs'

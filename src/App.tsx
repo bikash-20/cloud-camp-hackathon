@@ -18,12 +18,16 @@ import PwaInstallBanner from './components/PwaInstallBanner';
 import LoginScreen from './components/auth/LoginScreen';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminOverview from './components/admin/AdminOverview';
+import LanguageToggle from './i18n/LanguageToggle';
+import { LanguageProvider, LocalizedContent, useLanguage } from './i18n/LanguageContext';
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AppShell />
-    </ThemeProvider>
+    <LanguageProvider>
+      <ThemeProvider>
+        <AppShell />
+      </ThemeProvider>
+    </LanguageProvider>
   );
 }
 
@@ -83,6 +87,7 @@ function AppShell() {
  * styling — just wrapped in a typed component now.
  */
 function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () => void }) {
+  const { translate } = useLanguage();
   const [tab, setTab] = useState(0);
   const [direction, setDirection] = useState(1);
   const [captured, setCaptured] = useState(false);
@@ -195,9 +200,15 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
     <>
       <PwaInstallBanner />
       <PhoneFrame
-        headerRight={<StepDots active={tab} onChange={goToTab} />}
+        headerRight={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <LanguageToggle />
+            <StepDots active={tab} onChange={goToTab} />
+          </div>
+        }
         footer={<BottomNav active={tab} onChange={goToTab} />}
       >
+        <LocalizedContent>
         <motion.div
           key={tab}
           custom={direction}
@@ -246,6 +257,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
           )}
           {tab === 4 && <GroceryScreen profile={profile} />}
         </motion.div>
+        </LocalizedContent>
 
         <AnimatePresence>
           {pipelineToast && (
@@ -319,7 +331,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
           className="sr-only"
           style={{ position: 'absolute', left: -9999 }}
         >
-          Viewing {TABS[tab].label}
+          {translate('Viewing')} {translate(TABS[tab].label)}
         </div>
       </PhoneFrame>
     </>

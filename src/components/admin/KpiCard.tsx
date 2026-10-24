@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
+import { useLanguage } from '../../i18n/LanguageContext';
 
 interface KpiCardProps {
   label: string;
@@ -20,6 +21,7 @@ interface KpiCardProps {
  */
 export default function KpiCard({ label, value, hint, deltaPct, icon }: KpiCardProps) {
   const reduceMotion = useReducedMotion();
+  const { translate } = useLanguage();
   const deltaIsPositive = typeof deltaPct === 'number' && deltaPct >= 0;
   const deltaIsFlat = typeof deltaPct === 'number' && Math.abs(deltaPct) < 0.5;
 
@@ -52,7 +54,7 @@ export default function KpiCard({ label, value, hint, deltaPct, icon }: KpiCardP
             letterSpacing: '0.08em',
           }}
         >
-          {label}
+          {translate(label)}
         </span>
         {icon && (
           <span
@@ -105,7 +107,7 @@ export default function KpiCard({ label, value, hint, deltaPct, icon }: KpiCardP
               fontSize: 11,
               fontWeight: 700,
             }}
-            aria-label={`${deltaIsPositive ? 'up' : 'down'} ${Math.abs(deltaPct).toFixed(1)}% vs previous period`}
+            aria-label={translate(`${deltaIsPositive ? 'up' : 'down'} ${Math.abs(deltaPct).toFixed(1)}% vs previous period`)}
           >
             {deltaIsPositive ? (
               <ArrowUpRight size={11} strokeWidth={2.5} />
@@ -124,7 +126,7 @@ export default function KpiCard({ label, value, hint, deltaPct, icon }: KpiCardP
               lineHeight: 1.3,
             }}
           >
-            {hint}
+            {translate(hint)}
           </span>
         )}
       </div>

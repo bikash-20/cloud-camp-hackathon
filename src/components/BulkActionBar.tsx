@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Check, Eye, Plus, X } from 'lucide-react';
 import { T } from '../data';
+import { LocalizedContent } from '../i18n/LanguageContext';
 
 interface BulkActionBarProps {
   count: number;
@@ -21,6 +22,7 @@ export default function BulkActionBar({
   hasHighConf,
 }: BulkActionBarProps) {
   return (
+    <LocalizedContent>
     <motion.div
       initial={{ y: 80, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
@@ -161,5 +163,6 @@ export default function BulkActionBar({
         </motion.button>
       </div>
     </motion.div>
+    </LocalizedContent>
   );
 }

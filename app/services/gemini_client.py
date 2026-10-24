@@ -11,7 +11,7 @@ real Gemini and the canned fallback. If `GEMINI_API_KEY` is unset, all
 calls short-circuit to `[]` so the route can degrade gracefully.
 
 The prompt asks Gemini to return a JSON array of
-`{name, confidence (0–100), grams, bbox?}`. The handler parses that
+`{name, name_bn, confidence (0–100), grams, bbox?}`. The handler parses that
 with a tolerant regex (Gemini sometimes wraps the JSON in ``` fences).
 """
 
@@ -46,12 +46,16 @@ You are a vision system for a nutrition app. Look at the photo and
 return ONLY a JSON array (no prose, no code fences) of food items.
 
 Each element must match this shape exactly:
-  {"name": "<food>", "confidence": <0–100 integer>, "grams": <estimated portion in grams>, "bbox": [x, y, w, h]}
+  {"name": "<canonical English food name>", "name_bn": "<Bengali food name>", "confidence": <0–100 integer>, "grams": <estimated portion in grams>, "bbox": [x, y, w, h]}
 
 For South Asian and Bangladeshi meals, use a specific local dish name
-when the image supports it (for example: bhat, dal, khichuri, biryani,
-fish curry, bhorta, bhaji, roti, or paratha). Do not guess ingredients
-that are not visible; use a broader label when uncertain.
+in both `name` and `name_bn` when the image supports it (for example:
+rice / ভাত, lentil dal / ডাল, khichuri / খিচুড়ি, biryani / বিরিয়ানি,
+fish curry / মাছের তরকারি, bhorta / ভর্তা, bhaji / ভাজি, roti / রুটি,
+or paratha / পরোটা). Keep `name` in English for nutrition database
+matching. Do not guess ingredients that are not visible; use a broader
+label when uncertain. If the Bengali name is uncertain, set `name_bn`
+to an accurate Bengali transliteration or translation of `name`.
 
 `bbox` is the item's normalized bounding box in [0, 1] image space,
 optional. If you cannot detect any food, return [].
@@ -198,6 +202,7 @@ def _parse_gemini_response(payload: dict[str, Any]) -> list[DetectedItem]:
         name = str(it.get("name", "")).strip()
         if not name:
             continue
+        name_bn = str(it.get("name_bn", "")).strip() or None
         try:
             confidence = float(it.get("confidence", 0))
         except (TypeError, ValueError):
@@ -220,7 +225,11 @@ def _parse_gemini_response(payload: dict[str, Any]) -> list[DetectedItem]:
                 bbox = None
         out.append(
             DetectedItem(
-                name=name, confidence=confidence, grams=grams, bbox=bbox
+                name=name,
+                name_bn=name_bn,
+                confidence=confidence,
+                grams=grams,
+                bbox=bbox,
             )
         )
     return out

@@ -14,6 +14,7 @@ import {
 } from '../../lib/api';
 import ConfidenceRing from '../ConfidenceRing';
 import SectionLabel from '../SectionLabel';
+import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 
 const container = {
   hidden: {},
@@ -35,6 +36,7 @@ interface GroceryScreenProps {
 }
 
 export default function GroceryScreen({ profile }: GroceryScreenProps) {
+  const { foodName } = useLanguage();
   const [groups, setGroups] = useState<DisplayGroup[]>([]);
   const [budget, setBudget] = useState(profile.budget);
   const [toast, setToast] = useState<string | null>(null);
@@ -168,6 +170,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
   };
 
   return (
+    <LocalizedContent>
     <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
       <motion.div
         initial={{ opacity: 0, y: 6 }}
@@ -237,7 +240,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
         <span className="tnum" style={{ fontWeight: 600 }}>
           ৳{weeklyCap}
         </span>{' '}
-        <span style={{ color: T.inkMuted }}>(৳{budget}/day × 7d)</span>
+        <span style={{ color: T.inkMuted }}>(৳{budget}/day × 7 days)</span>
       </motion.p>
 
       <motion.div
@@ -506,8 +509,8 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                         transition={{ type: 'spring', stiffness: 400, damping: 18 }}
                         aria-label={
                           item.checked
-                            ? `Mark ${item.name} as needed`
-                            : `Mark ${item.name} as bought`
+                            ? `Mark ${foodName(item.name)} as needed`
+                            : `Mark ${foodName(item.name)} as bought`
                         }
                         aria-pressed={item.checked}
                         style={{
@@ -561,7 +564,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                           transition: 'color 200ms ease',
                         }}
                       >
-                        {item.name}
+                        {foodName(item.name)}
                       </span>
                     </div>
 
@@ -576,7 +579,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === 'Escape') setEditingId(null);
                           }}
-                          aria-label={`Edit price for ${item.name}`}
+                          aria-label={`Edit price for ${foodName(item.name)}`}
                           style={{
                             width: 64,
                             fontFamily: "'Inter', sans-serif",
@@ -598,7 +601,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.94 }}
                           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                          aria-label={`Edit price of ${item.name}, currently ৳${item.price}`}
+                          aria-label={`Edit price of ${foodName(item.name)}, currently ৳${item.price}`}
                           className="tnum"
                           style={{
                             background: 'none',
@@ -622,7 +625,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                         whileHover={{ scale: 1.15, rotate: 90 }}
                         whileTap={{ scale: 0.9 }}
                         transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                        aria-label={`Remove ${item.name}`}
+                        aria-label={`Remove ${foodName(item.name)}`}
                         style={{
                           width: 24,
                           height: 24,
@@ -687,6 +690,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
         )}
       </AnimatePresence>
     </div>
+    </LocalizedContent>
   );
 }
 

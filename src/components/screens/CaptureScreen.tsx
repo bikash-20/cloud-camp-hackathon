@@ -7,6 +7,7 @@ import { formatRelative, pickThumbnailStyle } from '../../lib/format';
 import { MiniBar, MacroMeter } from '../../components/Meter';
 import { MOCK_TABS } from '../../mocks/fixtures';
 import type { MealEntry, TodaySummary } from '../../types/schemas';
+import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 
 type CapturePhase = 'idle' | 'camera' | 'captured';
 
@@ -75,6 +76,7 @@ export default function CaptureScreen({
   previewUrl,
   onNavigateTab,
 }: CaptureScreenProps) {
+  const { foodName } = useLanguage();
   const reduceMotion = useReducedMotion();
   const [phase, setPhase] = useState<CapturePhase>('idle');
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -280,6 +282,7 @@ export default function CaptureScreen({
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
+    <LocalizedContent>
     <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
       {/* Hidden elements */}
       <canvas ref={canvasRef} style={{ display: 'none' }} aria-hidden="true" />
@@ -1156,10 +1159,10 @@ export default function CaptureScreen({
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {meal.label}
+                      {meal.items.map((item) => foodName(item.name, item.name_bn)).join(', ') || meal.label}
                     </div>
                     <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft, marginTop: 2 }}>
-                      {formatRelative(meal.date)} · {meal.items.length} item{meal.items.length !== 1 ? 's' : ''}
+                      {formatRelative(meal.date)} · {meal.items.length} {meal.items.length === 1 ? 'item' : 'items'}
                     </div>
                   </div>
                   <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 700, color: T.accentAmber, flexShrink: 0, marginLeft: 8 }}>
@@ -1173,6 +1176,7 @@ export default function CaptureScreen({
         </motion.div>
       )}
     </div>
+    </LocalizedContent>
   );
 }
 

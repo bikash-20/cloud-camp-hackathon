@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ArrowRight, Edit3, X, Sparkles } from 'lucide-react';
 import { T } from '../data';
+import { LocalizedContent } from '../i18n/LanguageContext';
 
 interface SmartActionSheetProps {
   open: boolean;
@@ -21,6 +22,7 @@ export default function SmartActionSheet({
   onClose,
 }: SmartActionSheetProps) {
   return (
+    <LocalizedContent>
     <AnimatePresence>
       {open && (
         <>
@@ -217,5 +219,6 @@ export default function SmartActionSheet({
         </>
       )}
     </AnimatePresence>
+    </LocalizedContent>
   );
 }
