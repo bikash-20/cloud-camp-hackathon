@@ -23,6 +23,99 @@ interface CoachScreenProps {
   profile: UserProfile;
 }
 
+/**
+ * Lightweight helper to parse markdown tokens (bold **text**, citations [উৎস:...])
+ * and render them as styled React elements.
+ */
+function parseFormattedInline(text: string, isUser: boolean) {
+  // Matches **bold** text and [Source: ...] or [উৎস: ...] citations
+  const tokenRegex = /(\*\*.*?\*\*|\[(?:উৎস|Source):[^\]]+\])/g;
+  const parts = text.split(tokenRegex);
+
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+      const boldContent = part.slice(2, -2);
+      return (
+        <strong
+          key={index}
+          className={`font-semibold ${isUser ? 'text-white' : 'text-[#241B18]'}`}
+        >
+          {boldContent}
+        </strong>
+      );
+    }
+    if (part.startsWith('[') && part.endsWith(']')) {
+      return (
+        <span
+          key={index}
+          className={`inline-block text-xs px-2 py-0.5 rounded my-0.5 ${
+            isUser ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary font-medium'
+          }`}
+        >
+          {part}
+        </span>
+      );
+    }
+    return <span key={index}>{part}</span>;
+  });
+}
+
+/**
+ * Formatted message component supporting:
+ * - Paragraphs separated by blank lines
+ * - Bullet lists (•, -, *)
+ * - Numbered lists (1., 2.)
+ * - Bold text and clinical citations
+ */
+function FormattedMessage({ content, isUser }: { content: string; isUser: boolean }) {
+  if (!content) return null;
+
+  const blocks = content.split(/\n\n+/);
+
+  return (
+    <div className="space-y-2.5 font-sans">
+      {blocks.map((block, bIdx) => {
+        const rawLines = block.split('\n').filter((l) => l.trim().length > 0);
+        const isBulletList =
+          rawLines.length > 0 &&
+          rawLines.every((l) => /^([•\-*]|\d+\.)\s/.test(l.trim()));
+
+        if (isBulletList) {
+          return (
+            <ul key={bIdx} className="space-y-2 pl-1 my-1 list-none">
+              {rawLines.map((line, lIdx) => {
+                const cleanLine = line.trim().replace(/^([•\-*]|\d+\.)\s*/, '');
+                return (
+                  <li key={lIdx} className="flex items-start gap-2.5">
+                    <span
+                      className={`inline-block mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        isUser ? 'bg-white/80' : 'bg-primary'
+                      }`}
+                    />
+                    <span className="flex-1 leading-relaxed">
+                      {parseFormattedInline(cleanLine, isUser)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          );
+        }
+
+        return (
+          <p key={bIdx} className="m-0 leading-relaxed">
+            {rawLines.map((line, lIdx) => (
+              <span key={lIdx} className={lIdx > 0 ? 'block mt-1' : 'inline'}>
+                {parseFormattedInline(line, isUser)}
+              </span>
+            ))}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function CoachScreen({ profile }: CoachScreenProps) {
   const { language } = useLanguage();
   const isBn = language === 'bn';
@@ -44,10 +137,10 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
       const welcome: CoachMessage = {
         role: 'assistant',
         content: isBn
-          ? '🔬 **স্বাগতম! আমি ড. তানভীর হোসেন (পুষ্টি বিজ্ঞানী)।**\n\n' +
-            'আপনার খাদ্যের গ্লাইসেমিক সূচক (GI/GL), রান্নার তেলের প্রভাব, পুষ্টি উপাদান এবং বিপি/ডায়াবেটিসের বৈজ্ঞানিক বিশ্লেষণ জানাতে আমি প্রস্তুত। নিচের প্রশ্নগুলো নির্বাচন করতে পারেন বা যেকোনো খাবার সম্পর্কে সরাসরি জিজ্ঞাসা করুন!'
-          : '🔬 **Welcome! I am Dr. Tanvir Hossain (Nutritional Biochemist).**\n\n' +
-            'I provide evidence-based biochemical analysis of your meals, glycemic load, cooking oil absorption, and clinical macronutrient partitioning. Select a prompt below or ask any nutrition question!',
+          ? '🔬 **স্বাগতম! আমি ড. অর্পিতা (Dr. ARPITA - পুষ্টি বিজ্ঞানী)।**\n\n' +
+            'আপনার খাদ্যের গ্লাইসেমিক সূচক (GI/GL), রান্নার তেলের প্রভাব, পুষ্টি উপাদান এবং বিপি/ডায়াবেটিসের বৈজ্ঞানিক বিশ্লেষণ জানাতে আমি প্রস্তুত। যেকোনো প্রশ্ন নির্বাচন করুন বা সরাসরি জিজ্ঞাসা করুন!'
+          : '🔬 **Welcome! I am Dr. ARPITA (Nutritional Biochemist).**\n\n' +
+            'I provide evidence-based biochemical analysis of your meals, glycemic load, cooking oil absorption, and clinical macronutrient partitioning per BIRDEM/ADA guidelines. Ask any nutrition question!',
       };
       setMessages([welcome]);
       setSuggestedPrompts(
@@ -124,7 +217,15 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
     setLoading(true);
 
     try {
+      const historyToSend = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        image_ref: m.image_ref,
+      }));
+
       const res = await sendCoachChat({
+        message: content,
+        history: historyToSend,
         messages: nextMessages,
         agent_type: agentType,
         user_profile: profile,
@@ -215,13 +316,13 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
               onClick={() => setAgentType('scientist')}
               whileTap={{ scale: 0.98 }}
               style={{
-                padding: '8px 10px',
+                padding: '8px 12px',
                 borderRadius: 12,
                 border: 'none',
                 background: agentType === 'scientist' ? T.primary : 'transparent',
                 color: agentType === 'scientist' ? '#FFFFFF' : T.ink,
-                fontFamily: 'Inter',
-                fontSize: 11,
+                fontFamily: "'Hind Siliguri', 'Inter', sans-serif",
+                fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
                 display: 'flex',
@@ -232,7 +333,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
               }}
             >
               <span>🔬</span>
-              <span>{isBn ? 'পুষ্টি বিজ্ঞানী' : 'Nutrition Scientist'}</span>
+              <span>{isBn ? 'ড. অর্পিতা (বিজ্ঞানী)' : 'Dr. ARPITA (Scientist)'}</span>
             </motion.button>
 
             <motion.button
@@ -240,13 +341,13 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
               onClick={() => setAgentType('behavioral')}
               whileTap={{ scale: 0.98 }}
               style={{
-                padding: '8px 10px',
+                padding: '8px 12px',
                 borderRadius: 12,
                 border: 'none',
                 background: agentType === 'behavioral' ? '#2E6333' : 'transparent',
                 color: agentType === 'behavioral' ? '#FFFFFF' : T.ink,
-                fontFamily: 'Inter',
-                fontSize: 11,
+                fontFamily: "'Hind Siliguri', 'Inter', sans-serif",
+                fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
                 display: 'flex',
@@ -290,9 +391,9 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 12,
-            minHeight: 280,
-            maxHeight: 380,
+            gap: 14,
+            minHeight: 320,
+            maxHeight: 460,
             overflowY: 'auto',
             padding: '8px 4px',
           }}
@@ -315,59 +416,64 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                 {/* Sender badge */}
                 <div
                   style={{
-                    fontSize: 9.5,
+                    fontSize: 11,
                     fontWeight: 600,
                     color: T.inkSoft,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 4,
+                    gap: 6,
+                    padding: '0 4px',
                   }}
                 >
                   {isUser ? (
                     <span>{profile.name || (isBn ? 'আপনি' : 'You')}</span>
                   ) : agentType === 'scientist' ? (
                     <>
-                      <span>🔬 ড. তানভীর হোসেন</span>
-                      <span style={{ opacity: 0.7 }}>• BIRDEM প্রটোকল</span>
+                      <span className="font-semibold text-earth9">
+                        🔬 {isBn ? 'ড. অর্পিতা (পুষ্টি বিজ্ঞানী)' : 'Dr. ARPITA (Scientist)'}
+                      </span>
+                      <span style={{ opacity: 0.7 }}>• BIRDEM / ADA</span>
                     </>
                   ) : (
                     <>
-                      <span>🧠 ফারহানা আহমেদ</span>
-                      <span style={{ opacity: 0.7 }}>• অভ্যাস কোচ</span>
+                      <span className="font-semibold text-[#2E6333]">
+                        🧠 {isBn ? 'ফারহানা আহমেদ (আচরণ কোচ)' : 'Habit Coach (Behavioral)'}
+                      </span>
+                      <span style={{ opacity: 0.7 }}>• CBT & Habits</span>
                     </>
                   )}
                 </div>
 
                 {/* Message Bubble */}
                 <div
+                  className={`text-base md:text-lg leading-relaxed px-4 py-3 rounded-2xl ${
+                    isUser ? 'rounded-br-sm' : 'rounded-bl-sm'
+                  }`}
                   style={{
-                    maxWidth: '86%',
-                    padding: '10px 14px',
-                    borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                    maxWidth: '88%',
+                    fontFamily: "'Hind Siliguri', 'Inter', -apple-system, sans-serif",
+                    lineHeight: 1.75,
                     background: isUser
                       ? T.primary
-                      : 'rgba(255, 255, 255, 0.88)',
+                      : 'rgba(255, 255, 255, 0.94)',
                     color: isUser ? '#FFFFFF' : T.ink,
                     boxShadow: isUser
                       ? '0 4px 14px rgba(46, 37, 34, 0.2)'
-                      : '0 2px 10px rgba(0, 0, 0, 0.04)',
+                      : '0 2px 12px rgba(0, 0, 0, 0.05)',
                     border: isUser ? 'none' : `1px solid ${T.cardBorder}`,
-                    fontSize: 12,
-                    lineHeight: 1.55,
-                    whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
                   }}
                 >
                   {m.image_ref && (
-                    <div style={{ marginBottom: 8, borderRadius: 8, overflow: 'hidden' }}>
+                    <div style={{ marginBottom: 10, borderRadius: 10, overflow: 'hidden' }}>
                       <img
                         src={m.image_ref}
                         alt="Dish upload"
-                        style={{ width: '100%', maxHeight: 160, objectFit: 'cover' }}
+                        style={{ width: '100%', maxHeight: 200, objectFit: 'cover' }}
                       />
                     </div>
                   )}
-                  {m.content}
+                  <FormattedMessage content={m.content} isUser={isUser} />
                 </div>
               </motion.div>
             );
@@ -448,13 +554,14 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                   whileTap={{ scale: 0.96 }}
                   onClick={() => handleSendMessage(p)}
                   style={{
-                    padding: '6px 12px',
+                    padding: '8px 14px',
                     borderRadius: 20,
-                    background: 'rgba(255, 255, 255, 0.85)',
+                    background: 'rgba(255, 255, 255, 0.90)',
                     border: `1px solid ${T.cardBorder}`,
                     color: T.ink,
-                    fontSize: 10.5,
-                    fontFamily: 'Inter',
+                    fontSize: 12.5,
+                    fontFamily: "'Hind Siliguri', 'Inter', sans-serif",
+                    lineHeight: 1.4,
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
                     flexShrink: 0,
@@ -569,14 +676,16 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                 ? 'দাওয়াত বা অভ্যাস সম্পর্কে জিজ্ঞাসা করুন…'
                 : 'Ask about feasts, cravings, habits…'
             }
+            className="text-base md:text-lg leading-relaxed placeholder:text-[#8E827E]"
             style={{
               flex: 1,
               border: 'none',
               outline: 'none',
               background: 'transparent',
-              fontFamily: 'Inter',
-              fontSize: 12,
+              fontFamily: "'Hind Siliguri', 'Inter', sans-serif",
+              fontSize: '1rem',
               color: T.ink,
+              padding: '6px 8px',
             }}
           />
 

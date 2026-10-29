@@ -72,3 +72,62 @@ def test_coach_chat_behavioral_persona(client: TestClient) -> None:
     assert len(data["reply"]) > 50
     assert any("দাওয়াত" in p or "মিষ্টি" in p or "অভ্যাস" in p for p in data["suggested_prompts"])
 
+
+def test_coach_chat_hello_greeting_scientist(client: TestClient) -> None:
+    """The 'Hello' Fix: greetings must yield concise warm responses, not lectures."""
+    payload = {
+        "message": "হ্যালো",
+        "history": [],
+        "agent_type": "scientist",
+    }
+    res = client.post("/api/coach/chat", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["agent_type"] == "scientist"
+    # Should be a short, natural greeting (under 120 chars)
+    assert len(data["reply"]) < 120
+    assert "হ্যালো" in data["reply"]
+    assert "পুষ্টি" in data["reply"] or "ক্যালরি" in data["reply"]
+
+
+def test_coach_chat_hello_greeting_coach(client: TestClient) -> None:
+    """The 'Hello' Fix: coach greeting in English returns empathetic short welcome."""
+    payload = {
+        "message": "hello",
+        "history": [],
+        "agent_type": "coach",
+    }
+    res = client.post("/api/coach/chat", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["agent_type"] == "coach"
+    assert len(data["reply"]) < 120
+    assert "Hello" in data["reply"] or "হ্যালো" in data["reply"]
+
+
+def test_coach_openrouter_fallback(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    """Ensure OpenRouter is called if Gemini fails or is unavailable."""
+    from app.services.coach_service import get_coach_service
+    service = get_coach_service()
+
+    called_openrouter = False
+
+    def mock_call_gemini(system_prompt: str, messages: list) -> str | None:
+        return None  # Simulate Gemini 429/failure
+
+    def mock_call_openrouter(system_prompt: str, messages: list) -> str | None:
+        nonlocal called_openrouter
+        called_openrouter = True
+        return "Responded via OpenRouter fallback successfully."
+
+    monkeypatch.setattr(service, "_call_gemini", mock_call_gemini)
+    monkeypatch.setattr(service, "_call_openrouter", mock_call_openrouter)
+    monkeypatch.setattr(service, "openrouter_key", "sk-or-test-key")
+
+    res = client.post("/api/coach/chat", json={"message": "What is GI?", "agent_type": "scientist"})
+    assert res.status_code == 200
+    data = res.json()
+    assert called_openrouter is True
+    assert "OpenRouter" in data["reply"]
+
+

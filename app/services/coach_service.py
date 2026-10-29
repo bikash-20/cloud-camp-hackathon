@@ -1,15 +1,17 @@
 """Multi-Agent AI Coach Service for NutriVision AI.
 
 Coordinates two specialized agent personas:
-  1. 🔬 Culinary & Nutrition Scientist (পুষ্টি বিজ্ঞানী):
-     Grounded in biochemistry, BIRDEM/INFS glycemic indices, hidden sodium/oil calculations,
-     macronutrient partitioning, and RAG clinical nutrition knowledge.
+  1. 🔬 Culinary & Nutrition Scientist (Dr. ARPITA - পুষ্টি বিজ্ঞানী):
+     Grounded in BIRDEM/ADA guidelines, biochemical mechanisms, glycemic indices,
+     and hidden sodium/oil calculations.
   2. 🧠 Behavioral & Habit Coach (আচরণ ও অভ্যাস কোচ):
-     Grounded in CBT/habit loops, non-judgmental empathy, friction-reduction, and
-     culturally nuanced Bangladeshi context (navigating family dawats, tea-stall adda, cravings).
+     Grounded in CBT/habit loops, habit building, stress eating, and late-night cravings.
 
-Provides an LLM cascade:
-  Gemini 2.0 Flash (Primary) → Groq (Llama-3.3-70b / Llama-3.2-11b-vision) → Local RAG Synthesizer.
+Resilience Provider Cascade:
+  1st Attempt: Google Gemini 2.0 Flash (Primary)
+  2nd Attempt: OpenRouter API Fallback (OPENROUTER_API_KEY)
+  3rd Attempt: Groq Fallback (GROQ_API_KEY)
+  4th Attempt: Local Context-Aware Synthesizer (Natural greetings & RAG evidence)
 """
 
 from __future__ import annotations
@@ -36,15 +38,21 @@ from app.services.rag_service import get_rag_service
 log = logging.getLogger(__name__)
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 
 # ── System Prompts ─────────────────────────────────────────────────────────
 
 SCIENTIST_SYSTEM_PROMPT = """\
-You are Dr. Tanvir Hossain, a Senior Clinical Nutritionist & Food Biochemist (পুষ্টি বিজ্ঞানী) specializing in South Asian and Bangladeshi nutrition at NutriVision AI.
+You are Dr. ARPITA, a clinical culinary scientist specializing in South Asian and Bangladeshi nutrition at NutriVision AI. You speak fluently and naturally in Bengali and English.
 
-Your Clinical Guidelines:
+RULE 1 (CRITICAL GREETING RULE):
+If the user says a simple greeting or casual opener (e.g., 'hello', 'hi', 'hey', 'হ্যালো', 'সালাম', 'নমস্কার', 'কেমন আছেন'), reply briefly and warmly (e.g., 'হ্যালো! আজকের খাবারে পুষ্টি বা ক্যালরি নিয়ে কী জানতে চান?').
+DO NOT give unsolicited nutritional advice or dump clinical facts unless explicitly asked!
+
+RULE 2:
+When asked about food, nutrition, cooking, or clinical conditions, base your answers on BIRDEM/ADA guidelines:
 1. Ground every recommendation in biochemical and physiological mechanisms:
    - Glycemic Index (GI) and Glycemic Load (GL) dynamics per BIRDEM guidelines.
    - Lipid profiles, saturated vs polyunsaturated fats, mustard oil vs palm/soybean oil.
@@ -56,23 +64,27 @@ Your Clinical Guidelines:
 3. Be specific with numbers, gram adjustments, and evidence:
    - Recommend exact swaps (e.g. replacing 100g white rice with 60g brown rice + 40g leafy greens blunts glucose spikes by 35%).
 4. Always incorporate the user's clinical profile (diabetes, hypertension, kidney disease, allergies) and daily nutrient targets.
-5. Provide official citations in brackets, such as [উৎস: BIRDEM গাইডলাইন], [উৎস: INFS ডাটা], or [উৎস: ICMR/WHO প্রটোকল].
+5. Provide official citations in brackets, such as [উৎস: BIRDEM গাইডলাইন] or [উৎস: ADA Guidelines].
 6. Language: If the user communicates in Bengali, respond in natural, professional, authentic Bengali script. If in English, respond in clear English.
-7. Always end with a brief scientific takeaway or actionable clinical tip.
 """
 
 BEHAVIORAL_SYSTEM_PROMPT = """\
-You are Farhana Ahmed, an Empathetic Health Psychologist & Behavioral Habit Coach (আচরণ ও অভ্যাস কোচ) at NutriVision AI.
+You are a Behavioral Health Coach at NutriVision AI. You speak naturally and fluently in Bengali and English.
 
-Your Coaching Philosophy:
-1. Warm, non-judgmental, compassionate, and positive psychology oriented (CBT & Tiny Habits):
+RULE 1 (CRITICAL GREETING RULE):
+If the user says 'hello', 'hi', 'হ্যালো', or greets you, respond with empathy and a short greeting (e.g., 'হ্যালো! আজকে আপনার ডায়েট ট্র্যাকিং কেমন চলছে?').
+DO NOT dump advice or large lectures immediately.
+
+RULE 2:
+Focus on habit building, stress eating, and late-night cravings using CBT and habit loops (Cue → Routine → Reward):
+1. Warm, non-judgmental, compassionate, and positive psychology oriented:
    - Zero guilt, zero shame, zero restrictive diet culture.
    - Eating should be enjoyable, cultural, and nourishing.
 2. Culturally deeply grounded in Bangladeshi life:
    - Understands the social reality of family dawats, wedding feasts (kacchi biryani), evening tea-stall adda (cha + biscuits), and sweet cravings.
    - If a user overate or slipped up, validate their experience: "দাওয়াতে আনন্দ করে খাওয়া জীবনের অংশ, কোনো অপরাধবোধের দরকার নেই!"
    - Offer low-friction recovery habits: a 15-minute gentle post-meal walk (শতপদ), drinking warm water, or eating a fiber-rich dal/salad meal next.
-3. Focus on small daily wins and habit loops (Cue → Routine → Reward):
+3. Focus on small daily wins:
    - Rather than banning foods, add nourishing foods first ("চালের সাথে একটু বেশি সবজি যোগ করি").
    - Help overcome emotional eating and late-night cravings with mindfulness techniques.
 4. Language: If the user communicates in Bengali, speak with warmth, empathy, and natural Bengali idioms. If in English, be warm, friendly, and practical.
@@ -80,21 +92,50 @@ Your Coaching Philosophy:
 """
 
 
+def _is_greeting(text: str) -> bool:
+    """Check if the user input is a greeting to avoid dumping lectures."""
+    clean = text.lower().strip()
+    clean = re.sub(r"[!.,?।]+", "", clean).strip()
+    greetings = {
+        "hello", "hi", "hey", "hola", "greetings", "good morning", "good evening", "good afternoon",
+        "হ্যালো", "হাই", "হে", "সালাম", "নমস্কার", "আদাব", "কেমন আছেন", "কেমন আছো", "শুভ সকাল", "শুভ সন্ধ্যা", "শুভ রাত্রি",
+        "assalamu alaikum", "assalamualaikum", "kemon achen", "kemon acho"
+    }
+    return clean in greetings or any(clean == g for g in greetings)
+
+
 class CoachService:
-    """Multi-agent AI Coach service connecting LLMs and RAG knowledge."""
+    """Multi-agent AI Coach service with Gemini, OpenRouter, and Groq cascade."""
 
     def __init__(
         self,
         gemini_api_key: str | None = None,
+        openrouter_api_key: str | None = None,
         groq_api_key: str | None = None,
     ) -> None:
         self.gemini_key = gemini_api_key or os.environ.get("GEMINI_API_KEY", "").strip()
+        self.openrouter_key = openrouter_api_key or os.environ.get("OPENROUTER_API_KEY", "").strip()
+        self.openrouter_model = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001").strip()
         self.groq_key = groq_api_key or os.environ.get("GROQ_API_KEY", "").strip()
 
     def chat(self, req: CoachChatRequest) -> CoachChatResponse:
         """Route coach chat through RAG enrichment, provider cascade, and response synthesis."""
-        agent_type = req.agent_type
-        user_msg = self._extract_latest_user_text(req.messages)
+        # Normalize messages list from request
+        messages = list(req.messages or [])
+        if not messages and req.message:
+            for h in req.history or []:
+                if isinstance(h, CoachMessage):
+                    messages.append(h)
+                elif isinstance(h, dict):
+                    messages.append(CoachMessage(**h))
+            messages.append(CoachMessage(role="user", content=req.message))
+
+        agent_type: CoachAgentType = (
+            "scientist"
+            if req.agent_type == "scientist"
+            else ("behavioral" if req.agent_type == "behavioral" else "coach")
+        )
+        user_msg = self._extract_latest_user_text(messages)
 
         # 1. RAG Enrichment
         rag_context, citations = self._retrieve_rag_context(user_msg, req.user_profile)
@@ -107,10 +148,17 @@ class CoachService:
             rag_context=rag_context,
         )
 
-        # 3. Provider Cascade: Gemini -> Groq -> Local RAG fallback
-        reply_text = self._call_gemini(system_prompt, req.messages)
-        if not reply_text:
-            reply_text = self._call_groq(system_prompt, req.messages)
+        # 3. Provider Cascade: Gemini -> OpenRouter -> Groq -> Local RAG fallback
+        reply_text = self._call_gemini(system_prompt, messages)
+
+        if not reply_text and self.openrouter_key:
+            log.info("Gemini failed/rate-limited. Cascading to OpenRouter (%s)...", self.openrouter_model)
+            reply_text = self._call_openrouter(system_prompt, messages)
+
+        if not reply_text and self.groq_key:
+            log.info("Cascading to Groq...")
+            reply_text = self._call_groq(system_prompt, messages)
+
         if not reply_text:
             reply_text = self._synthesize_local_response(agent_type, user_msg, req.user_profile, rag_context)
 
@@ -143,10 +191,11 @@ class CoachService:
         citations: list[str] = []
         contexts: list[str] = []
 
-        # Determine target collections based on query keywords
         search_terms = query.lower()
-        collections_to_search: list[str] = []
+        if _is_greeting(query):
+            return "", []
 
+        collections_to_search: list[str] = []
         if any(w in search_terms for w in ["glycemic", "গ্লাইসেমিক", "ডায়াবেটিস", "blood pressure", "রক্তচাপ", "লবণ", "sodium", "কিডনি", "kidney"]):
             collections_to_search.append("clinical_nutrition_guidelines")
         if any(w in search_terms for w in ["তেল", "oil", "রান্না", "cooking", "রেসিপি", "recipe", "ইলিশ", "পোলাও", "খিচুড়ি", "বিরিয়ানি"]):
@@ -219,13 +268,11 @@ class CoachService:
             "x-goog-api-key": self.gemini_key,
         }
 
-        # Build contents array
         gemini_contents = []
         for m in messages:
             role = "user" if m.role == "user" else "model"
             parts: list[dict[str, Any]] = []
 
-            # Add image if provided
             if m.image_ref:
                 raw_b64 = m.image_ref
                 mime_type = "image/jpeg"
@@ -250,7 +297,7 @@ class CoachService:
         }
 
         try:
-            with httpx.Client(timeout=15.0) as client:
+            with httpx.Client(timeout=12.0) as client:
                 res = client.post(url, headers=headers, json=body)
                 if res.status_code == 200:
                     data = res.json()
@@ -262,6 +309,55 @@ class CoachService:
                 log.warning("Gemini coach chat failed: %s %s", res.status_code, res.text[:200])
         except Exception as exc:
             log.warning("Gemini coach request exception: %s", exc)
+
+        return None
+
+    def _call_openrouter(self, system_prompt: str, messages: list[CoachMessage]) -> str | None:
+        """Call OpenRouter API as resilient fallback."""
+        if not self.openrouter_key:
+            return None
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.openrouter_key}",
+            "HTTP-Referer": "https://nutrivision.ai",
+            "X-Title": "NutriVision AI",
+        }
+
+        openrouter_messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
+        for m in messages:
+            role = "user" if m.role == "user" else "assistant"
+            content: list[dict[str, Any]] | str
+            if m.image_ref:
+                img_url = m.image_ref
+                if not img_url.startswith("data:"):
+                    img_url = f"data:image/jpeg;base64,{img_url}"
+                content = [
+                    {"type": "text", "text": m.content or "Please analyze this image."},
+                    {"type": "image_url", "image_url": {"url": img_url}},
+                ]
+            else:
+                content = m.content
+            openrouter_messages.append({"role": role, "content": content})
+
+        body = {
+            "model": self.openrouter_model,
+            "messages": openrouter_messages,
+            "temperature": 0.4,
+            "max_tokens": 800,
+        }
+
+        try:
+            with httpx.Client(timeout=12.0) as client:
+                res = client.post(OPENROUTER_API_URL, headers=headers, json=body)
+                if res.status_code == 200:
+                    data = res.json()
+                    choices = data.get("choices", [])
+                    if choices:
+                        return choices[0].get("message", {}).get("content", "").strip()
+                log.warning("OpenRouter coach chat failed: %s %s", res.status_code, res.text[:200])
+        except Exception as exc:
+            log.warning("OpenRouter coach request exception: %s", exc)
 
         return None
 
@@ -290,7 +386,6 @@ class CoachService:
                 content = m.content
             groq_messages.append({"role": role, "content": content})
 
-        # Try llama-3.3-70b-versatile for text or llama-3.2-11b-vision-preview if image is present
         has_image = any(bool(m.image_ref) for m in messages)
         model = "llama-3.2-11b-vision-preview" if has_image else "llama-3.3-70b-versatile"
 
@@ -302,7 +397,7 @@ class CoachService:
         }
 
         try:
-            with httpx.Client(timeout=15.0) as client:
+            with httpx.Client(timeout=12.0) as client:
                 res = client.post(GROQ_API_URL, headers=headers, json=body)
                 if res.status_code == 200:
                     data = res.json()
@@ -322,28 +417,42 @@ class CoachService:
         profile: UserProfile | None,
         rag_context: str,
     ) -> str:
-        """Intelligent local fallback if neither API key is active or available."""
+        """Intelligent local fallback if external LLMs are unavailable."""
         q_lower = query.lower()
         is_bn = bool(re.search(r"[\u0980-\u09FF]", query)) or (profile and profile.medical_conditions)
+
+        # ── The "Hello" Fix: Natural concise greetings ──────────────────────
+        if _is_greeting(query):
+            if agent_type == "scientist":
+                return (
+                    "হ্যালো! আজকের খাবারে পুষ্টি বা ক্যালরি নিয়ে কী জানতে চান? 🔬"
+                    if is_bn
+                    else "Hello! What would you like to know about nutrition or calories in today's meals? 🔬"
+                )
+            return (
+                "হ্যালো! আজকে আপনার ডায়েট ট্র্যাকিং কেমন চলছে? 💚"
+                if is_bn
+                else "Hello! How is your diet tracking and wellness journey going today? 💚"
+            )
 
         if agent_type == "scientist":
             if any(w in q_lower for w in ["গ্লাইসেমিক", "glycemic", "ভাত", "rice", "কার্ব", "carb", "ডায়াবেটিস", "diabetes"]):
                 if is_bn:
                     return (
-                        "🔬 **বায়োকেমিক্যাল পুষ্টি বিশ্লেষণ (Dr. Tanvir Hossain):**\n\n"
+                        "🔬 **বায়োকেমিক্যাল পুষ্টি বিশ্লেষণ (Dr. ARPITA):**\n\n"
                         "সাদা ভাতের (White Rice) গ্লাইসেমিক ইনডেক্স (GI) তুলনামূলকভাবে বেশি (~৭৩)। খাবার গ্রহণের পর দ্রুত গ্লুকোজ স্পাইক রোধ করতে নিচের ৩টি বৈজ্ঞানিক কৌশল অত্যন্ত কার্যকর:\n\n"
-                        "১. **ফাইবার বাফার সংযোজন:** প্রতি ১০০ গ্রাম ভাতের সাথে ৫০–৭০ গ্রাম শাকসবজি বা লাল শাক খেলে দ্রবণীয় ফাইবার পরিপাক গতি শ্লথ করে রক্তে শর্করা বৃদ্ধি ৩৫% পর্যন্ত রোধ করে।\n"
-                        "২. **রেজিস্ট্যান্ট স্টার্চ বৃদ্ধি:** ভাত রান্নার পর স্বাভাবিক তাপমাত্রায় ঠাণ্ডা করে খেলে অ্যামাইলোজের রেট্রোগ্রেডেশন ঘটে, যা প্রি-বায়োটিক রেজিস্ট্যান্ট স্টার্চে পরিণত হয় এবং গ্লাইসেমিক লোড হ্রাস করে।\n"
-                        "৩. **প্রোটিন ও স্বাস্থ্যকর ফ্যাট:** ভাতের সাথে এক বাটি ঘন মসুর ডাল বা ইলিশ/রুই মাছের হালকা ঝোল যুক্ত করলে গ্যাস্ট্রিক এম্পটিইং টাইম দীর্ঘায়িত হয়।\n\n"
-                        "[উৎস: BIRDEM ক্লিনিক্যাল গাইডলাইন ও INFS নিউট্রিশন ডাটা]"
+                        "• **ফাইবার বাফার সংযোজন:** প্রতি ১০০ গ্রাম ভাতের সাথে ৫০–৭০ গ্রাম শাকসবজি বা লাল শাক খেলে দ্রবণীয় ফাইবার পরিপাক গতি শ্লথ করে রক্তে শর্করা বৃদ্ধি ৩৫% পর্যন্ত রোধ করে।\n"
+                        "• **রেজিস্ট্যান্ট স্টার্চ বৃদ্ধি:** ভাত রান্নার পর স্বাভাবিক তাপমাত্রায় ঠাণ্ডা করে খেলে অ্যামাইলোজের রেট্রোগ্রেডেশন ঘটে, যা প্রি-বায়োটিক রেজিস্ট্যান্ট স্টার্চে পরিণত হয় এবং গ্লাইসেমিক লোড হ্রাস করে।\n"
+                        "• **প্রোটিন ও স্বাস্থ্যকর ফ্যাট:** ভাতের সাথে এক বাটি ঘন মসুর ডাল বা ইলিশ/রুই মাছের হালকা ঝোল যুক্ত করলে গ্যাস্ট্রিক এম্পটিইং টাইম দীর্ঘায়িত হয়।\n\n"
+                        "[উৎস: BIRDEM ক্লিনিক্যাল গাইডলাইন ও ADA Guidelines]"
                     )
                 return (
-                    "🔬 **Nutritional Biochemical Analysis (Dr. Tanvir Hossain):**\n\n"
+                    "🔬 **Nutritional Biochemical Analysis (Dr. ARPITA):**\n\n"
                     "White rice has a high Glycemic Index (GI ~73). To blunt rapid postprandial glucose surges, apply these 3 scientific levers:\n\n"
-                    "1. **Soluble Fiber Buffer:** Pair 100g of rice with 60–80g of leafy greens (shak/vegetables) to slow enzyme hydrolysis.\n"
-                    "2. **Retrograded Starch:** Cooling cooked rice increases type-3 resistant starch, lowering the overall Glycemic Load.\n"
-                    "3. **Protein/Fat Pairing:** Eating fish or thick dal before rice delays gastric emptying.\n\n"
-                    "[Source: BIRDEM Clinical Protocols & INFS Nutrition DB]"
+                    "• **Soluble Fiber Buffer:** Pair 100g of rice with 60–80g of leafy greens (shak/vegetables) to slow enzyme hydrolysis.\n"
+                    "• **Retrograded Starch:** Cooling cooked rice increases type-3 resistant starch, lowering the overall Glycemic Load.\n"
+                    "• **Protein/Fat Pairing:** Eating fish or thick dal before rice delays gastric emptying.\n\n"
+                    "[Source: BIRDEM Clinical Protocols & ADA Guidelines]"
                 )
 
             if any(w in q_lower for w in ["তেল", "oil", "রান্না", "ভাজি", "fry", "sodium", "লবণ", "সোডিয়াম"]):
@@ -372,34 +481,34 @@ class CoachService:
                     "আপনার স্বাস্থ্য লক্ষ্য ও ক্লিনিক্যাল প্রোফাইল অনুযায়ী খাদ্য উপাদানগুলোর ভারসাম্য বজায় রাখা অত্যন্ত গুরুত্বপূর্ণ। "
                     "দৈনিক ক্যালোরি বাজেটের মধ্যে প্রোটিন ২৫-৩০%, জটিল কার্বোহাইড্রেট ৪৫-৫০% এবং স্বাস্থ্যকর ফ্যাট ২০-২৫% বণ্টন নিশ্চিত করুন। "
                     "প্রক্রিয়াজাত চিনি ও অতিরিক্ত লবণ পরিহার করে প্রাকৃতিক খাদ্য উপাদান গ্রহণ বিপাকীয় স্বাস্থ্য উন্নত রাখবে।\n\n"
-                    "[উৎস: BIRDEM ও INFS নিউট্রিশনাল স্ট্যান্ডার্ড]"
+                    "[উৎস: BIRDEM ও ADA Guidelines]"
                 )
             return (
                 "🔬 **Clinical Nutritionist Guidance:**\n\n"
                 "According to metabolic biochemistry standards, maintain a macro balance of 25–30% protein, 45–50% unrefined complex carbs, "
                 "and 20–25% healthy fats. Prioritize whole-food micronutrients while keeping added sodium under 1500mg daily.\n\n"
-                "[Source: BIRDEM & INFS Nutritional Protocols]"
+                "[Source: BIRDEM & ADA Guidelines]"
             )
 
         # Behavioral Coach
         if any(w in q_lower for w in ["দাওয়াত", "dawat", "overeat", "বেশি", "খাওয়া", "mistake", "ভুল", "অপরাধবোধ"]):
             if is_bn:
                 return (
-                    "🧠 **আচরণ ও অভ্যাস কোচের বার্তা (Farhana Ahmed):**\n\n"
-                    "প্রথমেই একটি কথা মনে রাখুন: **দাওয়াতে মন ভরে খাওয়া কোনো ভুল বা অপরাধ নয়!** উৎসব ও আনন্দ আমাদের জীবনের অবিচ্ছেদ্য অংশ।\n\n"
-                    "একটি ভারী খাবারের কারণে আপনার এতদিনের অগ্রগতি নষ্ট হয়ে যায় না। নিজেকে দোষারোপ না করে এই সহজ ৩টি পদক্ষেপ নিন:\n"
-                    "১. **হালকা হাঁটা:** খাওয়ার আধা ঘণ্টা পর ১৫–২০ মিনিট শান্তভাবে হাঁটুন (শতপদ)। এটি হজমে দারুণ সাহায্য করে।\n"
-                    "২. **পর্যাপ্ত পানি পান:** শরীরকে হাইড্রেটেড রাখুন। এটি সোডিয়াম ভারসাম্য ঠিক রাখতে সাহায্য করবে।\n"
-                    "৩. **পরবর্তী খাবার স্বাভাবিক রাখুন:** না খেয়ে থাকবেন না (স্টার্ভ করবেন না)। পরের বেলায় সাধারণ শাকসবজি বা পাতলা ডাল দিয়ে স্বাভাবিক খাবার গ্রহণ করুন।\n\n"
-                    "আপনি দারুণ করছেন, দীর্ঘমেয়াদী ধারাবাহিকতাই আসল সাফল্য! 💚"
+                    "🧠 **আচরণ ও অভ্যাস কোচের বার্তা:**\n\n"
+                    "প্রথমেই একটি কথা মনে রাখুন: **দাওয়াতে আনন্দ করে খাওয়া কোনো অপরাধ নয়!** পারিবারিক উৎসব আমাদের সংস্কৃতির অংশ।\n\n"
+                    "একটি ভারী খাবারের কারণে আপনার এতদিনের অগ্রগতি নষ্ট হয়ে যায় না। নিজেকে দোষারোপ না করে এই সহজ পদক্ষেপগুলো নিন:\n"
+                    "• **হালকা হাঁটা:** খাওয়ার আধা ঘণ্টা পর ১৫–২০ মিনিট শান্তভাবে হাঁটুন (শতপদ)। এটি হজমে দারুণ সাহায্য করে।\n"
+                    "• **পর্যাপ্ত পানি পান:** শরীরকে হাইড্রেটেড রাখুন। এটি সোডিয়াম ভারসাম্য ঠিক রাখতে সাহায্য করবে।\n"
+                    "• **পরবর্তী খাবার স্বাভাবিক রাখুন:** না খেয়ে থাকবেন না। পরের বেলায় সাধারণ শাকসবজি বা পাতলা ডাল দিয়ে স্বাভাবিক খাবার গ্রহণ করুন।\n\n"
+                    "আপনি দারুণ করছেন, ধারাবাহিকতাই আসল সাফল্য! 💚"
                 )
             return (
-                "🧠 **Habit Coach Perspective (Farhana Ahmed):**\n\n"
+                "🧠 **Habit Coach Perspective:**\n\n"
                 "First, remember: **Enjoying a family feast or dawat is not a failure!** Food is deeply connected to family and culture.\n\n"
                 "One heavy meal does not undo your health journey. Instead of guilt, try these low-friction steps:\n"
-                "1. **Gentle Walk:** Take a relaxed 15-minute stroll. It aids digestion and stabilizes energy.\n"
-                "2. **Hydrate Well:** Sip water to help flush excess sodium.\n"
-                "3. **Return to Rhythm:** Don't skip meals or punish yourself. Just enjoy a light, vegetable-rich meal next.\n\n"
+                "• **Gentle Walk:** Take a relaxed 15-minute stroll. It aids digestion and stabilizes energy.\n"
+                "• **Hydrate Well:** Sip water to help flush excess sodium.\n"
+                "• **Return to Rhythm:** Don't skip meals or punish yourself. Just enjoy a light, vegetable-rich meal next.\n\n"
                 "Consistency over perfection is what builds lifelong vitality! 💚"
             )
 
@@ -445,6 +554,19 @@ class CoachService:
     ) -> list[str]:
         """Produce 2-3 dynamic, contextual follow-up prompt chips."""
         q_lower = query.lower()
+        if _is_greeting(query):
+            if agent_type == "scientist":
+                return [
+                    "আজকের খাবারের পুষ্টি ও ক্যালরি বিশ্লেষণ করুন",
+                    "এই খাবারের গ্লাইসেমিক লোড কীভাবে কমাব?",
+                    "বাজেট ফ্রেন্ডলি প্রোটিন উৎস কী কী?",
+                ]
+            return [
+                "দাওয়াতে অতিরিক্ত খাওয়ার পর কী করব?",
+                "রাতের মিষ্টি বা চায়ের আড্ডার লোভ কীভাবে সামলাব?",
+                "ব্যস্ত দিনে ডায়েট ঠিক রাখার সহজ কৌশল কী?",
+            ]
+
         if agent_type == "scientist":
             if "ভাত" in q_lower or "rice" in q_lower or "glycemic" in q_lower:
                 return [
@@ -479,7 +601,6 @@ class CoachService:
 
     def _resolve_citations(self, reply: str, candidate_citations: list[str]) -> list[str]:
         citations = list(candidate_citations)
-        # Parse any bracket citations in reply
         found = re.findall(r"\[উৎস:\s*([^\]]+)\]", reply)
         for c in found:
             clean = c.strip()
@@ -493,7 +614,7 @@ class CoachService:
                 citations.append(clean)
 
         if not citations:
-            citations = ["BIRDEM ক্লিনিক্যাল গাইডলাইন", "INFS পুষ্টি ডাটাবেজ"]
+            citations = ["BIRDEM ক্লিনিক্যাল গাইডলাইন", "ADA Guidelines"]
 
         return citations[:3]
 
@@ -507,4 +628,3 @@ def get_coach_service() -> CoachService:
     if _coach_service is None:
         _coach_service = CoachService()
     return _coach_service
-

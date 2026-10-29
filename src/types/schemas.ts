@@ -319,7 +319,7 @@ export interface GroceryList {
 // ─────────────────────────────────────────────────────────────────────────
 
 export type CoachRole = 'user' | 'assistant' | 'system';
-export type CoachAgentType = 'scientist' | 'behavioral';
+export type CoachAgentType = 'scientist' | 'behavioral' | 'coach';
 
 export interface CoachMessage {
   role: CoachRole;
@@ -328,7 +328,9 @@ export interface CoachMessage {
 }
 
 export interface CoachChatRequest {
-  messages: CoachMessage[];
+  messages?: CoachMessage[];
+  message?: string | null;
+  history?: CoachMessage[] | null;
   agent_type: CoachAgentType;
   user_profile?: UserProfile | null;
   recent_meals?: MealEntry[] | null;

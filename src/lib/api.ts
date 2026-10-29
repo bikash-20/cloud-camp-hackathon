@@ -428,17 +428,79 @@ export async function sendCoachChat(req: CoachChatRequest): Promise<CoachChatRes
 
   // Local fallback response
   const isScientist = req.agent_type === 'scientist';
-  const lastMsg = req.messages[req.messages.length - 1]?.content || '';
+  const lastMsg =
+    req.message ||
+    (req.messages && req.messages[req.messages.length - 1]?.content) ||
+    '';
   const isBn = /[\u0980-\u09FF]/.test(lastMsg);
+  const cleanMsg = lastMsg.toLowerCase().replace(/[!.,?।]+/g, '').trim();
+  const greetings = [
+    'hello',
+    'hi',
+    'hey',
+    'greetings',
+    'good morning',
+    'good evening',
+    'হ্যালো',
+    'হাই',
+    'হে',
+    'সালাম',
+    'নমস্কার',
+    'আদাব',
+    'কেমন আছেন',
+    'কেমন আছো',
+  ];
+  const isGreeting = greetings.some((g) => cleanMsg === g || cleanMsg.startsWith(g + ' '));
+
+  if (isGreeting) {
+    if (isScientist) {
+      return {
+        reply: isBn
+          ? 'হ্যালো! আজকের খাবারে পুষ্টি বা ক্যালরি নিয়ে কী জানতে চান? 🔬'
+          : 'Hello! What would you like to know about nutrition or calories today? 🔬',
+        citations: ['BIRDEM ক্লিনিক্যাল গাইডলাইন'],
+        suggested_prompts: isBn
+          ? [
+              'এই খাবারের গ্লাইসেমিক লোড কীভাবে কমাব?',
+              'রান্নায় তেল শোষণ কমানোর বৈজ্ঞানিক পদ্ধতি কী?',
+              'বাজেট ফ্রেন্ডলি প্রোটিন উৎস কী কী?',
+            ]
+          : [
+              'How do I lower the glycemic load of this meal?',
+              'How to reduce cooking oil absorption?',
+              'What are budget-friendly protein sources?',
+            ],
+        agent_type: 'scientist',
+      };
+    }
+    return {
+      reply: isBn
+        ? 'হ্যালো! আজকে আপনার ডায়েট ট্র্যাকিং কেমন চলছে? 💚'
+        : 'Hello! How is your diet tracking and wellness journey going today? 💚',
+      citations: ['CBT ও অভ্যাস বিজ্ঞান'],
+      suggested_prompts: isBn
+        ? [
+            'দাওয়াতে অতিরিক্ত খাওয়ার পর কী করব?',
+            'রাতের মিষ্টি বা চায়ের আড্ডার লোভ কীভাবে সামলাব?',
+            'ব্যস্ত দিনে হেলদি ডায়েট ধরে রাখার সহজ রুটিন কী?',
+          ]
+        : [
+            'How to bounce back after a heavy feast?',
+            'How to manage evening sweet cravings?',
+            'Easy routines for healthy habits on busy days?',
+          ],
+      agent_type: req.agent_type === 'behavioral' ? 'behavioral' : 'coach',
+    };
+  }
 
   if (isScientist) {
     return {
       reply: isBn
-        ? '🔬 **বায়োকেমিক্যাল পুষ্টি বিশ্লেষণ:**\n\n' +
+        ? '🔬 **বায়োকেমিক্যাল পুষ্টি বিশ্লেষণ (ড. অর্পিতা):**\n\n' +
           'খাবারের গ্লাইসেমিক লোড নিয়ন্ত্রণে রাখতে পর্যাপ্ত দ্রবণীয় ফাইবার (শাকসবজি) যুক্ত করুন এবং রান্নার তেলের পরিমাণ পরিমিত রাখুন। ' +
           'ভাতের সাথে এক বাটি ঘন ডাল বা মাছের ঝোল পেটের শূন্য হওয়ার গতি শ্লথ করে রক্তে শর্করার মাত্রা স্থিতিশীল রাখে।\n\n' +
           '[উৎস: BIRDEM ক্লিনিক্যাল গাইডলাইন ও INFS ডাটাবেজ]'
-        : '🔬 **Nutritional Biochemical Analysis:**\n\n' +
+        : '🔬 **Nutritional Biochemical Analysis (Dr. ARPITA):**\n\n' +
           'To optimize the glycemic response of this meal, buffer carbs with dietary soluble fiber and protein. ' +
           'Cooling starches slightly increases resistant starch, helping flatten postprandial glucose curves.\n\n' +
           '[Source: BIRDEM Clinical Protocols & INFS Nutrition DB]',
@@ -480,7 +542,7 @@ export async function sendCoachChat(req: CoachChatRequest): Promise<CoachChatRes
           'How to manage evening sweet cravings?',
           'Easy routines for healthy habits on busy days?',
         ],
-    agent_type: 'behavioral',
+    agent_type: req.agent_type === 'behavioral' ? 'behavioral' : 'coach',
   };
 }
 

@@ -386,7 +386,7 @@ class MacroTargets(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────
 
 CoachRole = Literal["user", "assistant", "system"]
-CoachAgentType = Literal["scientist", "behavioral"]
+CoachAgentType = Literal["scientist", "behavioral", "coach"]
 
 
 class CoachMessage(BaseModel):
@@ -396,7 +396,9 @@ class CoachMessage(BaseModel):
 
 
 class CoachChatRequest(BaseModel):
-    messages: list[CoachMessage]
+    messages: list[CoachMessage] = Field(default_factory=list)
+    message: str | None = None
+    history: list[CoachMessage] | None = None
     agent_type: CoachAgentType = "scientist"
     user_profile: UserProfile | None = None
     recent_meals: list[MealEntry] | None = None

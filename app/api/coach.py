@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/coach", tags=["coach"])
 @router.post("/chat", response_model=CoachChatResponse)
 def coach_chat(req: CoachChatRequest) -> CoachChatResponse:
     """Send conversation messages to the requested AI Coach persona."""
-    if not req.messages:
+    if not req.messages and not req.message:
         raise HTTPException(status_code=400, detail="Messages list cannot be empty.")
     try:
         service = get_coach_service()

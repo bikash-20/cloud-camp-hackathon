@@ -29,5 +29,29 @@ describe('sendCoachChat', () => {
     expect(res.reply).toContain('আচরণ ও অভ্যাস কোচ');
     expect(res.suggested_prompts.some((p) => p.includes('দাওয়াতে') || p.includes('মিষ্টি'))).toBe(true);
   });
+
+  it('handles greeting "হ্যালো" concisely without dumping lectures for scientist', async () => {
+    const req: CoachChatRequest = {
+      message: 'হ্যালো',
+      history: [],
+      agent_type: 'scientist',
+    };
+    const res = await sendCoachChat(req);
+    expect(res.agent_type).toBe('scientist');
+    expect(res.reply.length).toBeLessThan(120);
+    expect(res.reply).toContain('হ্যালো');
+  });
+
+  it('handles greeting "hello" warmly and concisely for coach', async () => {
+    const req: CoachChatRequest = {
+      message: 'hello',
+      history: [],
+      agent_type: 'coach',
+    };
+    const res = await sendCoachChat(req);
+    expect(res.agent_type).toBe('coach');
+    expect(res.reply.length).toBeLessThan(120);
+    expect(res.reply.toLowerCase()).toContain('hello');
+  });
 });
 
