@@ -26,3 +26,4 @@ def get_market_price(
         item_name_bn=name_bn or "",
         force_mock_live=live_demo,
     )
+

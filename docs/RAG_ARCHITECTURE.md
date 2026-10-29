@@ -1,6 +1,9 @@
 # NutriVision AI — RAG Architecture & Vector Intelligence Guide
 # নিউট্রিভিশন এআই — আরএজি (RAG) আর্কিটেকচার ও ভেক্টর ইন্টেলিজেন্স গাইড
 
+> [!NOTE]
+> **Update (Phase 2 & Upgrade Complete):** Full Multi-Collection ChromaDB RAG and the Chaldal Live Price Scraper are now **fully implemented** in [`app/services/rag_service.py`](../app/services/rag_service.py) and [`app/services/price_scraper.py`](../app/services/price_scraper.py). For the complete production architecture, API contracts, and scraper guide, see **[`docs/RAG_AND_SCRAPING_GUIDE.md`](./RAG_AND_SCRAPING_GUIDE.md)**.
+
 ---
 
 ## Part 1: English Reference

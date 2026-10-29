@@ -22,3 +22,4 @@ describe('fetchLivePrice', () => {
     expect(res.source).toContain('Chaldal Live');
   });
 });
+

@@ -9,6 +9,7 @@ here.
 | If you want to… | Read |
 |---|---|
 | Understand the whole system in 5 minutes | [ARCHITECTURE.md](./ARCHITECTURE.md) |
+| Deep dive into ChromaDB RAG & Live Price Scraper | [RAG_AND_SCRAPING_GUIDE.md](./RAG_AND_SCRAPING_GUIDE.md) |
 | Trace what happens when a user uploads a picture | [IMAGE_UPLOAD_FLOW.md](./IMAGE_UPLOAD_FLOW.md) |
 | Pick up this codebase as an AI agent | [AGENT_CONTEXT.md](./AGENT_CONTEXT.md) |
 | Set up the project locally and run tests | [development.md](./development.md) |
