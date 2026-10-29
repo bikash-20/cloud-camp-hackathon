@@ -25,6 +25,8 @@ interface AdminLayoutProps {
  * brand colors carry through so it still reads as the same product.
  */
 export default function AdminLayout({ session, children }: AdminLayoutProps) {
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   const reduceMotion = useReducedMotion();
   const [isMobile, setIsMobile] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
@@ -157,7 +159,7 @@ export default function AdminLayout({ session, children }: AdminLayoutProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
-              aria-label="Admin navigation"
+              aria-label={isBn ? 'অ্যাডমিন নেভিগেশন' : 'Admin navigation'}
               style={{
                 padding: '8px 14px 12px',
                 background: 'rgba(20, 14, 11, 0.95)',
@@ -211,7 +213,7 @@ export default function AdminLayout({ session, children }: AdminLayoutProps) {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  aria-label="Sign out"
+                  aria-label={isBn ? 'সাইন আউট' : 'Sign out'}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -306,7 +308,7 @@ export default function AdminLayout({ session, children }: AdminLayoutProps) {
         </div>
         <LanguageToggle />
 
-        <nav aria-label="Admin sections" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <nav aria-label={isBn ? 'অ্যাডমিন বিভাগ' : 'Admin sections'} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <NavLink icon={<LayoutDashboard size={14} />} label="Overview" active />
           <NavLink icon={<UsersIcon size={14} />} label="Users" disabled hint="Soon" />
           <NavLink icon={<Trophy size={14} />} label="Top foods" disabled hint="Soon" />
@@ -354,7 +356,7 @@ export default function AdminLayout({ session, children }: AdminLayoutProps) {
             whileHover={{ y: -1 }}
             whileTap={{ scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            aria-label="Sign out of admin"
+            aria-label={isBn ? 'অ্যাডমিন থেকে সাইন আউট' : 'Sign out of admin'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',

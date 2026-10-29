@@ -9,6 +9,7 @@ import type { DetectedItem } from '../types/schemas';
 import Chip from './Chip';
 import AddCustomModal from './AddCustomModal';
 import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
+import { toBengaliDigits } from '../lib/format';
 
 interface ItemMeta {
   protein: number; carbs: number; fat: number; kcal: number;
@@ -293,7 +294,7 @@ export default function ExpandableRow({
               color: T.inkSoft,
             }}
           >
-            <span className="tnum">~{item.grams} {isBn ? 'গ্রাম' : 'g'}</span>
+            <span className="tnum">~{isBn ? toBengaliDigits(item.grams) : item.grams} {isBn ? 'গ্রাম' : 'g'}</span>
             {glycemic !== undefined && (glycemic > 0.5 || glycemic < 0.1) && (
               <span
                 className="gi-chip"
@@ -406,7 +407,7 @@ export default function ExpandableRow({
                     }}
                   >
                     <span>{isBn ? 'প্রধান পুষ্টি' : 'Macros'}</span>
-                    <span className="tnum">{Math.round(meta.kcal)} {isBn ? 'কিলোক্যালরি' : 'kcal'}</span>
+                    <span className="tnum">{isBn ? toBengaliDigits(Math.round(meta.kcal)) : Math.round(meta.kcal)} {isBn ? 'কিলোক্যালরি' : 'kcal'}</span>
                   </div>
                   {[
                     { label: isBn ? 'প্রোটিন' : 'Protein', value: meta.protein, color: T.primary, max: 50 },
@@ -462,7 +463,7 @@ export default function ExpandableRow({
                           textAlign: 'right',
                         }}
                       >
-                        {Math.round(m.value)} {isBn ? 'গ্রাম' : 'g'}
+                        {isBn ? toBengaliDigits(Math.round(m.value)) : Math.round(m.value)} {isBn ? 'গ্রাম' : 'g'}
                       </span>
                     </div>
                   ))}
@@ -557,7 +558,7 @@ export default function ExpandableRow({
                     textAlign: 'right',
                   }}
                 >
-                  {item.grams} {isBn ? 'গ্রাম' : 'g'}
+                  {isBn ? toBengaliDigits(item.grams) : item.grams} {isBn ? 'গ্রাম' : 'g'}
                 </span>
               </div>
 

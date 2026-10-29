@@ -15,6 +15,7 @@ import BulkActionBar from '../BulkActionBar';
 import SmartActionSheet from '../SmartActionSheet';
 import AddCustomModal from '../AddCustomModal';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
+import { toBengaliDigits } from '../../lib/format';
 
 const container = {
   hidden: {},
@@ -352,7 +353,7 @@ export default function ResultsScreen({
               margin: '2px 0 0',
             }}
           >
-            {detected.length} {isBn ? 'টি খাবার' : detected.length === 1 ? 'item' : 'items'} · {Math.round(totals.kcal)} {isBn ? 'কিলোক্যালরি' : 'kcal'}
+            {isBn ? toBengaliDigits(detected.length) : detected.length} {isBn ? 'টি খাবার' : detected.length === 1 ? 'item' : 'items'} · {isBn ? toBengaliDigits(Math.round(totals.kcal)) : Math.round(totals.kcal)} {isBn ? 'কিলোক্যালরি' : 'kcal'}
           </p>
         </div>
         <motion.button

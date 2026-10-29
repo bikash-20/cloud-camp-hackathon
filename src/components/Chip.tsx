@@ -13,7 +13,7 @@ interface ChipProps {
 }
 
 /**
- * Tag-style chip with check toggle. Used for dietary preferences and allergens.
+ * Tag-style chip with check toggle. Used for medical conditions, dietary preferences, and allergens.
  *
  * Memoized to prevent unnecessary re-renders when sibling chips toggle — only
  * re-renders when its own `active` or `label` props change.
@@ -38,7 +38,6 @@ const Chip = memo(function Chip({
         whileHover={{ y: -1, scale: 1.03 }}
         whileTap={{ scale: 0.94 }}
         transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-        layout={false}
         style={{
           position: 'relative',
           display: 'inline-flex',
@@ -60,22 +59,27 @@ const Chip = memo(function Chip({
           color: active ? '#FFFFFF' : T.ink,
           whiteSpace: 'nowrap',
           minHeight: 36,
-          backdropFilter: active ? 'none' : 'blur(8px) saturate(130%)',
-          WebkitBackdropFilter: active ? 'none' : 'blur(8px) saturate(130%)',
+          backdropFilter: 'blur(8px) saturate(130%)',
+          WebkitBackdropFilter: 'blur(8px) saturate(130%)',
+          transition:
+            'background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease',
         }}
       >
         <AnimatePresence initial={false}>
           {active && (
             <motion.span
               key="dot"
-              initial={{ scale: 0, opacity: 0, width: 0 }}
-              animate={{ scale: 1, opacity: 1, width: 14 }}
-              exit={{ scale: 0, opacity: 0, width: 0 }}
-              transition={{ duration: 0.18 }}
+              initial={{ scale: 0.4, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.4, opacity: 0 }}
+              transition={{ duration: 0.14 }}
               style={{
                 display: 'inline-flex',
-                overflow: 'hidden',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 14,
                 height: 14,
+                flexShrink: 0,
               }}
             >
               <Check size={12} color="#FFFFFF" strokeWidth={3} />

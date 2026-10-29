@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ScanLine } from 'lucide-react';
 import { T } from '../data';
-import { LocalizedContent } from '../i18n/LanguageContext';
+import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
 interface PhotoThumbProps {
   /** Data URL or image URL of the captured photo. */
@@ -14,6 +14,8 @@ interface PhotoThumbProps {
  * Shows the real image when a src is provided, otherwise a placeholder.
  */
 export default function PhotoThumb({ src }: PhotoThumbProps) {
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   const [pulsing, setPulsing] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -67,7 +69,7 @@ export default function PhotoThumb({ src }: PhotoThumbProps) {
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-        aria-label="View captured photo"
+        aria-label={isBn ? 'তোলা ছবিটি দেখুন' : 'View captured photo'}
         style={{
           position: 'relative',
           width: 44,

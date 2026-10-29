@@ -9,6 +9,7 @@ import type { DetectedItem, MacroTargets, NutrientContribution, NutritionFacts, 
 import Bar from '../Bar';
 import useCountUp from '../useCountUp';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
+import { toBengaliDigits } from '../../lib/format';
 
 interface MacroDonutProps {
   value: number;
@@ -113,9 +114,9 @@ function MacroDonut({ value, target, color, label, size = 88, stroke = 8, delay 
               transition: 'color 200ms ease',
             }}
           >
-            {value}
+            {isBn ? toBengaliDigits(value) : value}
             <span style={{ fontSize: 10, fontWeight: 500, color: T.inkSoft }}>
-              {isBn ? 'গ্রাম' : 'g'}
+              {isBn ? ' গ্রাম' : 'g'}
             </span>
           </div>
           <div
@@ -128,7 +129,7 @@ function MacroDonut({ value, target, color, label, size = 88, stroke = 8, delay 
               marginTop: 2,
             }}
           >
-            {pct}%
+            {isBn ? toBengaliDigits(pct) : pct}%
           </div>
         </div>
       </div>
@@ -247,7 +248,9 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
             >
               <span>{isBn ? (f.nutrient === 'sodium' ? 'সোডিয়াম' : f.nutrient === 'sugar' ? 'চিনি' : 'আঁশ') : f.nutrient}</span>
               <span style={{ color: T.ink }}>
-                {f.contributions.reduce((s, c) => s + c.amount, 0).toFixed(0)}
+                {isBn
+                  ? toBengaliDigits(f.contributions.reduce((s, c) => s + c.amount, 0).toFixed(0))
+                  : f.contributions.reduce((s, c) => s + c.amount, 0).toFixed(0)}
                 {isBn ? (f.nutrient === 'sodium' ? ' মিগ্রা মোট' : ' গ্রাম মোট') : ` ${unitForNutrient(f.nutrient)} total`}
               </span>
             </div>
@@ -305,7 +308,7 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
                       color: T.inkSoft,
                     }}
                   >
-                    {Math.round(c.share * 100)}%
+                    {isBn ? toBengaliDigits(Math.round(c.share * 100)) : Math.round(c.share * 100)}%
                   </span>
                 </div>
               ))}
@@ -425,17 +428,18 @@ export function localizedItemReason(
   const amount = verdict.nutrient === 'sodium'
     ? Math.round(verdict.amount)
     : Math.round(verdict.amount * 10) / 10;
+  const amountBn = toBengaliDigits(amount);
 
   if (verdict.tone === 'warn') {
     switch (verdict.nutrient) {
       case 'sodium':
-        return `${name} থেকে ${amount} মিলিগ্রাম সোডিয়াম পাওয়া যায়—এটি আপনার দৈনিক সীমার ${Math.round((verdict.amount / targets.sodium) * 100)}%।`;
+        return `${name} থেকে ${amountBn} মিলিগ্রাম সোডিয়াম পাওয়া যায়—এটি আপনার দৈনিক সীমার ${toBengaliDigits(Math.round((verdict.amount / targets.sodium) * 100))}%।`;
       case 'sugar':
-        return `${name}-এ ${amount} গ্রাম চিনি রয়েছে—প্রিডায়াবেটিস-বান্ধব খাবারের জন্য এটি উল্লেখযোগ্য পরিমাণ।`;
+        return `${name}-এ ${amountBn} গ্রাম চিনি রয়েছে—প্রিডায়াবেটিস-বান্ধব খাবারের জন্য এটি উল্লেখযোগ্য পরিমাণ।`;
       case 'fiber':
-        return `${name} ${amount} গ্রাম আঁশের ভালো উৎস—এটি পুরো খাবারকে লক্ষ্যের কাছাকাছি আনে।`;
+        return `${name} ${amountBn} গ্রাম আঁশের ভালো উৎস—এটি পুরো খাবারকে লক্ষ্যের কাছাকাছি আনে।`;
       case 'protein':
-        return `${name}-এ ${amount} গ্রাম প্রোটিন রয়েছে—একটি খাবারের জন্য ভালো পরিমাণ।`;
+        return `${name}-এ ${amountBn} গ্রাম প্রোটিন রয়েছে—একটি খাবারের জন্য ভালো পরিমাণ।`;
       default:
         return `${name} এই খাবারে উল্লেখযোগ্য পরিমাণ ${verdict.nutrient} যোগ করে।`;
     }
@@ -443,11 +447,11 @@ export function localizedItemReason(
 
   switch (verdict.nutrient) {
     case 'sugar':
-      return `${name} থেকে মাত্র প্রায় ${amount} গ্রাম চিনি পাওয়া যায়—আপনার প্রিডায়াবেটিস-বান্ধব লক্ষ্যের মধ্যে রয়েছে।`;
+      return `${name} থেকে মাত্র প্রায় ${amountBn} গ্রাম চিনি পাওয়া যায়—আপনার প্রিডায়াবেটিস-বান্ধব লক্ষ্যের মধ্যে রয়েছে।`;
     case 'fiber':
-      return `${name} থেকে মাত্র প্রায় ${amount} গ্রাম আঁশ পাওয়া যায়—পুরো খাবারটি দৈনিক ${targets.fiber} গ্রামের লক্ষ্য পূরণ করে না। পরেরবার পূর্ণশস্য বা ডাল যোগ করুন।`;
+      return `${name} থেকে মাত্র প্রায় ${amountBn} গ্রাম আঁশ পাওয়া যায়—পুরো খাবারটি দৈনিক ${toBengaliDigits(targets.fiber)} গ্রামের লক্ষ্য পূরণ করে না। পরেরবার পূর্ণশস্য বা ডাল যোগ করুন।`;
     case 'protein':
-      return `${name}-এ প্রোটিন কম (প্রায় ${amount} গ্রাম)—সঙ্গে ডাল বা পনির যোগ করতে পারেন।`;
+      return `${name}-এ প্রোটিন কম (প্রায় ${amountBn} গ্রাম)—সঙ্গে ডাল বা পনির যোগ করতে পারেন।`;
     default:
       return `${name} থেকে অল্প পরিমাণ ${verdict.nutrient} পাওয়া যায়।`;
   }
@@ -958,21 +962,21 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
           label={language === 'bn' ? 'আঁশ' : 'Fiber'}
           pct={Math.min(100, Math.round((totals.fiber / targets.fiber) * 100))}
           color={T.primary}
-          sub={language === 'bn' ? `${Math.round(fiber)} গ্রাম / লক্ষ্য ${targets.fiber} গ্রাম` : `${Math.round(fiber)}g / target ${targets.fiber}g`}
+          sub={language === 'bn' ? `${toBengaliDigits(Math.round(fiber))} গ্রাম / লক্ষ্য ${toBengaliDigits(targets.fiber)} গ্রাম` : `${Math.round(fiber)}g / target ${targets.fiber}g`}
           delay={0.4}
         />
         <Bar
           label={language === 'bn' ? 'সোডিয়াম' : 'Sodium'}
           pct={Math.min(100, Math.round((totals.sodium / targets.sodium) * 100))}
           color={T.accentAmber}
-          sub={language === 'bn' ? `${Math.round(sodium)} মিগ্রা / ${targets.sodium} মিগ্রা` : `${Math.round(sodium)}mg / ${targets.sodium}mg`}
+          sub={language === 'bn' ? `${toBengaliDigits(Math.round(sodium))} মিগ্রা / ${toBengaliDigits(targets.sodium)} মিগ্রা` : `${Math.round(sodium)}mg / ${targets.sodium}mg`}
           delay={0.47}
         />
         <Bar
           label={language === 'bn' ? 'চিনি' : 'Sugar'}
           pct={Math.min(100, Math.round((totals.sugar / targets.sugar) * 100))}
           color={T.accentWarn}
-          sub={language === 'bn' ? `${Math.round(sugar)} গ্রাম / ${targets.sugar} গ্রাম` : `${Math.round(sugar)}g / ${targets.sugar}g`}
+          sub={language === 'bn' ? `${toBengaliDigits(Math.round(sugar))} গ্রাম / ${toBengaliDigits(targets.sugar)} গ্রাম` : `${Math.round(sugar)}g / ${targets.sugar}g`}
           delay={0.54}
         />
       </motion.div>
@@ -1031,9 +1035,9 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
               {language === 'bn' ? (
                 <>
                   <b style={{ color: T.accentWarn }}>সতর্কতার কারণ:</b> কার্বোহাইড্রেটের পরিমাণ{' '}
-                  <b>{Math.round(totals.carbs)} গ্রাম</b>, যেখানে লক্ষ্য {targets.carbs} গ্রাম;
+                  <b>{toBengaliDigits(Math.round(totals.carbs))} গ্রাম</b>, যেখানে লক্ষ্য {toBengaliDigits(targets.carbs)} গ্রাম;
                   গ্লাইসেমিক লোড প্রিডায়াবেটিসের সর্বোচ্চ সীমার{' '}
-                  <b>{Math.round(totals.glycemic * 100)}%</b>। দ্রুত হজম হওয়া এই সমন্বয়টি এড়াতে
+                  <b>{toBengaliDigits(Math.round(totals.glycemic * 100))}%</b>। দ্রুত হজম হওয়া এই সমন্বয়টি এড়াতে
                   ভাতের অর্ধেকের বদলে অতিরিক্ত রায়তা নিলে প্রোটিন অক্ষুণ্ণ রেখেই দুই মান লক্ষ্যের
                   মধ্যে আনা যাবে।
                 </>

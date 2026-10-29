@@ -64,7 +64,7 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
       <motion.div
         className="glass-card"
         role="tablist"
-        aria-label="App navigation"
+        aria-label={isBn ? 'অ্যাপ নেভিগেশন' : 'App navigation'}
         onKeyDown={onKeyDown}
         whileHover={{ y: -1 }}
         transition={{ type: 'spring', stiffness: 320, damping: 22 }}

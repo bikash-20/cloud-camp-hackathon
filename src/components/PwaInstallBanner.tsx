@@ -116,7 +116,7 @@ export default function PwaInstallBanner() {
           exit={{ y: -120, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 28 }}
           role="alert"
-          aria-label="Install NutriVision AI app"
+          aria-label={isBn ? 'নিউট্রিভিশন এআই অ্যাপ ইনস্টল করুন' : 'Install NutriVision AI app'}
           style={{
             position: 'fixed',
             top: 0,
@@ -237,7 +237,7 @@ export default function PwaInstallBanner() {
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.92 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                aria-label="Dismiss install banner"
+                aria-label={isBn ? 'ইনস্টল ব্যানার বন্ধ করুন' : 'Dismiss install banner'}
                 style={{
                   width: 28,
                   height: 28,

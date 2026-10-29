@@ -3,7 +3,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Camera, Sparkles, ScanLine, RotateCcw, X, Upload, UtensilsCrossed, History, ShoppingBag, ChevronRight } from 'lucide-react';
 import { T, USER_NAME, getGreeting, NUTRITION_DB } from '../../data';
 import { getTodaySummary, getMealHistory, getMacroTargets } from '../../lib/api';
-import { formatRelative, pickThumbnailStyle } from '../../lib/format';
+import { formatRelative, pickThumbnailStyle, toBengaliDigits } from '../../lib/format';
 import { MiniBar, MacroMeter } from '../../components/Meter';
 import { MOCK_TABS } from '../../mocks/fixtures';
 import type { MealEntry, TodaySummary } from '../../types/schemas';
@@ -445,7 +445,7 @@ export default function CaptureScreen({
               whileHover={!reduceMotion ? { scale: 1.005 } : {}}
               whileTap={!reduceMotion ? { scale: 0.98 } : {}}
               transition={{ type: 'spring', stiffness: 380, damping: 26 }}
-              aria-label="Open camera"
+              aria-label={isBn ? 'ক্যামেরা চালু করুন' : 'Open camera'}
               style={{
                 all: 'unset',
                 display: 'block',
@@ -548,7 +548,7 @@ export default function CaptureScreen({
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.88 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-              aria-label="Take photo"
+              aria-label={isBn ? 'ছবি তুলুন' : 'Take photo'}
               style={{
                 position: 'absolute',
                 bottom: 20,
@@ -590,7 +590,7 @@ export default function CaptureScreen({
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.92 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-              aria-label="Close camera"
+              aria-label={isBn ? 'ক্যামেরা বন্ধ করুন' : 'Close camera'}
               style={{
                 position: 'absolute',
                 top: 14,
@@ -621,7 +621,7 @@ export default function CaptureScreen({
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.92 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-              aria-label="Upload from gallery"
+              aria-label={isBn ? 'গ্যালারি থেকে আপলোড করুন' : 'Upload from gallery'}
               style={{
                 position: 'absolute',
                 top: 14,
@@ -781,7 +781,7 @@ export default function CaptureScreen({
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.92 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-              aria-label="Retake photo"
+              aria-label={isBn ? 'আবার ছবি তুলুন' : 'Retake photo'}
               style={{
                 position: 'absolute',
                 top: 16,
@@ -1071,14 +1071,14 @@ export default function CaptureScreen({
               {/* Top row: meals + kcal + progress bar */}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
                 <span className="tnum" style={{ fontFamily: 'Inter', fontSize: 22, fontWeight: 700, color: T.ink }}>
-                  {Math.round(todaySummary.totalKcal)}
+                  {isBn ? toBengaliDigits(Math.round(todaySummary.totalKcal)) : Math.round(todaySummary.totalKcal)}
                 </span>
                 <span style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: T.inkSoft }}>
-                  / {todaySummary.dailyKcalTarget} {isBn ? 'কিলোক্যালরি' : 'kcal'}
+                  / {isBn ? toBengaliDigits(todaySummary.dailyKcalTarget) : todaySummary.dailyKcalTarget} {isBn ? 'কিলোক্যালরি' : 'kcal'}
                 </span>
                 <span style={{ flex: 1 }} />
                 <span style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
-                  {todaySummary.mealsLogged} {isBn ? 'বেলা খাবার' : todaySummary.mealsLogged !== 1 ? 'meals' : 'meal'}
+                  {isBn ? toBengaliDigits(todaySummary.mealsLogged) : todaySummary.mealsLogged} {isBn ? 'বেলা খাবার' : todaySummary.mealsLogged !== 1 ? 'meals' : 'meal'}
                 </span>
               </div>
 
@@ -1091,7 +1091,7 @@ export default function CaptureScreen({
                       : `linear-gradient(90deg, ${T.primary}, ${T.accentGood})`
                   }
                   height={6}
-                  ariaLabel="Today's kcal progress"
+                  ariaLabel={isBn ? 'আজকের ক্যালরি অগ্রগতি' : "Today's kcal progress"}
                   ariaValueNow={Math.round(todaySummary.totalKcal)}
                   ariaValueMax={todaySummary.dailyKcalTarget}
                 />
@@ -1203,11 +1203,11 @@ export default function CaptureScreen({
                       {meal.items.map((item) => foodName(item.name, item.name_bn)).join(', ') || meal.label}
                     </div>
                     <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft, marginTop: 2 }}>
-                      {formatRelative(meal.date)} · {meal.items.length} {isBn ? 'টি খাবার' : meal.items.length === 1 ? 'item' : 'items'}
+                      {formatRelative(meal.date, new Date(), isBn ? 'bn' : 'en')} · {isBn ? toBengaliDigits(meal.items.length) : meal.items.length} {isBn ? 'টি খাবার' : meal.items.length === 1 ? 'item' : 'items'}
                     </div>
                   </div>
                   <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 700, color: T.accentAmber, flexShrink: 0, marginLeft: 8 }}>
-                    {Math.round(meal.totals.kcal)}
+                    {isBn ? toBengaliDigits(Math.round(meal.totals.kcal)) : Math.round(meal.totals.kcal)}
                     <span style={{ fontSize: 10, fontWeight: 500, color: T.inkSoft }}> {isBn ? 'কিলোক্যালরি' : 'kcal'}</span>
                   </div>
                 </motion.div>

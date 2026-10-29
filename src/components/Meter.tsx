@@ -1,5 +1,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { T } from '../data';
+import { useLanguage } from '../i18n/LanguageContext';
+import { toBengaliDigits } from '../lib/format';
 
 interface MiniBarProps {
   /** 0..1, clamped at render time. */
@@ -106,11 +108,15 @@ export function MacroMeter({
   height = 4,
   delay = 0,
 }: MacroMeterProps) {
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   const ratio = current / Math.max(1, target);
   const over = ratio > 1;
   const fill = over
     ? `linear-gradient(90deg, ${T.accentWarn}, ${T.accentAmber})`
     : color;
+  const displayUnit = isBn ? (unit === 'g' ? ' গ্রাম' : ' মিগ্রা') : unit;
+  const displayVal = isBn ? toBengaliDigits(Math.round(current)) : Math.round(current);
   return (
     <div>
       <div
@@ -126,8 +132,7 @@ export function MacroMeter({
           className="tnum"
           style={{ ...METER_VALUE_STYLE, color: over ? T.accentWarn : T.inkSoft }}
         >
-          {Math.round(current)}
-          {unit}
+          {displayVal}{displayUnit}
         </span>
       </div>
       <MiniBar
@@ -135,7 +140,7 @@ export function MacroMeter({
         fill={fill}
         height={height}
         delay={delay}
-        ariaLabel={`${label} progress`}
+        ariaLabel={isBn ? `${label} অগ্রগতি` : `${label} progress`}
       />
     </div>
   );

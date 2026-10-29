@@ -81,6 +81,7 @@ function dayLabel(key: string, language: string): string {
 export default function AdminOverview({ session }: AdminOverviewProps) {
   const reduceMotion = useReducedMotion();
   const { language } = useLanguage();
+  const isBn = language === 'bn';
   const [realMeals, setRealMeals] = useState<MealEntry[] | null>(null);
 
   useEffect(() => {
@@ -213,7 +214,7 @@ export default function AdminOverview({ session }: AdminOverviewProps) {
           gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
           gap: 12,
         }}
-        aria-label="Key performance indicators"
+        aria-label={isBn ? 'মূল কর্মক্ষমতা সূচক' : 'Key performance indicators'}
       >
         <KpiCard
           label="Total users"
@@ -254,7 +255,7 @@ export default function AdminOverview({ session }: AdminOverviewProps) {
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
         }}
-        aria-label="7-day meal volume"
+        aria-label={isBn ? '৭ দিনের খাবারের পরিমাণ' : '7-day meal volume'}
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
           <div>
@@ -303,7 +304,7 @@ export default function AdminOverview({ session }: AdminOverviewProps) {
           gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
           gap: 12,
         }}
-        aria-label="Flagged detection summary"
+        aria-label={isBn ? 'চিহ্নিত শনাক্তকরণের সারসংক্ষেপ' : 'Flagged detection summary'}
       >
         <KpiCard
           label="Flagged items"

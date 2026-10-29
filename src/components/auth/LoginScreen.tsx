@@ -44,7 +44,7 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
     const session = await login(email, password);
     setSubmitting(false);
     if (!session) {
-      setError('Email or password not recognized');
+      setError(isBn ? 'ইমেইল অথবা পাসওয়ার্ড সঠিক নয়' : 'Email or password not recognized');
       setShake((n) => n + 1);
       emailRef.current?.focus();
       return;
@@ -111,7 +111,7 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
               letterSpacing: '-0.02em',
             }}
           >
-            NutriVision AI
+            {isBn ? 'নিউট্রিভিশন এআই' : 'NutriVision AI'}
           </h1>
           <p
             style={{
@@ -163,7 +163,7 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
                 if (error) setError(null);
               }}
               placeholder="you@nutrivision.ai"
-              aria-label="Email address"
+              aria-label={isBn ? 'ইমেইল ঠিকানা' : 'Email address'}
               aria-invalid={!!error}
               required
               style={{
@@ -187,7 +187,7 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
               <button
                 type="button"
                 onClick={() => setShowPassword((s) => !s)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? (isBn ? 'পাসওয়ার্ড লুকান' : 'Hide password') : (isBn ? 'পাসওয়ার্ড দেখুন' : 'Show password')}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -214,7 +214,7 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
                 if (error) setError(null);
               }}
               placeholder="••••••••"
-              aria-label="Password"
+              aria-label={isBn ? 'পাসওয়ার্ড' : 'Password'}
               aria-invalid={!!error}
               required
               style={{
@@ -259,7 +259,7 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
             whileHover={!submitting && !reduceMotion ? { y: -1 } : {}}
             whileTap={!submitting && !reduceMotion ? { scale: 0.98 } : {}}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            aria-label="Sign in"
+            aria-label={isBn ? 'সাইন ইন করুন' : 'Sign in'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',

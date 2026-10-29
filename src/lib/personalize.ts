@@ -17,6 +17,7 @@ import type {
   UserProfile,
 } from '../types/schemas';
 import { MOCK_TARGETS, MOCK_NUTRITION_DB } from '../mocks/fixtures';
+import { toBengaliDigits } from './format';
 
 export interface BiometricsBreakdown {
   bmr: number;
@@ -96,14 +97,17 @@ export function calculateBiometricsBreakdown(
 
   let explanation = '';
   if (lang === 'bn') {
-    explanation = `বিএমআর ${bmr} কিলোক্যালরি (মিফলিন-সেন্ট জিওর) × ${mult} (${actText}) = মোট দৈনিক ব্যয় (টিডিইই) ${tdee} কিলোক্যালরি।`;
+    const bmrBn = toBengaliDigits(bmr);
+    const multBn = toBengaliDigits(mult);
+    const tdeeBn = toBengaliDigits(tdee);
+    explanation = `বিএমআর ${bmrBn} কিলোক্যালরি (মিফলিন-সেন্ট জিওর) × ${multBn} (${actText}) = মোট দৈনিক ব্যয় (টিডিইই) ${tdeeBn} কিলোক্যালরি।`;
     if (goal === 'lose') {
-      explanation += ` নিরাপদ চর্বি কমানোর ঘাটতি: ${Math.abs(delta)} কিলোক্যালরি/দিন।`;
+      explanation += ` নিরাপদ চর্বি কমানোর ঘাটতি: ${toBengaliDigits(Math.abs(delta))} কিলোক্যালরি/দিন।`;
     } else if (goal === 'gain') {
-      explanation += ` ক্যালরি বৃদ্ধির উদ্বৃত্ত: +${delta} কিলোক্যালরি/দিন।`;
+      explanation += ` ক্যালরি বৃদ্ধির উদ্বৃত্ত: +${toBengaliDigits(delta)} কিলোক্যালরি/দিন।`;
     }
     if (isFloored) {
-      explanation += ` স্বাস্থ্য সুরক্ষা সীমা: দৈনিক সর্বনিম্ন ${floor} কিলোক্যালরি প্রয়োগ করা হয়েছে।`;
+      explanation += ` স্বাস্থ্য সুরক্ষা সীমা: দৈনিক সর্বনিম্ন ${toBengaliDigits(floor)} কিলোক্যালরি প্রয়োগ করা হয়েছে।`;
     }
   } else {
     explanation = `BMR ${bmr} kcal (Mifflin-St Jeor) × ${mult} (${activity}) = TDEE ${tdee} kcal.`;

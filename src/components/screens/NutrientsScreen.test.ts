@@ -17,7 +17,7 @@ describe('localizedItemReason', () => {
         'bn',
         translateBengali,
       ),
-    ).toBe('ভাত থেকে 600 মিলিগ্রাম সোডিয়াম পাওয়া যায়—এটি আপনার দৈনিক সীমার 50%।');
+    ).toBe('ভাত থেকে ৬০০ মিলিগ্রাম সোডিয়াম পাওয়া যায়—এটি আপনার দৈনিক সীমার ৫০%।');
   });
 
   it('preserves the API-provided English explanation in English mode', () => {

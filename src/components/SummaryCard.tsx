@@ -4,6 +4,7 @@ import { ChevronDown, Flame } from 'lucide-react';
 import { T } from '../data';
 import useCountUp from './useCountUp';
 import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
+import { toBengaliDigits } from '../lib/format';
 
 interface Totals {
   kcal: number;
@@ -63,14 +64,14 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
               whiteSpace: 'nowrap',
             }}
           >
-            🍽️ {itemCount} {isBn ? 'টি খাবার' : itemCount === 1 ? 'item' : 'items'}
+            🍽️ {isBn ? toBengaliDigits(itemCount) : itemCount} {isBn ? 'টি খাবার' : itemCount === 1 ? 'item' : 'items'}
           </div>
           <span style={{ color: T.inkMuted, fontSize: 12 }}>·</span>
           <span
             className="kcal-chip"
             style={{ fontSize: 12, padding: '3px 8px' }}
           >
-            <Flame size={11} /> {Math.round(kcal)} {isBn ? 'কিলোক্যালরি' : 'kcal'}
+            <Flame size={11} /> {isBn ? toBengaliDigits(Math.round(kcal)) : Math.round(kcal)} {isBn ? 'কিলোক্যালরি' : 'kcal'}
           </span>
         </div>
         <motion.button
@@ -163,7 +164,7 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
                       textAlign: 'right',
                     }}
                   >
-                    {m.value} {isBn ? 'গ্রাম' : 'g'}
+                    {isBn ? toBengaliDigits(m.value) : m.value} {isBn ? 'গ্রাম' : 'g'}
                   </div>
                 </div>
               ))}

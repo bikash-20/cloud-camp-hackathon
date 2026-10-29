@@ -194,7 +194,7 @@ export default function AddCustomModal({
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                aria-label="Close"
+                aria-label={isBn ? 'বন্ধ করুন' : 'Close'}
                 style={{
                   width: 28,
                   height: 28,

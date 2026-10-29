@@ -15,6 +15,7 @@ import {
 import ConfidenceRing from '../ConfidenceRing';
 import SectionLabel from '../SectionLabel';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
+import { toBengaliDigits } from '../../lib/format';
 
 const container = {
   hidden: {},
@@ -225,7 +226,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
         }}
       >
         <span className="tnum" style={{ fontWeight: 600 }}>
-          ৳{totalSpent}
+          ৳{isBn ? toBengaliDigits(totalSpent) : totalSpent}
         </span>{' '}
         {isBn ? 'খরচ · ' : 'spent · '}
         <span
@@ -235,14 +236,14 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
             color: overBudget ? T.accentWarn : T.ink,
           }}
         >
-          ৳{remaining}
+          ৳{isBn ? toBengaliDigits(remaining) : remaining}
         </span>{' '}
         {isBn ? 'বাকি আছে মোট ' : 'left of '}
         <span className="tnum" style={{ fontWeight: 600 }}>
-          ৳{weeklyCap}
+          ৳{isBn ? toBengaliDigits(weeklyCap) : weeklyCap}
         </span>{' '}
         <span style={{ color: T.inkMuted }}>
-          {isBn ? `(৳${budget}/দিন × ৭ দিন)` : `(৳${budget}/day × 7 days)`}
+          {isBn ? `(৳${toBengaliDigits(budget)}/দিন × ৭ দিন)` : `(৳${budget}/day × 7 days)`}
         </span>
       </motion.p>
 
@@ -320,7 +321,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                 });
               });
               if (ingredients.size === 0) {
-                triggerToast('No pairings found in meal history');
+                triggerToast(isBn ? 'খাবারের ইতিহাসে কোনো উপাদান পাওয়া যায়নি' : 'No pairings found in meal history');
                 return;
               }
               let added = 0;
@@ -338,15 +339,15 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
               if (added > 0) {
                 const fresh = await getGroceryList(profile);
                 setGroups(fresh.groups.map((g) => ({ cat: g.category, items: g.items })));
-                triggerToast(`Added ${added} item${added !== 1 ? 's' : ''} from meals`);
+                triggerToast(isBn ? `খাবার থেকে ${toBengaliDigits(added)}টি উপাদান যোগ করা হয়েছে` : `Added ${added} item${added !== 1 ? 's' : ''} from meals`);
               } else {
-                triggerToast('All suggested items already in list');
+                triggerToast(isBn ? 'প্রস্তাবিত সব উপাদান ইতিমধ্যেই তালিকায় রয়েছে' : 'All suggested items already in list');
               }
             }}
             whileHover={{ y: -1 }}
             whileTap={{ scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            aria-label="Generate grocery items from recent meal pairings"
+            aria-label={isBn ? 'সাম্প্রতিক খাবারের তালিকা থেকে বাজারের উপাদান তৈরি করুন' : 'Generate grocery items from recent meal pairings'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -729,7 +730,7 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
   return (
     <motion.div
       role="form"
-      aria-label="Add custom grocery item"
+      aria-label={isBn ? 'নিজে উপাদান যোগ করুন' : 'Add custom grocery item'}
       initial={{ opacity: 0, y: 6, scale: 0.98 }}
       animate={
         error
@@ -784,7 +785,7 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
           if (e.key === 'Enter') submit();
           if (e.key === 'Escape') onCancel();
         }}
-        aria-label="Price in taka"
+        aria-label={isBn ? 'টাকায় মূল্য' : 'Price in taka'}
         className="tnum"
         style={{
           width: 56,
@@ -806,7 +807,7 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.9 }}
         transition={{ type: 'spring', stiffness: 400, damping: 18 }}
-        aria-label="Add item"
+        aria-label={isBn ? 'উপাদান যোগ করুন' : 'Add item'}
         style={{
           width: 30,
           height: 30,
@@ -830,7 +831,7 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
         whileHover={{ scale: 1.1, rotate: 90 }}
         whileTap={{ scale: 0.9 }}
         transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-        aria-label="Cancel"
+        aria-label={isBn ? 'বাতিল' : 'Cancel'}
         style={{
           width: 28,
           height: 28,

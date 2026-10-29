@@ -207,7 +207,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
           fontSize: 12,
         }}
       >
-        Loading profile…
+        {useLanguage().language === 'bn' ? 'প্রোফাইল লোড হচ্ছে…' : 'Loading profile…'}
       </div>
     );
   }

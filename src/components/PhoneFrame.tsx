@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { T } from '../data';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface PhoneFrameProps {
   children: React.ReactNode;
@@ -15,6 +16,8 @@ interface PhoneFrameProps {
  * - Desktop (≥768px): centered phone mockup with bezel + 3D tilt entrance
  */
 export default function PhoneFrame({ children, headerRight, footer }: PhoneFrameProps) {
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -82,7 +85,7 @@ export default function PhoneFrame({ children, headerRight, footer }: PhoneFrame
                 color: T.earth6,
               }}
             >
-              NutriVision
+              {isBn ? 'নিউট্রিভিশন' : 'NutriVision'}
             </span>
           </div>
           {headerRight}
@@ -127,7 +130,7 @@ export default function PhoneFrame({ children, headerRight, footer }: PhoneFrame
             width={28}
             height={28}
           />
-          <span>NutriVision</span>
+          <span>{isBn ? 'নিউট্রিভিশন' : 'NutriVision'}</span>
         </div>
         {headerRight}
       </header>

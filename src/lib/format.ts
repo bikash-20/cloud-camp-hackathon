@@ -7,6 +7,16 @@
  * Node (see `format.test.ts`).
  */
 
+const BN_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+
+/**
+ * Converts ASCII digits (0-9) to Bengali digits (০-৯).
+ */
+export function toBengaliDigits(val: number | string | null | undefined): string {
+  if (val === null || val === undefined) return '';
+  return String(val).replace(/[0-9]/g, (d) => BN_DIGITS[Number(d)]);
+}
+
 /** Format an ISO timestamp as a short relative string for the recent-meals
  *  list. We deliberately drop absolute time for the most-recent entries and
  *  fall back to "Yesterday" / weekday for older ones — phone-first UX, not a
@@ -18,25 +28,31 @@
  *    −1 day    → "Yesterday"
  *    < 7 d     → weekday short
  *    else      → "Mon DD"
- *
- *  The "Nh ago" branch only fires when `then` and `now` land on the same
- *  calendar day — otherwise a meal logged at 23:00 yesterday and viewed at
- *  13:00 today (diffH = 14, dayDiff = 1) would incorrectly say "14h ago"
- *  instead of "Yesterday".
  */
-export function formatRelative(iso: string, now: Date = new Date()): string {
+export function formatRelative(iso: string, now: Date = new Date(), lang: 'en' | 'bn' = 'en'): string {
   const then = new Date(iso);
   const diffMs = now.getTime() - then.getTime();
   const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
+  const isBn = lang === 'bn';
+  if (diffMin < 1) return isBn ? 'এইমাত্র' : 'just now';
+  if (diffMin < 60) return isBn ? `${toBengaliDigits(diffMin)} মিনিট আগে` : `${diffMin}m ago`;
   if (then.toDateString() === now.toDateString()) {
     const diffH = Math.floor(diffMin / 60);
-    return `${diffH}h ago`;
+    return isBn ? `${toBengaliDigits(diffH)} ঘণ্টা আগে` : `${diffH}h ago`;
   }
   const dayDiff = Math.floor(diffMs / (24 * 60 * 60 * 1000));
-  if (dayDiff === 1) return 'Yesterday';
-  if (dayDiff < 7) return then.toLocaleDateString([], { weekday: 'short' });
+  if (dayDiff === 1) return isBn ? 'গতকাল' : 'Yesterday';
+  if (dayDiff < 7) {
+    if (isBn) {
+      const days = ['রবি', 'সোম', 'মঙ্গল', 'বুধ', 'বৃহঃ', 'শুক্র', 'শনি'];
+      return days[then.getDay()];
+    }
+    return then.toLocaleDateString([], { weekday: 'short' });
+  }
+  if (isBn) {
+    const months = ['জানু', 'ফেব্রু', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টে', 'অক্টো', 'নভে', 'ডিসে'];
+    return `${toBengaliDigits(then.getDate())} ${months[then.getMonth()]}`;
+  }
   return then.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
