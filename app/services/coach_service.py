@@ -164,6 +164,7 @@ def _is_greeting(text: str) -> bool:
     clean = re.sub(r"[!.,?।]+", "", clean).strip()
     greetings = {
         "hello", "hi", "hey", "hola", "greetings", "good morning", "good evening", "good afternoon",
+        "how are you", "how are you doing", "how r u", "whats up", "what's up",
         "হ্যালো", "হাই", "হে", "সালাম", "নমস্কার", "আদাব", "কেমন আছেন", "কেমন আছো", "শুভ সকাল", "শুভ সন্ধ্যা", "শুভ রাত্রি",
         "assalamu alaikum", "assalamualaikum", "kemon achen", "kemon acho"
     }

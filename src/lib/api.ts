@@ -442,6 +442,10 @@ export async function sendCoachChat(req: CoachChatRequest): Promise<CoachChatRes
     'greetings',
     'good morning',
     'good evening',
+    'how are you',
+    'how are you doing',
+    'whats up',
+    'what\'s up',
     'হ্যালো',
     'হাই',
     'হে',
@@ -450,6 +454,8 @@ export async function sendCoachChat(req: CoachChatRequest): Promise<CoachChatRes
     'আদাব',
     'কেমন আছেন',
     'কেমন আছো',
+    'kemon achen',
+    'kemon acho',
   ];
   const isGreeting = greetings.some((g) => cleanMsg === g || cleanMsg.startsWith(g + ' '));
 
