@@ -19,6 +19,7 @@ chromadb>=0.5,<0.6
 # free insurance for the cut (b) file-upload path even though cut (a)
 # receives base64-in-JSON.
 python-multipart>=0.0.9,<1.0
+beautifulsoup4>=4.12,<5.0
 
 # Dev
 pytest>=8.0,<10.0

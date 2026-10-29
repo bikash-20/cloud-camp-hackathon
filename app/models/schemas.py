@@ -402,6 +402,7 @@ class CoachChatRequest(BaseModel):
     agent_type: CoachAgentType = "scientist"
     user_profile: UserProfile | None = None
     recent_meals: list[MealEntry] | None = None
+    lang: str | None = "en"
 
 
 class CoachChatResponse(BaseModel):

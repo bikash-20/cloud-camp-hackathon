@@ -42,16 +42,18 @@ describe('sendCoachChat', () => {
     expect(res.reply).toContain('হ্যালো');
   });
 
-  it('handles greeting "hello" warmly and concisely for coach', async () => {
+  it('handles English greeting "hi" with lang: "en" returning pure English reply and prompts', async () => {
     const req: CoachChatRequest = {
-      message: 'hello',
+      message: 'hi',
       history: [],
-      agent_type: 'coach',
+      agent_type: 'scientist',
+      lang: 'en',
     };
     const res = await sendCoachChat(req);
-    expect(res.agent_type).toBe('coach');
-    expect(res.reply.length).toBeLessThan(120);
+    expect(res.agent_type).toBe('scientist');
     expect(res.reply.toLowerCase()).toContain('hello');
+    expect(res.reply).not.toContain('হ্যালো');
+    expect(res.suggested_prompts.some((p) => /[\u0980-\u09FF]/.test(p))).toBe(false);
   });
 });
 

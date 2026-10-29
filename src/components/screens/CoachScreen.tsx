@@ -10,6 +10,7 @@ import {
   Compass,
   CheckCircle,
 } from 'lucide-react';
+import katex from 'katex';
 import { T } from '../../data';
 import { sendCoachChat } from '../../lib/api';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
@@ -24,38 +25,102 @@ interface CoachScreenProps {
 }
 
 /**
- * Lightweight helper to parse markdown tokens (bold **text**, citations [উৎস:...])
- * and render them as styled React elements.
+ * Render LaTeX formula via KaTeX to HTML string.
+ */
+function renderLatexSpan(math: string, displayMode: boolean = false): string {
+  try {
+    return katex.renderToString(math, {
+      displayMode,
+      throwOnError: false,
+      output: 'htmlAndMathml',
+    });
+  } catch {
+    return math;
+  }
+}
+
+/**
+ * Lightweight helper to parse inline tokens:
+ * - Block LaTeX: $$...$$
+ * - Inline LaTeX: $...$
+ * - Bold text: **text**
+ * - Citations: [উৎস:...] or [Source:...]
  */
 function parseFormattedInline(text: string, isUser: boolean) {
-  // Matches **bold** text and [Source: ...] or [উৎস: ...] citations
-  const tokenRegex = /(\*\*.*?\*\*|\[(?:উৎস|Source):[^\]]+\])/g;
+  const tokenRegex = /(\$\$[\s\S]+?\$\$|\$(?!\s)[^$\n]+?(?<!\s)\$|\*\*[\s\S]+?\*\*|\[(?:উৎস|Source):[^\]]+\])/g;
   const parts = text.split(tokenRegex);
 
   return parts.map((part, index) => {
+    if (!part) return null;
+
+    // Display LaTeX ($$...$$)
+    if (part.startsWith('$$') && part.endsWith('$$') && part.length >= 4) {
+      const math = part.slice(2, -2).trim();
+      const html = renderLatexSpan(math, true);
+      return (
+        <span
+          key={index}
+          style={{
+            display: 'block',
+            margin: '8px 0',
+            overflowX: 'auto',
+            textAlign: 'center',
+          }}
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      );
+    }
+
+    // Inline LaTeX ($...$)
+    if (part.startsWith('$') && part.endsWith('$') && part.length >= 3 && !part.startsWith('$$')) {
+      const math = part.slice(1, -1).trim();
+      const html = renderLatexSpan(math, false);
+      return (
+        <span
+          key={index}
+          style={{ display: 'inline-block', padding: '0 2px' }}
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      );
+    }
+
+    // Bold text (**...**)
     if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
       const boldContent = part.slice(2, -2);
       return (
         <strong
           key={index}
-          className={`font-semibold ${isUser ? 'text-white' : 'text-[#241B18]'}`}
+          style={{
+            fontWeight: 600,
+            color: isUser ? '#FFFFFF' : '#241B18',
+          }}
         >
           {boldContent}
         </strong>
       );
     }
+
+    // Clinical citations ([উৎস: ...] or [Source: ...])
     if (part.startsWith('[') && part.endsWith(']')) {
       return (
         <span
           key={index}
-          className={`inline-block text-xs px-2 py-0.5 rounded my-0.5 ${
-            isUser ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary font-medium'
-          }`}
+          style={{
+            display: 'inline-block',
+            fontSize: 'var(--text-xs)',
+            padding: '2px 8px',
+            borderRadius: 6,
+            margin: '2px 0',
+            backgroundColor: isUser ? 'rgba(255,255,255,0.2)' : 'rgba(74, 58, 52, 0.08)',
+            color: isUser ? '#FFFFFF' : '#4A3A34',
+            fontWeight: 500,
+          }}
         >
           {part}
         </span>
       );
     }
+
     return <span key={index}>{part}</span>;
   });
 }
@@ -65,6 +130,7 @@ function parseFormattedInline(text: string, isUser: boolean) {
  * - Paragraphs separated by blank lines
  * - Bullet lists (•, -, *)
  * - Numbered lists (1., 2.)
+ * - KaTeX math ($...$ and $$...$$)
  * - Bold text and clinical citations
  */
 function FormattedMessage({ content, isUser }: { content: string; isUser: boolean }) {
@@ -73,7 +139,7 @@ function FormattedMessage({ content, isUser }: { content: string; isUser: boolea
   const blocks = content.split(/\n\n+/);
 
   return (
-    <div className="space-y-2.5 font-sans">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {blocks.map((block, bIdx) => {
         const rawLines = block.split('\n').filter((l) => l.trim().length > 0);
         const isBulletList =
@@ -82,19 +148,41 @@ function FormattedMessage({ content, isUser }: { content: string; isUser: boolea
 
         if (isBulletList) {
           return (
-            <ul key={bIdx} className="space-y-2 pl-1 my-1 list-none">
+            <ul
+              key={bIdx}
+              style={{
+                listStyle: 'none',
+                margin: '4px 0',
+                paddingLeft: 4,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+              }}
+            >
               {rawLines.map((line, lIdx) => {
                 const cleanLine = line.trim().replace(/^([•\-*]|\d+\.)\s*/, '');
                 return (
-                  <li key={lIdx} className="flex items-start gap-2.5">
+                  <li
+                    key={lIdx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 8,
+                      lineHeight: 1.6,
+                    }}
+                  >
                     <span
-                      className={`inline-block mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                        isUser ? 'bg-white/80' : 'bg-primary'
-                      }`}
+                      style={{
+                        display: 'inline-block',
+                        marginTop: 7,
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        flexShrink: 0,
+                        backgroundColor: isUser ? 'rgba(255,255,255,0.85)' : '#4A3A34',
+                      }}
                     />
-                    <span className="flex-1 leading-relaxed">
-                      {parseFormattedInline(cleanLine, isUser)}
-                    </span>
+                    <span style={{ flex: 1 }}>{parseFormattedInline(cleanLine, isUser)}</span>
                   </li>
                 );
               })}
@@ -103,9 +191,15 @@ function FormattedMessage({ content, isUser }: { content: string; isUser: boolea
         }
 
         return (
-          <p key={bIdx} className="m-0 leading-relaxed">
+          <p key={bIdx} style={{ margin: 0, lineHeight: 1.65 }}>
             {rawLines.map((line, lIdx) => (
-              <span key={lIdx} className={lIdx > 0 ? 'block mt-1' : 'inline'}>
+              <span
+                key={lIdx}
+                style={{
+                  display: lIdx > 0 ? 'block' : 'inline',
+                  marginTop: lIdx > 0 ? 4 : 0,
+                }}
+              >
                 {parseFormattedInline(line, isUser)}
               </span>
             ))}
@@ -131,7 +225,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize or reset welcome message when persona changes
+  // Synchronize persona and welcome message with the active language
   useEffect(() => {
     if (agentType === 'scientist') {
       const welcome: CoachMessage = {
@@ -140,7 +234,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
           ? '🔬 **স্বাগতম! আমি ড. অর্পিতা (Dr. ARPITA - পুষ্টি বিজ্ঞানী)।**\n\n' +
             'আপনার খাদ্যের গ্লাইসেমিক সূচক (GI/GL), রান্নার তেলের প্রভাব, পুষ্টি উপাদান এবং বিপি/ডায়াবেটিসের বৈজ্ঞানিক বিশ্লেষণ জানাতে আমি প্রস্তুত। যেকোনো প্রশ্ন নির্বাচন করুন বা সরাসরি জিজ্ঞাসা করুন!'
           : '🔬 **Welcome! I am Dr. ARPITA (Nutritional Biochemist).**\n\n' +
-            'I provide evidence-based biochemical analysis of your meals, glycemic load, cooking oil absorption, and clinical macronutrient partitioning per BIRDEM/ADA guidelines. Ask any nutrition question!',
+            'I provide evidence-based biochemical analysis of your meals, glycemic load ($GL$), cooking oil absorption, and clinical macronutrient partitioning per BIRDEM/ADA guidelines. Ask any nutrition question!',
       };
       setMessages([welcome]);
       setSuggestedPrompts(
@@ -229,6 +323,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
         messages: nextMessages,
         agent_type: agentType,
         user_profile: profile,
+        lang: language,
       });
 
       const assistantMsg: CoachMessage = {
@@ -260,15 +355,15 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
 
   return (
     <LocalizedContent>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Root Layout Container with guaranteed 130px bottom dock clearance */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 130 }}>
         {/* Header Title & Persona Switcher */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <h2
                 style={{
-                  fontFamily: 'Fraunces, serif',
-                  fontSize: 22,
+                  fontSize: 'var(--text-lg)',
                   fontWeight: 600,
                   color: T.primary,
                   margin: 0,
@@ -277,7 +372,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
               >
                 {isBn ? 'মাল্টি-এজেন্ট AI কোচ' : 'Multi-Agent AI Coach'}
               </h2>
-              <p style={{ margin: '4px 0 0', fontSize: 11, color: T.inkSoft }}>
+              <p style={{ margin: '4px 0 0', fontSize: 'var(--text-xs)', color: T.inkSoft }}>
                 {isBn
                   ? 'বিজ্ঞানসম্মত পুষ্টি বিশ্লেষণ ও সহানুভূতিশীল আচরণ নির্দেশিকা'
                   : 'Grounded biochemical science and empathetic behavioral coaching'}
@@ -285,8 +380,8 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
             </div>
             <div
               style={{
-                width: 36,
-                height: 36,
+                width: 38,
+                height: 38,
                 borderRadius: '50%',
                 background: agentType === 'scientist' ? 'rgba(74, 58, 52, 0.12)' : 'rgba(78, 124, 76, 0.15)',
                 display: 'flex',
@@ -321,8 +416,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                 border: 'none',
                 background: agentType === 'scientist' ? T.primary : 'transparent',
                 color: agentType === 'scientist' ? '#FFFFFF' : T.ink,
-                fontFamily: "'Hind Siliguri', 'Inter', sans-serif",
-                fontSize: 12,
+                fontSize: 'var(--text-sm)',
                 fontWeight: 600,
                 cursor: 'pointer',
                 display: 'flex',
@@ -338,16 +432,15 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
 
             <motion.button
               type="button"
-              onClick={() => setAgentType('behavioral')}
+              onClick={() => setAgentType('coach')}
               whileTap={{ scale: 0.98 }}
               style={{
                 padding: '8px 12px',
                 borderRadius: 12,
                 border: 'none',
-                background: agentType === 'behavioral' ? '#2E6333' : 'transparent',
-                color: agentType === 'behavioral' ? '#FFFFFF' : T.ink,
-                fontFamily: "'Hind Siliguri', 'Inter', sans-serif",
-                fontSize: 12,
+                background: agentType !== 'scientist' ? '#2E6333' : 'transparent',
+                color: agentType !== 'scientist' ? '#FFFFFF' : T.ink,
+                fontSize: 'var(--text-sm)',
                 fontWeight: 600,
                 cursor: 'pointer',
                 display: 'flex',
@@ -373,7 +466,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            fontSize: 10,
+            fontSize: 'var(--text-xs)',
             color: '#A8432A',
             lineHeight: 1.4,
           }}
@@ -411,12 +504,13 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                   flexDirection: 'column',
                   alignItems: isUser ? 'flex-end' : 'flex-start',
                   gap: 4,
+                  width: '100%',
                 }}
               >
                 {/* Sender badge */}
                 <div
                   style={{
-                    fontSize: 11,
+                    fontSize: 'var(--text-xs)',
                     fontWeight: 600,
                     color: T.inkSoft,
                     display: 'flex',
@@ -429,14 +523,14 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                     <span>{profile.name || (isBn ? 'আপনি' : 'You')}</span>
                   ) : agentType === 'scientist' ? (
                     <>
-                      <span className="font-semibold text-earth9">
+                      <span style={{ fontWeight: 600, color: T.primary }}>
                         🔬 {isBn ? 'ড. অর্পিতা (পুষ্টি বিজ্ঞানী)' : 'Dr. ARPITA (Scientist)'}
                       </span>
                       <span style={{ opacity: 0.7 }}>• BIRDEM / ADA</span>
                     </>
                   ) : (
                     <>
-                      <span className="font-semibold text-[#2E6333]">
+                      <span style={{ fontWeight: 600, color: '#2E6333' }}>
                         🧠 {isBn ? 'ফারহানা আহমেদ (আচরণ কোচ)' : 'Habit Coach (Behavioral)'}
                       </span>
                       <span style={{ opacity: 0.7 }}>• CBT & Habits</span>
@@ -444,25 +538,36 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                   )}
                 </div>
 
-                {/* Message Bubble */}
+                {/* Message Bubble — Box-Model Guaranteed */}
                 <div
-                  className={`text-base md:text-lg leading-relaxed px-4 py-3 rounded-2xl ${
-                    isUser ? 'rounded-br-sm' : 'rounded-bl-sm'
-                  }`}
-                  style={{
-                    maxWidth: '88%',
-                    fontFamily: "'Hind Siliguri', 'Inter', -apple-system, sans-serif",
-                    lineHeight: 1.75,
-                    background: isUser
-                      ? T.primary
-                      : 'rgba(255, 255, 255, 0.94)',
-                    color: isUser ? '#FFFFFF' : T.ink,
-                    boxShadow: isUser
-                      ? '0 4px 14px rgba(46, 37, 34, 0.2)'
-                      : '0 2px 12px rgba(0, 0, 0, 0.05)',
-                    border: isUser ? 'none' : `1px solid ${T.cardBorder}`,
-                    wordBreak: 'break-word',
-                  }}
+                  className={isUser ? 'coach-bubble-user' : 'coach-bubble-assistant'}
+                  style={
+                    isUser
+                      ? {
+                          padding: '10px 16px',
+                          borderRadius: '16px 16px 4px 16px',
+                          backgroundColor: '#3D2E27',
+                          color: '#F9F5F0',
+                          fontSize: '0.9375rem',
+                          lineHeight: 1.5,
+                          minWidth: '48px',
+                          display: 'inline-block',
+                          wordBreak: 'break-word',
+                          maxWidth: '88%',
+                        }
+                      : {
+                          maxWidth: '88%',
+                          padding: '16px 20px',
+                          borderRadius: '16px 16px 16px 4px',
+                          backgroundColor: '#FFFFFF',
+                          border: '1px solid rgba(92, 64, 51, 0.12)',
+                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                          fontSize: '0.9375rem',
+                          lineHeight: 1.65,
+                          color: '#2C221E',
+                          wordBreak: 'break-word',
+                        }
+                  }
                 >
                   {m.image_ref && (
                     <div style={{ marginBottom: 10, borderRadius: 10, overflow: 'hidden' }}>
@@ -487,11 +592,11 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '8px 12px',
+                padding: '8px 14px',
                 borderRadius: 14,
-                background: 'rgba(255, 255, 255, 0.7)',
+                background: 'rgba(255, 255, 255, 0.85)',
                 width: 'fit-content',
-                fontSize: 11,
+                fontSize: 'var(--text-xs)',
                 color: T.inkSoft,
               }}
             >
@@ -499,8 +604,8 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
               <span>
                 {agentType === 'scientist'
                   ? isBn
-                    ? 'বায়োকেমিক্যাল ডাটা ও আরএজি বিশ্লেষণ হচ্ছে…'
-                    : 'Analyzing biochemical pathways & RAG data…'
+                    ? 'বায়োকেমিক্যাল ও পুষ্টি তথ্য বিশ্লেষণ হচ্ছে…'
+                    : 'Analyzing biochemical pathways & nutrition data…'
                   : isBn
                   ? 'সহানুভূতিশীল পরামর্শ সাজানো হচ্ছে…'
                   : 'Formulating habit guidance…'}
@@ -514,24 +619,24 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
         {/* Domain Citation Badges */}
         {citations.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 9.5, color: T.inkSoft, fontWeight: 600 }}>
+            <span style={{ fontSize: 'var(--text-xs)', color: T.inkSoft, fontWeight: 600 }}>
               {isBn ? 'স্বীকৃত তথ্যসূত্র:' : 'Official Citations:'}
             </span>
             {citations.map((c, i) => (
               <span
                 key={i}
                 style={{
-                  fontSize: 9.5,
-                  padding: '2px 8px',
+                  fontSize: 'var(--text-xs)',
+                  padding: '3px 8px',
                   borderRadius: 8,
                   background: 'rgba(74, 58, 52, 0.08)',
                   color: T.ink,
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 3,
+                  gap: 4,
                 }}
               >
-                <CheckCircle size={10} color="#2E6333" />
+                <CheckCircle size={11} color="#2E6333" />
                 {c}
               </span>
             ))}
@@ -541,11 +646,20 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
         {/* Contextual Suggested Prompt Chips */}
         {suggestedPrompts.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: T.inkSoft, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div
+              style={{
+                fontSize: 'var(--text-xs)',
+                fontWeight: 600,
+                color: T.inkSoft,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
               <Compass size={12} />
               <span>{isBn ? 'সংশ্লিষ্ট জিজ্ঞাসা (ট্যাপ করে প্রশ্ন করুন):' : 'Suggested Prompts (Tap to ask):'}</span>
             </div>
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
               {suggestedPrompts.map((p, idx) => (
                 <motion.button
                   key={idx}
@@ -559,8 +673,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                     background: 'rgba(255, 255, 255, 0.90)',
                     border: `1px solid ${T.cardBorder}`,
                     color: T.ink,
-                    fontSize: 12.5,
-                    fontFamily: "'Hind Siliguri', 'Inter', sans-serif",
+                    fontSize: 'var(--text-sm)',
                     lineHeight: 1.4,
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
@@ -598,7 +711,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                 alt="Upload preview"
                 style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover' }}
               />
-              <span style={{ fontSize: 10, color: T.ink }}>
+              <span style={{ fontSize: 'var(--text-xs)', color: T.ink }}>
                 {isBn ? 'খাবারের ছবি যুক্ত করা হয়েছে' : 'Dish photo attached'}
               </span>
               <button
@@ -625,7 +738,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
             alignItems: 'center',
             gap: 8,
             background: 'rgba(255, 255, 255, 0.95)',
-            padding: '6px 10px',
+            padding: '6px 12px',
             borderRadius: 24,
             border: `1px solid ${T.cardBorder}`,
             boxShadow: '0 4px 16px rgba(46, 37, 34, 0.08)',
@@ -676,14 +789,12 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                 ? 'দাওয়াত বা অভ্যাস সম্পর্কে জিজ্ঞাসা করুন…'
                 : 'Ask about feasts, cravings, habits…'
             }
-            className="text-base md:text-lg leading-relaxed placeholder:text-[#8E827E]"
             style={{
               flex: 1,
               border: 'none',
               outline: 'none',
               background: 'transparent',
-              fontFamily: "'Hind Siliguri', 'Inter', sans-serif",
-              fontSize: '1rem',
+              fontSize: 'var(--text-base)',
               color: T.ink,
               padding: '6px 8px',
             }}
@@ -699,8 +810,8 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
               background: !input.trim() && !imagePreview ? 'rgba(74, 58, 52, 0.25)' : T.primary,
               border: 'none',
               borderRadius: '50%',
-              width: 34,
-              height: 34,
+              width: 36,
+              height: 36,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -716,4 +827,3 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
     </LocalizedContent>
   );
 }
-

@@ -23,7 +23,10 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from bs4 import BeautifulSoup
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None  # type: ignore[assignment]
 from pydantic import BaseModel, Field
 
 
@@ -188,6 +191,19 @@ class PriceScraper:
     ) -> LivePriceResult | None:
         """Parse price and unit from Chaldal HTML using BeautifulSoup + regex."""
         try:
+            if BeautifulSoup is None:
+                raw_matches = re.findall(r"৳\s*([0-9]+(?:\.[0-9]+)?)", html)
+                if raw_matches:
+                    return LivePriceResult(
+                        item_name_en=item_name_en,
+                        item_name_bn=item_name_bn or None,
+                        price_bdt=float(raw_matches[0]),
+                        unit="1 kg",
+                        is_live_price=True,
+                        source="Chaldal Live (Regex Match)",
+                    )
+                return None
+
             soup = BeautifulSoup(html, "html.parser")
 
             # Look for product panes or price elements

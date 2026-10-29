@@ -97,13 +97,49 @@ def test_coach_chat_hello_greeting_coach(client: TestClient) -> None:
         "message": "hello",
         "history": [],
         "agent_type": "coach",
+        "lang": "en",
     }
     res = client.post("/api/coach/chat", json=payload)
     assert res.status_code == 200
     data = res.json()
     assert data["agent_type"] == "coach"
     assert len(data["reply"]) < 120
-    assert "Hello" in data["reply"] or "হ্যালো" in data["reply"]
+    assert "Hello" in data["reply"]
+    assert "হ্যালো" not in data["reply"]
+
+
+def test_coach_chat_hi_english_mode(client: TestClient) -> None:
+    """Typing 'hi' with lang='en' must return English greeting and English suggested prompts."""
+    payload = {
+        "message": "hi",
+        "history": [],
+        "agent_type": "scientist",
+        "lang": "en",
+    }
+    res = client.post("/api/coach/chat", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["agent_type"] == "scientist"
+    assert "Hello" in data["reply"]
+    assert "হ্যালো" not in data["reply"]
+    # Suggested prompts must not contain Bengali characters
+    for prompt in data["suggested_prompts"]:
+        assert not any('\u0980' <= c <= '\u09FF' for c in prompt)
+
+
+def test_coach_chat_katex_formula_rendering(client: TestClient) -> None:
+    """Scientific explanations must return KaTeX formulas (e.g. GL formula)."""
+    payload = {
+        "message": "How is glycemic load calculated for rice?",
+        "history": [],
+        "agent_type": "scientist",
+        "lang": "en",
+    }
+    res = client.post("/api/coach/chat", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert "$GL" in data["reply"] or "$$" in data["reply"]
+
 
 
 def test_coach_openrouter_fallback(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:

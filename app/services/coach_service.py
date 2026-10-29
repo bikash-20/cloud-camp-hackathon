@@ -48,7 +48,7 @@ SCIENTIST_SYSTEM_PROMPT = """\
 You are Dr. ARPITA, a clinical culinary scientist specializing in South Asian and Bangladeshi nutrition at NutriVision AI. You speak fluently and naturally in Bengali and English.
 
 RULE 1 (CRITICAL GREETING RULE):
-If the user says a simple greeting or casual opener (e.g., 'hello', 'hi', 'hey', 'হ্যালো', 'সালাম', 'নমস্কার', 'কেমন আছেন'), reply briefly and warmly (e.g., 'হ্যালো! আজকের খাবারে পুষ্টি বা ক্যালরি নিয়ে কী জানতে চান?').
+If the user says a simple greeting or casual opener (e.g., 'hello', 'hi', 'hey', 'হ্যালো', 'সালাম', 'নমস্কার', 'কেমন আছেন'), reply briefly and warmly (e.g., 'Hello! What would you like to know about nutrition or calories today? 🔬' in English or 'হ্যালো! আজকের খাবারে পুষ্টি বা ক্যালরি নিয়ে কী জানতে চান? 🔬' in Bengali).
 DO NOT give unsolicited nutritional advice or dump clinical facts unless explicitly asked!
 
 RULE 2:
@@ -66,6 +66,7 @@ When asked about food, nutrition, cooking, or clinical conditions, base your ans
 4. Always incorporate the user's clinical profile (diabetes, hypertension, kidney disease, allergies) and daily nutrient targets.
 5. Provide official citations in brackets, such as [উৎস: BIRDEM গাইডলাইন] or [উৎস: ADA Guidelines].
 6. Language: If the user communicates in Bengali, respond in natural, professional, authentic Bengali script. If in English, respond in clear English.
+7. Mathematical & Biochemical Formulas: Format equations cleanly in KaTeX/LaTeX syntax using $...$ for inline or $$...$$ for display equations, e.g. $GL = \\frac{GI \\times \\text{Net Carbs}}{100}$ or $\\text{BMR} = 10 \\times \\text{weight} + 6.25 \\times \\text{height} - 5 \\times \\text{age} + 5$.
 """
 
 BEHAVIORAL_SYSTEM_PROMPT = """\
@@ -170,10 +171,14 @@ class CoachService:
             reply_text = self._call_groq(system_prompt, messages)
 
         if not reply_text:
-            reply_text = self._synthesize_local_response(agent_type, user_msg, req.user_profile, rag_context)
+            reply_text = self._synthesize_local_response(
+                agent_type, user_msg, req.user_profile, rag_context, lang=req.lang
+            )
 
-        # 4. Generate contextual follow-up prompt chips
-        suggested_prompts = self._generate_suggested_prompts(agent_type, user_msg, reply_text)
+        # 4. Generate contextual follow-up prompt chips (matching language mode)
+        suggested_prompts = self._generate_suggested_prompts(
+            agent_type, user_msg, reply_text, lang=req.lang
+        )
 
         # 5. Extract or preserve citations
         final_citations = self._resolve_citations(reply_text, citations)
@@ -429,16 +434,28 @@ class CoachService:
 
         return None
 
+    def _is_bengali_requested(self, lang: str | None, query: str) -> bool:
+        """Strict language detection honoring the UI toggle while recognizing Bengali script."""
+        has_bn_chars = bool(re.search(r"[\u0980-\u09FF]", query))
+        if has_bn_chars:
+            return True
+        if lang == "en":
+            return False
+        if lang == "bn":
+            return True
+        return False
+
     def _synthesize_local_response(
         self,
         agent_type: CoachAgentType,
         query: str,
         profile: UserProfile | None,
         rag_context: str,
+        lang: str | None = None,
     ) -> str:
         """Intelligent local fallback if external LLMs are unavailable."""
         q_lower = query.lower()
-        is_bn = bool(re.search(r"[\u0980-\u09FF]", query)) or (profile and profile.medical_conditions)
+        is_bn = self._is_bengali_requested(lang, query)
 
         # ── The "Hello" Fix: Natural concise greetings ──────────────────────
         if _is_greeting(query):
@@ -446,7 +463,7 @@ class CoachService:
                 return (
                     "হ্যালো! আজকের খাবারে পুষ্টি বা ক্যালরি নিয়ে কী জানতে চান? 🔬"
                     if is_bn
-                    else "Hello! What would you like to know about nutrition or calories in today's meals? 🔬"
+                    else "Hello! What would you like to know about nutrition or calories today? 🔬"
                 )
             return (
                 "হ্যালো! আজকে আপনার ডায়েট ট্র্যাকিং কেমন চলছে? 💚"
@@ -458,8 +475,10 @@ class CoachService:
             if any(w in q_lower for w in ["গ্লাইসেমিক", "glycemic", "ভাত", "rice", "কার্ব", "carb", "ডায়াবেটিস", "diabetes"]):
                 if is_bn:
                     return (
-                        "🔬 **বায়োকেমিক্যাল পুষ্টি বিশ্লেষণ (Dr. ARPITA):**\n\n"
-                        "সাদা ভাতের (White Rice) গ্লাইসেমিক ইনডেক্স (GI) তুলনামূলকভাবে বেশি (~৭৩)। খাবার গ্রহণের পর দ্রুত গ্লুকোজ স্পাইক রোধ করতে নিচের ৩টি বৈজ্ঞানিক কৌশল অত্যন্ত কার্যকর:\n\n"
+                        "🔬 **বায়োকেমিক্যাল পুষ্টি বিশ্লেষণ (ড. অর্পিতা):**\n\n"
+                        "রক্তে গ্লুকোজের প্রভাব নিরূপণে আমরা গ্লাইসেমিক লোড ($GL$) হিসাব করি এই সূত্রের সাহায্যে:\n\n"
+                        "$$GL = \\frac{GI \\times \\text{Net Carbs (g)}}{100}$$\n\n"
+                        "সাদা ভাতের (White Rice) গ্লাইসেমিক ইনডেক্স ($GI \\approx ৭৩$) তুলনামূলকভাবে বেশি। খাবার গ্রহণের পর দ্রুত গ্লুকোজ স্পাইক রোধ করতে নিচের ৩টি বৈজ্ঞানিক কৌশল অত্যন্ত কার্যকর:\n\n"
                         "• **ফাইবার বাফার সংযোজন:** প্রতি ১০০ গ্রাম ভাতের সাথে ৫০–৭০ গ্রাম শাকসবজি বা লাল শাক খেলে দ্রবণীয় ফাইবার পরিপাক গতি শ্লথ করে রক্তে শর্করা বৃদ্ধি ৩৫% পর্যন্ত রোধ করে।\n"
                         "• **রেজিস্ট্যান্ট স্টার্চ বৃদ্ধি:** ভাত রান্নার পর স্বাভাবিক তাপমাত্রায় ঠাণ্ডা করে খেলে অ্যামাইলোজের রেট্রোগ্রেডেশন ঘটে, যা প্রি-বায়োটিক রেজিস্ট্যান্ট স্টার্চে পরিণত হয় এবং গ্লাইসেমিক লোড হ্রাস করে।\n"
                         "• **প্রোটিন ও স্বাস্থ্যকর ফ্যাট:** ভাতের সাথে এক বাটি ঘন মসুর ডাল বা ইলিশ/রুই মাছের হালকা ঝোল যুক্ত করলে গ্যাস্ট্রিক এম্পটিইং টাইম দীর্ঘায়িত হয়।\n\n"
@@ -467,10 +486,12 @@ class CoachService:
                     )
                 return (
                     "🔬 **Nutritional Biochemical Analysis (Dr. ARPITA):**\n\n"
-                    "White rice has a high Glycemic Index (GI ~73). To blunt rapid postprandial glucose surges, apply these 3 scientific levers:\n\n"
-                    "• **Soluble Fiber Buffer:** Pair 100g of rice with 60–80g of leafy greens (shak/vegetables) to slow enzyme hydrolysis.\n"
-                    "• **Retrograded Starch:** Cooling cooked rice increases type-3 resistant starch, lowering the overall Glycemic Load.\n"
-                    "• **Protein/Fat Pairing:** Eating fish or thick dal before rice delays gastric emptying.\n\n"
+                    "To evaluate the true postprandial glucose impact of carbohydrate intake, we calculate the Glycemic Load ($GL$):\n\n"
+                    "$$GL = \\frac{GI \\times \\text{Net Carbs (g)}}{100}$$\n\n"
+                    "White rice has a high Glycemic Index ($GI \\approx 73$). To blunt rapid postprandial glucose surges, apply these 3 scientific levers:\n\n"
+                    "• **Soluble Fiber Buffer:** Pair 100g of rice with 60–80g of leafy greens (shak/vegetables) to slow alpha-amylase hydrolysis.\n"
+                    "• **Retrograded Resistant Starch:** Cooling cooked rice promotes amylose recrystallization, increasing type-3 resistant starch and lowering Glycemic Load.\n"
+                    "• **Protein & Lipid Partitioning:** Eating fish or thick dal prior to rice delays gastric emptying and blunts insulin peaks.\n\n"
                     "[Source: BIRDEM Clinical Protocols & ADA Guidelines]"
                 )
 
@@ -487,7 +508,7 @@ class CoachService:
                 return (
                     "🔬 **Culinary Biochemistry & Sodium Analysis:**\n\n"
                     "In South Asian cooking, oil absorption and sodium spikes concentrate in deep sautés and heavy gravies:\n\n"
-                    "• Eggplant/vegetable fry absorbs up to 35% oil. Pre-salting and draining moisture cuts oil uptake by half.\n"
+                    "• Eggplant/vegetable fry absorbs up to 35% oil by weight. Pre-salting and draining cut oil absorption by over 50%.\n"
                     "• Cold-pressed mustard oil supplies mono-unsaturated fats and omega-3 without thermal oxidation.\n"
                     "• Substituting lemon juice and green chili for added table salt keeps daily sodium comfortably within the safe < 1500mg bracket.\n\n"
                     "[Source: WHO/ICMR Cardiovascular Dietary Guidelines]"
@@ -570,53 +591,112 @@ class CoachService:
         agent_type: CoachAgentType,
         query: str,
         reply: str,
+        lang: str | None = None,
     ) -> list[str]:
-        """Produce 2-3 dynamic, contextual follow-up prompt chips."""
+        """Produce 2-3 dynamic, contextual follow-up prompt chips in the active language."""
+        is_bn = self._is_bengali_requested(lang, query)
         q_lower = query.lower()
+
         if _is_greeting(query):
             if agent_type == "scientist":
-                return [
-                    "আজকের খাবারের পুষ্টি ও ক্যালরি বিশ্লেষণ করুন",
-                    "এই খাবারের গ্লাইসেমিক লোড কীভাবে কমাব?",
-                    "বাজেট ফ্রেন্ডলি প্রোটিন উৎস কী কী?",
+                return (
+                    [
+                        "আজকের খাবারের পুষ্টি ও ক্যালরি বিশ্লেষণ করুন",
+                        "এই খাবারের গ্লাইসেমিক লোড কীভাবে কমাব?",
+                        "বাজেট ফ্রেন্ডলি প্রোটিন উৎস কী কী?",
+                    ]
+                    if is_bn
+                    else [
+                        "Analyze calories and macros for my meal",
+                        "How do I lower the glycemic load of this meal?",
+                        "What are budget-friendly protein sources?",
+                    ]
+                )
+            return (
+                [
+                    "দাওয়াতে অতিরিক্ত খাওয়ার পর কী করব?",
+                    "রাতের মিষ্টি বা চায়ের আড্ডার লোভ কীভাবে সামলাব?",
+                    "ব্যস্ত দিনে ডায়েট ঠিক রাখার সহজ কৌশল কী?",
                 ]
-            return [
-                "দাওয়াতে অতিরিক্ত খাওয়ার পর কী করব?",
-                "রাতের মিষ্টি বা চায়ের আড্ডার লোভ কীভাবে সামলাব?",
-                "ব্যস্ত দিনে ডায়েট ঠিক রাখার সহজ কৌশল কী?",
-            ]
+                if is_bn
+                else [
+                    "How to bounce back after a heavy feast?",
+                    "How to manage evening sweet cravings?",
+                    "Easy routines for healthy habits on busy days?",
+                ]
+            )
 
         if agent_type == "scientist":
             if "ভাত" in q_lower or "rice" in q_lower or "glycemic" in q_lower:
-                return [
-                    "রান্নায় তেল শোষণ কমানোর বৈজ্ঞানিক পদ্ধতি কী?",
-                    "ভাতের বিকল্প হিসেবে লাল আটার রুটি কতটা ভালো?",
-                    "ডায়াবেটিসে কোন দেশীয় ফল নিরাপদে খাওয়া যায়?",
-                ]
+                return (
+                    [
+                        "রান্নায় তেল শোষণ কমানোর বৈজ্ঞানিক পদ্ধতি কী?",
+                        "ভাতের বিকল্প হিসেবে লাল আটার রুটি কতটা ভালো?",
+                        "ডায়াবেটিসে কোন দেশীয় ফল নিরাপদে খাওয়া যায়?",
+                    ]
+                    if is_bn
+                    else [
+                        "How to reduce cooking oil absorption?",
+                        "Is whole wheat atta better than white rice?",
+                        "Safe fruits for blood sugar control?",
+                    ]
+                )
             if "oil" in q_lower or "তেল" in q_lower or "সোডিয়াম" in q_lower:
-                return [
-                    "সর্ষের তেল কি হৃদরোগের জন্য নিরাপদ?",
-                    "খাবারে কাঁচা লবণের ঝুঁকি কমানোর সহজ উপায়?",
-                    "বাজেট ফ্রেন্ডলি প্রোটিন উৎস কী কী?",
+                return (
+                    [
+                        "সর্ষের তেল কি হৃদরোগের জন্য নিরাপদ?",
+                        "খাবারে কাঁচা লবণের ঝুঁকি কমানোর সহজ উপায়?",
+                        "বাজেট ফ্রেন্ডলি প্রোটিন উৎস কী কী?",
+                    ]
+                    if is_bn
+                    else [
+                        "Is mustard oil healthy for heart health?",
+                        "How to limit daily sodium without losing flavor?",
+                        "What are budget-friendly protein sources?",
+                    ]
+                )
+            return (
+                [
+                    "এই খাবারের গ্লাইসেমিক লোড কীভাবে কমাব?",
+                    "রান্নায় তেল শোষণ কমানোর বৈজ্ঞানিক পদ্ধতি কী?",
+                    "ডায়াবেটিস থাকলে বিকালের নাস্তায় কী খাব?",
                 ]
-            return [
-                "এই খাবারের গ্লাইসেমিক লোড কীভাবে কমাব?",
-                "রান্নায় তেল শোষণ কমানোর বৈজ্ঞানিক পদ্ধতি কী?",
-                "ডায়াবেটিস থাকলে বিকালের নাস্তায় কী খাব?",
-            ]
+                if is_bn
+                else [
+                    "How do I lower the glycemic load of this meal?",
+                    "How to reduce cooking oil absorption?",
+                    "Healthy evening snack ideas for diabetics?",
+                ]
+            )
 
         # Behavioral
         if "দাওয়াতে" in q_lower or "dawat" in q_lower or "overeat" in q_lower:
-            return [
+            return (
+                [
+                    "রাতের মিষ্টি বা চায়ের আড্ডার লোভ কীভাবে সামলাব?",
+                    "ব্যস্ত দিনে হেলদি ডায়েট ধরে রাখার সহজ রুটিন কী?",
+                    "খাবারের পর অপরাধবোধ কাটানোর মনস্তাত্ত্বিক উপায়?",
+                ]
+                if is_bn
+                else [
+                    "How to manage evening sweet cravings?",
+                    "Easy routines for healthy habits on busy days?",
+                    "How to overcome guilt after overeating?",
+                ]
+            )
+        return (
+            [
+                "দাওয়াতে অতিরিক্ত খাওয়ার পর কী করব?",
                 "রাতের মিষ্টি বা চায়ের আড্ডার লোভ কীভাবে সামলাব?",
-                "ব্যস্ত দিনে হেলদি ডায়েট ধরে রাখার সহজ রুটিন কী?",
-                "খাবারের পর অপরাধবোধ কাটানোর মনস্তাত্ত্বিক উপায়?",
+                "বাজেট ঠিক রেখে স্বাস্থ্যকর নাস্তা তৈরির টিপস দিন?",
             ]
-        return [
-            "দাওয়াতে অতিরিক্ত খাওয়ার পর কী করব?",
-            "রাতের মিষ্টি বা চায়ের আড্ডার লোভ কীভাবে সামলাব?",
-            "বাজেট ঠিক রেখে স্বাস্থ্যকর নাস্তা তৈরির টিপস দিন?",
-        ]
+            if is_bn
+            else [
+                "How to bounce back after a heavy feast?",
+                "How to manage evening sweet cravings?",
+                "Tips for healthy low-budget snacks?",
+            ]
+        )
 
     def _resolve_citations(self, reply: str, candidate_citations: list[str]) -> list[str]:
         citations = list(candidate_citations)

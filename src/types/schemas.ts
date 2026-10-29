@@ -334,6 +334,7 @@ export interface CoachChatRequest {
   agent_type: CoachAgentType;
   user_profile?: UserProfile | null;
   recent_meals?: MealEntry[] | null;
+  lang?: string | null;
 }
 
 export interface CoachChatResponse {
