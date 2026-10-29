@@ -1,0 +1,36 @@
+{
+  "circuit_breaker": {
+    "cooldown_seconds": 60,
+    "failure_threshold": 3
+  },
+  "providers": [
+    {
+      "name": "gemini",
+      "model": "gemini-2.0-flash",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/models",
+      "timeout_seconds": 15.0,
+      "connect_timeout_seconds": 5.0,
+      "max_retries": 2,
+      "enabled": true
+    },
+    {
+      "name": "groq",
+      "model": "llama-3.2-11b-vision-preview",
+      "base_url": "https://api.groq.com/openai/v1/chat/completions",
+      "timeout_seconds": 12.0,
+      "connect_timeout_seconds": 4.0,
+      "max_retries": 1,
+      "enabled": true
+    },
+    {
+      "name": "huggingface",
+      "model": "nateraw/food",
+      "base_url": "https://router.huggingface.co/hf-inference/models",
+      "timeout_seconds": 15.0,
+      "connect_timeout_seconds": 5.0,
+      "max_retries": 1,
+      "enabled": true
+    }
+  ]
+}
+

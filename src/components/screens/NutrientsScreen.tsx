@@ -3,9 +3,9 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles } from 'lucide-react';
 import { T, NUTRITION_DB } from '../../data';
 import { resolveNutrition } from '../../lib/api';
-import { focusedNutrients, unitForNutrient, getEffectiveNutrition } from '../../lib/personalize';
+import { focusedNutrients, unitForNutrient, getEffectiveNutrition, getDynamicTargets } from '../../lib/personalize';
 import { MOCK_TARGETS } from '../../mocks/fixtures';
-import type { DetectedItem, NutrientContribution, NutritionFacts, UserProfile } from '../../types/schemas';
+import type { DetectedItem, MacroTargets, NutrientContribution, NutritionFacts, UserProfile } from '../../types/schemas';
 import Bar from '../Bar';
 import useCountUp from '../useCountUp';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
@@ -415,6 +415,7 @@ export function localizedItemReason(
   verdict: ItemVerdict,
   language: 'en' | 'bn',
   foodName: (name: string) => string,
+  targets: MacroTargets = MOCK_TARGETS,
 ): string {
   if (language === 'en') return verdict.reason;
 
@@ -426,7 +427,7 @@ export function localizedItemReason(
   if (verdict.tone === 'warn') {
     switch (verdict.nutrient) {
       case 'sodium':
-        return `${name} থেকে ${amount} মিলিগ্রাম সোডিয়াম পাওয়া যায়—এটি আপনার দৈনিক সীমার ${Math.round((verdict.amount / MOCK_TARGETS.sodium) * 100)}%।`;
+        return `${name} থেকে ${amount} মিলিগ্রাম সোডিয়াম পাওয়া যায়—এটি আপনার দৈনিক সীমার ${Math.round((verdict.amount / targets.sodium) * 100)}%।`;
       case 'sugar':
         return `${name}-এ ${amount} গ্রাম চিনি রয়েছে—প্রিডায়াবেটিস-বান্ধব খাবারের জন্য এটি উল্লেখযোগ্য পরিমাণ।`;
       case 'fiber':
@@ -442,7 +443,7 @@ export function localizedItemReason(
     case 'sugar':
       return `${name} থেকে মাত্র প্রায় ${amount} গ্রাম চিনি পাওয়া যায়—আপনার প্রিডায়াবেটিস-বান্ধব লক্ষ্যের মধ্যে রয়েছে।`;
     case 'fiber':
-      return `${name} থেকে মাত্র প্রায় ${amount} গ্রাম আঁশ পাওয়া যায়—পুরো খাবারটি দৈনিক ৩০ গ্রামের লক্ষ্য পূরণ করে না। পরেরবার পূর্ণশস্য বা ডাল যোগ করুন।`;
+      return `${name} থেকে মাত্র প্রায় ${amount} গ্রাম আঁশ পাওয়া যায়—পুরো খাবারটি দৈনিক ${targets.fiber} গ্রামের লক্ষ্য পূরণ করে না। পরেরবার পূর্ণশস্য বা ডাল যোগ করুন।`;
     case 'protein':
       return `${name}-এ প্রোটিন কম (প্রায় ${amount} গ্রাম)—সঙ্গে ডাল বা পনির যোগ করতে পারেন।`;
     default:
@@ -699,7 +700,8 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
   const sodium = useCountUp(Math.round(totals.sodium));
   const sugar = useCountUp(Math.round(totals.sugar));
 
-  const overCarbs = totals.carbs > MOCK_TARGETS.carbs;
+  const targets = useMemo(() => getDynamicTargets(profile), [profile]);
+  const overCarbs = totals.carbs > targets.carbs;
   const glycemicHigh = totals.glycemic > 0.65;
   const showWarning = overCarbs && glycemicHigh;
 
@@ -867,7 +869,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
         >
           <MacroDonut
             value={Math.round(protein)}
-            target={MOCK_TARGETS.protein}
+            target={targets.protein}
             color={T.primary}
             label="Protein"
             delay={0.1}
@@ -882,7 +884,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
         >
           <MacroDonut
             value={Math.round(carbs)}
-            target={MOCK_TARGETS.carbs}
+            target={targets.carbs}
             color={overCarbs ? T.accentWarn : T.primary}
             label="Carbs"
             delay={0.18}
@@ -897,7 +899,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
         >
           <MacroDonut
             value={Math.round(fat)}
-            target={MOCK_TARGETS.fat}
+            target={targets.fat}
             color={T.accentGood}
             label="Fat"
             delay={0.26}
@@ -952,23 +954,23 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
 
         <Bar
           label="Fiber"
-          pct={Math.min(100, Math.round((totals.fiber / MOCK_TARGETS.fiber) * 100))}
+          pct={Math.min(100, Math.round((totals.fiber / targets.fiber) * 100))}
           color={T.primary}
-          sub={`${Math.round(fiber)}g / target ${MOCK_TARGETS.fiber}g`}
+          sub={`${Math.round(fiber)}g / target ${targets.fiber}g`}
           delay={0.4}
         />
         <Bar
           label="Sodium"
-          pct={Math.min(100, Math.round((totals.sodium / MOCK_TARGETS.sodium) * 100))}
+          pct={Math.min(100, Math.round((totals.sodium / targets.sodium) * 100))}
           color={T.accentAmber}
-          sub={`${Math.round(sodium)}mg / ${MOCK_TARGETS.sodium}mg`}
+          sub={`${Math.round(sodium)}mg / ${targets.sodium}mg`}
           delay={0.47}
         />
         <Bar
           label="Sugar"
-          pct={Math.min(100, Math.round((totals.sugar / MOCK_TARGETS.sugar) * 100))}
+          pct={Math.min(100, Math.round((totals.sugar / targets.sugar) * 100))}
           color={T.accentWarn}
-          sub={`${Math.round(sugar)}g / ${MOCK_TARGETS.sugar}g`}
+          sub={`${Math.round(sugar)}g / ${targets.sugar}g`}
           delay={0.54}
         />
       </motion.div>
@@ -1027,7 +1029,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
               {language === 'bn' ? (
                 <>
                   <b style={{ color: T.accentWarn }}>সতর্কতার কারণ:</b> কার্বোহাইড্রেটের পরিমাণ{' '}
-                  <b>{Math.round(totals.carbs)} গ্রাম</b>, যেখানে লক্ষ্য {MOCK_TARGETS.carbs} গ্রাম;
+                  <b>{Math.round(totals.carbs)} গ্রাম</b>, যেখানে লক্ষ্য {targets.carbs} গ্রাম;
                   গ্লাইসেমিক লোড প্রিডায়াবেটিসের সর্বোচ্চ সীমার{' '}
                   <b>{Math.round(totals.glycemic * 100)}%</b>। দ্রুত হজম হওয়া এই সমন্বয়টি এড়াতে
                   ভাতের অর্ধেকের বদলে অতিরিক্ত রায়তা নিলে প্রোটিন অক্ষুণ্ণ রেখেই দুই মান লক্ষ্যের
@@ -1036,7 +1038,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
               ) : (
                 <>
                   <b style={{ color: T.accentWarn }}>Why this is flagged:</b> carbs run{' '}
-                  <b>{Math.round(totals.carbs)}g</b> against a {MOCK_TARGETS.carbs}g target, and the
+                  <b>{Math.round(totals.carbs)}g</b> against a {targets.carbs}g target, and the
                   glycemic load is sitting at{' '}
                   <b>{Math.round(totals.glycemic * 100)}%</b> of the prediabetic ceiling —
                   that's a fast-digesting combo. Swapping half the rice for extra raita would
@@ -1047,6 +1049,34 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Clinical & Medical Safety Disclaimer */}
+      <div
+        style={{
+          marginTop: 24,
+          marginBottom: 32,
+          padding: '12px 16px',
+          borderRadius: 14,
+          background: 'rgba(74, 58, 52, 0.05)',
+          border: '1px solid rgba(74, 58, 52, 0.12)',
+          display: 'flex',
+          gap: 10,
+          alignItems: 'flex-start',
+        }}
+      >
+        <Info size={16} color={T.inkSoft} style={{ flexShrink: 0, marginTop: 2 }} />
+        <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.5, color: T.inkSoft }}>
+          {language === 'bn' ? (
+            <>
+              <b>চিকিৎসা সতর্কতা:</b> নিউট্রিভিশন এআই শুধুমাত্র খাদ্য ও পুষ্টির সাধারণ ধারণার জন্য হিসাব প্রদান করে। এটি কোনো সরাসরি চিকিৎসা পরামর্শ বা রোগ নির্ণয় নয়। ডায়াবেটিস, রক্তচাপ বা কিডনি সমস্যা থাকলে যেকোনো উল্লেখযোগ্য ডায়েট পরিবর্তনের আগে বিশেষজ্ঞ চিকিৎসকের পরামর্শ নিন।
+            </>
+          ) : (
+            <>
+              <b>Medical Disclaimer:</b> NutriVision AI provides nutritional guidance for educational purposes only. It is not intended as medical advice or clinical diagnosis. If you manage medical conditions (e.g. diabetes, hypertension, renal issues), always consult a certified physician or dietitian before making major dietary adjustments.
+            </>
+          )}
+        </p>
+      </div>
     </div>
     </LocalizedContent>
   );

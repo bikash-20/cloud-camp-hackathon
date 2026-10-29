@@ -124,9 +124,11 @@ def _read_image(image_ref: str) -> tuple[str, str]:
         head, _, payload = image_ref.partition(",")
         mime = head.split(":", 1)[1].split(";", 1)[0] or "image/jpeg"
         return payload, mime
+
+    # Security check: Block path traversal and absolute system paths
     path = Path(image_ref)
-    if not path.is_file():
-        raise OSError(f"not a file: {image_ref}")
+    if path.is_absolute() or ".." in image_ref or not path.is_file():
+        raise ValueError(f"Invalid image_ref format or inaccessible path: {image_ref}")
     suffix = path.suffix.lower()
     mime = {
         ".png": "image/png",

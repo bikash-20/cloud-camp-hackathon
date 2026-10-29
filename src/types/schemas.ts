@@ -165,8 +165,37 @@ export type Allergen =
   | 'Gluten'
   | 'Sesame';
 
+export type Sex = 'male' | 'female' | 'other';
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+export type GoalType = 'lose' | 'maintain' | 'gain';
+export type DietType = 'omnivore' | 'vegetarian' | 'vegan' | 'pescatarian' | 'halal' | 'kosher';
+export type MedicalCondition =
+  | 'none'
+  | 'diabetes_t1'
+  | 'diabetes_t2'
+  | 'prediabetes'
+  | 'hypertension'
+  | 'high_cholesterol'
+  | 'kidney';
+export type HeightUnit = 'cm' | 'ft_in';
+export type WeightUnit = 'kg' | 'lb';
+
 export interface UserProfile {
   name: string;
+  age?: number | null;
+  sex?: Sex | null;
+  heightCm?: number | null;
+  weightKg?: number | null;
+  heightUnit?: HeightUnit;
+  weightUnit?: WeightUnit;
+  activityLevel?: ActivityLevel | null;
+  goal?: GoalType | null;
+  targetRateKgPerWeek?: number | null;
+  dietType?: DietType | null;
+  medicalConditions?: MedicalCondition[];
+  mealsPerDay?: number;
+  consentAnonymizedData?: boolean;
+  language?: string;
   goals: HealthGoals;
   preferences: DietaryPreference[];
   allergens: Allergen[];

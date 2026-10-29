@@ -21,9 +21,13 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from pathlib import Path
+import json
+
 from app.api.personalize import compute_contributions, resolve_detected_item
 from app.models.schemas import (
     DetectedItem,
+    FoodDescriptor,
     MacroTargets,
     NutritionFacts,
     ResolveNutritionResult,
@@ -38,6 +42,37 @@ from app.services import usda_client as usda_client_mod
 from app.services.fruityvice_client import FruityviceClient
 from app.services.off_client import OFFClient
 from app.services.usda_client import USDAClient
+
+_BD_FOODS_PATH = Path(__file__).resolve().parents[1] / "data" / "bd_food_composition.json"
+_BD_FOODS_CACHE: dict[str, Any] | None = None
+
+
+def _get_bd_foods() -> dict[str, Any]:
+    global _BD_FOODS_CACHE
+    if _BD_FOODS_CACHE is None:
+        if _BD_FOODS_PATH.is_file():
+            try:
+                _BD_FOODS_CACHE = json.loads(_BD_FOODS_PATH.read_text(encoding="utf-8"))
+            except Exception:
+                _BD_FOODS_CACHE = {}
+        else:
+            _BD_FOODS_CACHE = {}
+    return _BD_FOODS_CACHE
+
+
+def _lookup_bd_food(name: str, name_bn: str | None = None) -> FoodDescriptor | None:
+    db = _get_bd_foods()
+    if not db:
+        return None
+    name_l = name.lower().strip()
+    bn_l = (name_bn or "").strip()
+
+    for k, item in db.items():
+        if k in name_l or name_l in k:
+            return FoodDescriptor(**item)
+        if bn_l and (bn_l in item.get("name_bn", "") or item.get("name_bn", "") in bn_l):
+            return FoodDescriptor(**item)
+    return None
 
 
 router = APIRouter(prefix="/api/nutrition", tags=["nutrition"])
@@ -156,6 +191,17 @@ def resolve_with_cascade(
             **item.model_dump(),
             nutrition=descriptor,
             descriptor=descriptor,
+            source="cache",
+            partial=False,
+        )
+
+    # 1b. Local Bangladeshi Food Composition database
+    bd_desc = _lookup_bd_food(item.name, item.name_bn)
+    if bd_desc is not None:
+        return ResolvedItem(
+            **item.model_dump(),
+            nutrition=bd_desc,
+            descriptor=bd_desc,
             source="cache",
             partial=False,
         )

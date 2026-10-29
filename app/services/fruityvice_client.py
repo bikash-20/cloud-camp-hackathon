@@ -56,7 +56,8 @@ class FruityviceClient:
     def lookup(self, name: str) -> NutritionFacts | None:
         """Exact-name lookup. Returns `None` on miss / 404 / any error
         so the cascade can fall through."""
-        slug = name.strip().lower().replace(" ", "_")
+        import urllib.parse
+        slug = urllib.parse.quote(name.strip().lower().replace(" ", "_"), safe="")
         try:
             resp = self._http().get(f"/fruit/{slug}")
         except (httpx.HTTPError, ValueError) as exc:

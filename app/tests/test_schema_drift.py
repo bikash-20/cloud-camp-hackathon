@@ -237,6 +237,13 @@ MUST_MATCH = {
     "HealthGoals",
     "DietaryPreference",
     "Allergen",
+    "Sex",
+    "ActivityLevel",
+    "GoalType",
+    "DietType",
+    "MedicalCondition",
+    "HeightUnit",
+    "WeightUnit",
     "UserProfile",
     # Grocery
     "GroceryItem",

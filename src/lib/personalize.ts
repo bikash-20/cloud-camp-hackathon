@@ -7,8 +7,114 @@
  * `app/api/personalize.py`.
  */
 
-import type { NutritionFacts, NutrientContribution, UserProfile } from '../types/schemas';
+import type { MacroTargets, NutritionFacts, NutrientContribution, UserProfile } from '../types/schemas';
 import { MOCK_TARGETS, MOCK_NUTRITION_DB } from '../mocks/fixtures';
+
+// ── Dynamic Target Engine (Client mirror) ──────────────────────────────
+
+export function getDynamicTargets(profile?: UserProfile | null): MacroTargets {
+  if (!profile) return { ...MOCK_TARGETS };
+
+  const age = profile.age ?? 30;
+  const sex = profile.sex ?? 'other';
+  const weight = profile.weightKg ?? 68;
+  const height = profile.heightCm ?? 168;
+  const activity = profile.activityLevel ?? 'sedentary';
+  const goal = profile.goal ?? 'maintain';
+  const conditions = profile.medicalConditions ?? [];
+  const isDiabetic =
+    conditions.includes('diabetes_t1') ||
+    conditions.includes('diabetes_t2') ||
+    conditions.includes('prediabetes') ||
+    !!profile.goals.diabetic;
+  const isHypertensive = conditions.includes('hypertension');
+  const isKidney = conditions.includes('kidney');
+  const isHighProtein = !!profile.goals.protein;
+
+  // BMR via Mifflin-St Jeor
+  let offset = -78;
+  if (sex === 'male') offset = 5;
+  else if (sex === 'female') offset = -161;
+  const bmr = 10 * weight + 6.25 * height - 5 * age + offset;
+
+  // TDEE via activity factor
+  const activityMultipliers: Record<string, number> = {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    active: 1.725,
+    very_active: 1.9,
+  };
+  const tdee = bmr * (activityMultipliers[activity] ?? 1.2);
+
+  // Calorie target
+  let calories = tdee;
+  if (goal === 'lose') {
+    calories -= 500;
+  } else if (goal === 'gain') {
+    calories += 400;
+  }
+
+  // Clinical safety floors
+  const floor = age < 12 ? 1000 : sex === 'female' ? 1200 : 1500;
+  calories = Math.max(floor, calories);
+
+  if (profile.dailyKcalTarget && profile.dailyKcalTarget > 500) {
+    calories = profile.dailyKcalTarget;
+  }
+
+  // Macro split
+  let carbPct = 0.5;
+  let protPct = 0.2;
+  let fatPct = 0.3;
+  if (isDiabetic) {
+    carbPct = 0.38;
+    protPct = 0.25;
+    fatPct = 0.37;
+  } else if (isHighProtein) {
+    carbPct = 0.4;
+    protPct = 0.32;
+    fatPct = 0.28;
+  }
+
+  let proteinG = Math.round((calories * protPct) / 4);
+  const carbsG = Math.round((calories * carbPct) / 4);
+  const fatG = Math.round((calories * fatPct) / 9);
+
+  if (isKidney) {
+    proteinG = Math.min(proteinG, Math.round(weight * 0.8));
+  }
+
+  // Fiber
+  let fiberG = Math.round((calories / 1000) * 14);
+  if (age < 14) {
+    fiberG = Math.min(age + 5, fiberG);
+  } else if (isDiabetic) {
+    fiberG = Math.max(30, fiberG);
+  }
+
+  // Sodium
+  let sodiumMg = 2300;
+  if (isHypertensive || isKidney) {
+    sodiumMg = 1500;
+  } else if (age < 8) {
+    sodiumMg = 1200;
+  }
+
+  // Sugar
+  const sugarPct = isDiabetic ? 0.05 : 0.1;
+  const sugarG = Math.round((calories * sugarPct) / 4);
+
+  return {
+    kcal: Math.round(calories),
+    protein: proteinG,
+    carbs: carbsG,
+    fat: fatG,
+    fiber: fiberG,
+    sodium: sodiumMg,
+    sugar: sugarG,
+  };
+}
 
 // ── Nutrient focus per profile ──────────────────────────────────────────
 // Diabetic profiles care about sugar + fiber; everyone else sodium + fiber.
@@ -24,14 +130,15 @@ export function isNutrientFocused(nutrient: string, profile: UserProfile | null 
 /** The list of flagged nutrients to render on NutrientsScreen (the "Why these flags?" strip). */
 export function focusedNutrients(profile: UserProfile | null | undefined): ReadonlyArray<{ nutrient: 'sodium' | 'sugar' | 'fiber'; threshold: number }> {
   if (!profile) return [];
+  const targets = getDynamicTargets(profile);
   return profile.goals.diabetic
     ? [
-        { nutrient: 'sugar', threshold: MOCK_TARGETS.sugar },
-        { nutrient: 'fiber', threshold: MOCK_TARGETS.fiber },
+        { nutrient: 'sugar', threshold: targets.sugar },
+        { nutrient: 'fiber', threshold: targets.fiber },
       ]
     : [
-        { nutrient: 'sodium', threshold: MOCK_TARGETS.sodium },
-        { nutrient: 'fiber', threshold: MOCK_TARGETS.fiber },
+        { nutrient: 'sodium', threshold: targets.sodium },
+        { nutrient: 'fiber', threshold: targets.fiber },
       ];
 }
 

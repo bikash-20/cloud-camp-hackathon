@@ -34,11 +34,13 @@ def state_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def client(state_path: Path) -> Generator[TestClient, None, None]:
-    """A FastAPI TestClient with an isolated state.json."""
+def client(tmp_path: Path, state_path: Path) -> Generator[TestClient, None, None]:
+    """A FastAPI TestClient with an isolated state.json and isolated caches."""
     # Re-init the singleton for each test — `STATE_PATH` is read by
     # `_state_path()` at lifespan time.
     os.environ["STATE_PATH"] = str(state_path)
+    os.environ["SQLITE_CACHE_PATH"] = str(tmp_path / "test_cache.db")
+    os.environ["CHROMA_CACHE_PATH"] = str(tmp_path / "test_chroma")
 
     # Drop the cached singletons between tests so each one starts clean.
     import app.services.state as state_mod
@@ -58,6 +60,7 @@ def client(state_path: Path) -> Generator[TestClient, None, None]:
     # Tear-down: drop singletons so the next test gets a fresh state.
     state_mod._state = None
     nutrition_mod._reset_clients_for_tests()
+    vision_mod._reset_for_tests()
     vision_mod._reset_for_tests()
 
 

@@ -183,6 +183,65 @@ database. Do not treat those features as production-ready or deploy them
 for real user accounts until authentication and durable per-user storage
 are implemented.
 
+## Clinical Formulas & Dynamic Target Standards
+
+NutriVision AI calculates targets dynamically rather than using static constants:
+
+1. **Basal Metabolic Rate (BMR):** Mifflin-St Jeor Equation
+   $$\text{BMR}_{\text{male}} = 10 \times \text{weight (kg)} + 6.25 \times \text{height (cm)} - 5 \times \text{age} + 5$$
+   $$\text{BMR}_{\text{female}} = 10 \times \text{weight (kg)} + 6.25 \times \text{height (cm)} - 5 \times \text{age} - 161$$
+   *(Citation: Mifflin MD, St Jeor ST, et al. Am J Clin Nutr 1990; 51:241-247)*
+2. **Total Daily Energy Expenditure (TDEE):** $\text{TDEE} = \text{BMR} \times \text{Activity Multiplier}$
+   - Sedentary: $1.20$, Light: $1.375$, Moderate: $1.55$, Active: $1.725$, Very Active: $1.90$
+3. **Calorie Deficit / Surplus Limits:**
+   - Capped at maximum $\pm 1000\text{ kcal/day}$ with clinical safety floors enforced ($1500\text{ kcal}$ for adult men, $1200\text{ kcal}$ for adult women, $1000\text{ kcal}$ for children).
+4. **Macronutrient Split (AMDR):**
+   - Standard: 50% Carbs, 20% Protein, 30% Fat
+   - Diabetic / Prediabetic: 38% Carbs, 25% Protein, 37% Fat
+   - High Protein: 40% Carbs, 32% Protein, 28% Fat
+   - Renal / Kidney Condition: Protein capped at $0.8\text{ g/kg}$ of body weight
+5. **Micronutrient Rules:**
+   - Fiber: Children (age $<14$) $\rightarrow \text{age} + 5\text{g}$; Adults $\rightarrow 14\text{g} / 1000\text{ kcal}$ (min $30\text{g}$ for diabetic profiles).
+   - Sodium: $\le 1500\text{ mg/day}$ for hypertension or renal conditions; $\le 2300\text{ mg/day}$ for standard adults; $\le 1200\text{ mg/day}$ for children $<8$ yo.
+   - Sugar: Max $5\%$ of total calories for diabetic profiles; max $10\%$ for general health (WHO 2015 guideline).
+
+---
+
+## How to Extend & Customize
+
+### Adding a Vision Provider
+Define the provider entry in [`app/data/vision_providers.json`](./app/data/vision_providers.json):
+```json
+{
+  "name": "my_new_provider",
+  "model": "model-identifier",
+  "base_url": "https://api.provider.com/v1",
+  "timeout_seconds": 15.0,
+  "max_retries": 2,
+  "enabled": true
+}
+```
+
+### Adding a Local / Regional Food Item
+Add the food entry to [`app/data/bd_food_composition.json`](./app/data/bd_food_composition.json):
+```json
+"ilish macher jhol": {
+  "name_en": "Ilish Macher Jhol",
+  "name_bn": "ইলিশ মাছের ঝোল",
+  "protein": 18.2, "carbs": 2.0, "fat": 14.5, "kcal": 212.0,
+  "fiber": 0.8, "sodium": 310.0, "sugar": 0.4, "glycemic": 0.10,
+  "emoji": "🐟", "category": "protein",
+  "alternatives": ["Rui Macher Jhol"],
+  "pairings": ["White Rice", "Green Chili"]
+}
+```
+
+### Adding a Language or Localization
+1. Register translations in [`src/i18n/LanguageContext.tsx`](./src/i18n/LanguageContext.tsx).
+2. Set the `language` field on the user profile (`'en'` or `'bn'`).
+
+---
+
 ## License
 
 MIT

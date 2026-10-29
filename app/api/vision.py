@@ -160,21 +160,30 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
             detail="No vision provider is configured. Set GEMINI_API_KEY, GROQ_API_KEY, or HF_API_TOKEN.",
         )
 
-    # 1. Vector cache (ChromaDB) — fast path. Falls through silently
-    #    when chromadb is not installed or the path is unwritable.
+    # 1. Vector cache (ChromaDB) — fast path, with SQLite TTL fallback
     vector_cache = _get_vector_cache()
+    cached: list[DetectedItem] | None = None
     if vector_cache.has(cache_key):
         cached = vector_cache.get(cache_key)
-        if cached:
-            pipeline[0].status = "cache-hit"
-            pipeline.extend(
-                [
-                    make_trace("vision-id", "Vision ID (cached)", "cache-hit"),
-                    make_trace("hf-validate", "HF validator (cached)", "cache-hit"),
-                    make_trace("reconcile", "Reconcile (cached)", "cache-hit"),
-                ]
-            )
-            return AnalyzeResult(detected=cached, pipeline=pipeline)
+
+    if not cached:
+        try:
+            raw_sqlite = _get_sqlite_cache().get(("vision", cache_key))
+            if raw_sqlite:
+                cached = [DetectedItem.model_validate(x) for x in raw_sqlite]
+        except Exception:
+            pass
+
+    if cached:
+        pipeline[0].status = "cache-hit"
+        pipeline.extend(
+            [
+                make_trace("vision-id", "Vision ID (cached)", "cache-hit"),
+                make_trace("hf-validate", "HF validator (cached)", "cache-hit"),
+                make_trace("reconcile", "Reconcile (cached)", "cache-hit"),
+            ]
+        )
+        return AnalyzeResult(detected=cached, pipeline=pipeline)
     pipeline[0].status = "done"
 
     # 2. Live cascade pipeline: Gemini -> Groq fallback -> HF validation.

@@ -1,0 +1,55 @@
+{
+  "bmr_formula": {
+    "name": "Mifflin-St Jeor",
+    "citation": "Mifflin MD, St Jeor ST, et al. Am J Clin Nutr 1990; 51:241-247",
+    "weight_mult": 10.0,
+    "height_mult": 6.25,
+    "age_mult": 5.0,
+    "male_offset": 5.0,
+    "female_offset": -161.0,
+    "neutral_offset": -78.0
+  },
+  "activity_factors": {
+    "sedentary": 1.2,
+    "light": 1.375,
+    "moderate": 1.55,
+    "active": 1.725,
+    "very_active": 1.9
+  },
+  "calorie_safety_floors": {
+    "adult_male_min_kcal": 1500.0,
+    "adult_female_min_kcal": 1200.0,
+    "pediatric_min_kcal": 1000.0,
+    "max_daily_deficit_kcal": 1000.0,
+    "max_daily_surplus_kcal": 750.0
+  },
+  "fiber_standards": {
+    "per_1000_kcal_grams": 14.0,
+    "pediatric_age_addition": 5.0,
+    "diabetic_minimum_grams": 30.0,
+    "citation": "Dietary Reference Intakes (DRI), Institute of Medicine"
+  },
+  "sodium_limits_mg": {
+    "standard_adult": 2300.0,
+    "hypertension": 1500.0,
+    "kidney_condition": 1500.0,
+    "pediatric_under_8": 1200.0,
+    "pediatric_8_to_13": 1500.0,
+    "citation": "American Heart Association (AHA) & WHO Guidelines on Sodium Intake"
+  },
+  "sugar_limits": {
+    "standard_max_calorie_pct": 0.10,
+    "diabetic_max_calorie_pct": 0.05,
+    "kcal_per_gram": 4.0,
+    "citation": "WHO Guideline: Sugars intake for adults and children (2015)"
+  },
+  "macro_distributions": {
+    "default": { "carbs_pct": 0.50, "protein_pct": 0.20, "fat_pct": 0.30 },
+    "diabetic": { "carbs_pct": 0.38, "protein_pct": 0.25, "fat_pct": 0.37 },
+    "prediabetic": { "carbs_pct": 0.40, "protein_pct": 0.24, "fat_pct": 0.36 },
+    "high_protein": { "carbs_pct": 0.40, "protein_pct": 0.32, "fat_pct": 0.28 },
+    "mediterranean": { "carbs_pct": 0.45, "protein_pct": 0.20, "fat_pct": 0.35 }
+  },
+  "kidney_protein_limit_g_per_kg": 0.8
+}
+

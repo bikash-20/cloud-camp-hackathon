@@ -45,8 +45,14 @@ class _MockHFClassifier:
 
 
 @pytest.fixture
-def test_client():
-    return TestClient(app)
+def test_client(tmp_path: Path):
+    import os
+    os.environ["SQLITE_CACHE_PATH"] = str(tmp_path / "test_cascade_cache.db")
+    os.environ["CHROMA_CACHE_PATH"] = str(tmp_path / "test_cascade_chroma")
+    vision_mod._reset_for_tests()
+    with TestClient(app) as c:
+        yield c
+    vision_mod._reset_for_tests()
 
 
 def test_gemini_success_does_not_call_groq(test_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

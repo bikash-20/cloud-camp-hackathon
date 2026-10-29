@@ -113,3 +113,17 @@ def test_exception_in_callback_swallowed() -> None:
     )
     assert out.source == "usda"
     assert out.partial is False
+
+
+def test_bangladeshi_food_composition_hit() -> None:
+    """Authentic local dishes (Khichuri, Begun Bhorta, Ilish Macher Jhol) resolve via local BD composition."""
+    out = resolve_with_cascade(
+        _item("Khichuri"),
+        off_facts=lambda n: None,
+        usda_facts=lambda n: None,
+        fruityvice_facts=lambda n: None,
+    )
+    assert out.source == "cache"
+    assert out.nutrition is not None
+    assert out.nutrition.kcal > 100.0
+    assert out.partial is False

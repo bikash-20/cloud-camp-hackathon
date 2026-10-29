@@ -195,16 +195,46 @@ Allergen = Literal[
     "Sesame",
 ]
 
+Sex = Literal["male", "female", "other"]
+ActivityLevel = Literal["sedentary", "light", "moderate", "active", "very_active"]
+GoalType = Literal["lose", "maintain", "gain"]
+DietType = Literal["omnivore", "vegetarian", "vegan", "pescatarian", "halal", "kosher"]
+MedicalCondition = Literal[
+    "none",
+    "diabetes_t1",
+    "diabetes_t2",
+    "prediabetes",
+    "hypertension",
+    "high_cholesterol",
+    "kidney",
+]
+HeightUnit = Literal["cm", "ft_in"]
+WeightUnit = Literal["kg", "lb"]
+
 
 class UserProfile(BaseModel):
-    name: str
-    goals: HealthGoals
-    preferences: list[DietaryPreference]
-    allergens: list[Allergen]
+    name: str = ""
+    age: int | None = None
+    sex: Sex | None = None
+    height_cm: float | None = Field(default=None, alias="heightCm")
+    weight_kg: float | None = Field(default=None, alias="weightKg")
+    height_unit: HeightUnit = Field(default="cm", alias="heightUnit")
+    weight_unit: WeightUnit = Field(default="kg", alias="weightUnit")
+    activity_level: ActivityLevel | None = Field(default=None, alias="activityLevel")
+    goal: GoalType | None = None
+    target_rate_kg_per_week: float | None = Field(default=None, alias="targetRateKgPerWeek")
+    diet_type: DietType | None = Field(default=None, alias="dietType")
+    medical_conditions: list[MedicalCondition] = Field(default_factory=list, alias="medicalConditions")
+    meals_per_day: int = Field(default=3, alias="mealsPerDay")
+    consent_anonymized_data: bool = Field(default=True, alias="consentAnonymizedData")
+    language: str = "en"
+    goals: HealthGoals = Field(default_factory=HealthGoals)
+    preferences: list[DietaryPreference] = Field(default_factory=list)
+    allergens: list[Allergen] = Field(default_factory=list)
     """Daily grocery budget ceiling, in local currency (BDT)."""
-    budget: float
+    budget: float = 500.0
     """Number of people the meal serves."""
-    serving: int
+    serving: int = 1
     """Daily kcal target for the Home progress bar. Optional — older
     profiles that pre-date this field will fall back to the universal
     default (`DAILY_KCAL_TARGET_DEFAULT`)."""
