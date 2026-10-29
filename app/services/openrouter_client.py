@@ -25,6 +25,12 @@ log = logging.getLogger(__name__)
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_VISION_MODELS = [
+    # Free multimodal vision models (work with $0 balance on OpenRouter):
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "nvidia/nemotron-3.5-super-vl:free",
+    "openrouter/free",
+    # Standard vision models (used if credits are present):
     "google/gemini-2.0-flash-001",
     "meta-llama/llama-3.2-11b-vision-instruct",
     "openrouter/auto",
@@ -134,3 +140,4 @@ class OpenRouterVisionClient:
         """Convenience method returning list of DetectedItem."""
         res = self.detect_vision(image_ref)
         return res.detected if res is not None else []
+

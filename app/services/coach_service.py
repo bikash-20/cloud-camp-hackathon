@@ -420,25 +420,31 @@ class CoachService:
         candidates: list[str] = [user_configured]
 
         if has_image:
-            # Multimodal vision cascade
+            # Multimodal vision cascade (prioritize 100% free models for $0-balance keys)
             preferred_vision = [
-                "openrouter/auto",
+                "google/gemma-4-31b-it:free",
+                "google/gemma-4-26b-a4b-it:free",
+                "nvidia/nemotron-3.5-super-vl:free",
+                "openrouter/free",
                 "google/gemini-2.0-flash-001",
                 "meta-llama/llama-3.2-11b-vision-instruct",
+                "openrouter/auto",
             ]
             candidates.extend(preferred_vision)
             # Add top active vision models dynamically discovered
             for vm in discovered.get("vision_models", [])[:5]:
                 candidates.append(vm)
         else:
-            # Text chat cascade
+            # Text chat cascade (prioritize high-parameter free models like Nemotron-3-Ultra)
             preferred_text = [
                 "openrouter/auto",
+                "nvidia/nemotron-3-ultra-550b-a55b:free",
+                "nvidia/nemotron-3.5-lightning:free",
+                "openrouter/free",
                 "google/gemini-2.0-flash-001",
                 "deepseek/deepseek-chat",
                 "meta-llama/llama-3.3-70b-instruct",
                 "qwen/qwen-2.5-72b-instruct",
-                "openrouter/free",
             ]
             candidates.extend(preferred_text)
             # Add top active recent models discovered dynamically

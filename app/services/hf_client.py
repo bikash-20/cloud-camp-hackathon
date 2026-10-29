@@ -25,7 +25,7 @@ from app.services._http_logging import log_http_failure
 log = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "nateraw/food"
-DEFAULT_BASE_URL = "https://router.huggingface.co"
+DEFAULT_BASE_URL = "https://router.huggingface.co/hf-inference/models"
 USER_AGENT = "NutriVisionDemo/0.1 (hackathon demo)"
 
 # How many top labels to keep — used by the reconciler as the candidate
