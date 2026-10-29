@@ -22,9 +22,14 @@ from typing import Any
 
 import httpx
 
-from app.models.schemas import BBox, DetectedItem
+from app.models.schemas import BBox, DetectedItem, VisionDetectionResult
 from app.services._http_logging import log_http_failure
-from app.services.gemini_client import _DETECTION_PROMPT, _read_image, _parse_food_json
+from app.services.gemini_client import (
+    _DETECTION_PROMPT,
+    _parse_food_json,
+    _parse_vision_result,
+    _read_image,
+)
 
 
 log = logging.getLogger(__name__)
@@ -75,21 +80,22 @@ class GroqClient:
         """True iff a key is set."""
         return bool(self.api_key)
 
-    def detect(self, image_ref: str) -> list[DetectedItem]:
-        """Run food detection against Groq vision API.
-
-        Accepts either a base64 data URL (`data:image/jpeg;base64,...`) or a
-        local file path. Returns `[]` on any failure so callers can gracefully
-        continue the pipeline cascade.
-        """
+    def detect_vision(self, image_ref: str) -> VisionDetectionResult:
+        """Run multimodal vision analysis against Groq vision API."""
         if not self.is_configured():
-            return []
+            return VisionDetectionResult(is_food=False, overall_confidence=0.0, detected=[])
 
         try:
             image_b64, mime = _read_image(image_ref)
         except (OSError, ValueError) as exc:
             log.warning("Groq: cannot read image (%s)", type(exc).__name__)
-            return []
+            return VisionDetectionResult(
+                is_food=False,
+                overall_confidence=0.0,
+                rejection_reason_en="Cannot read image file",
+                rejection_reason_bn="ছবির ফাইলটি পড়া যায়নি",
+                detected=[],
+            )
 
         data_url = f"data:{mime};base64,{image_b64}"
         body: dict[str, Any] = {
@@ -139,15 +145,31 @@ class GroqClient:
                     )
                     continue
                 log_http_failure("Groq", exc, image_ref=image_ref)
-                return []
+                return VisionDetectionResult(is_food=False, overall_confidence=0.0, detected=[])
             except (httpx.HTTPError, ValueError) as exc:
                 log_http_failure("Groq", exc, image_ref=image_ref)
-                return []
+                return VisionDetectionResult(is_food=False, overall_confidence=0.0, detected=[])
 
         if not payload:
-            return []
+            return VisionDetectionResult(is_food=False, overall_confidence=0.0, detected=[])
 
-        return _parse_groq_response(payload)
+        choices = payload.get("choices") or []
+        if not choices:
+            return VisionDetectionResult(is_food=False, overall_confidence=0.0, detected=[])
+        message = choices[0].get("message") or {}
+        text = message.get("content") or ""
+        if not isinstance(text, str) or not text.strip():
+            return VisionDetectionResult(is_food=False, overall_confidence=0.0, detected=[])
+        return _parse_vision_result(text)
+
+    def detect(self, image_ref: str) -> list[DetectedItem]:
+        """Run food detection against Groq vision API.
+
+        Accepts either a base64 data URL (`data:image/jpeg;base64,...`) or a
+        local file path. Returns `[]` on any failure so callers can gracefully
+        continue the pipeline cascade.
+        """
+        return self.detect_vision(image_ref).detected
 
 
 def _parse_groq_response(payload: dict[str, Any]) -> list[DetectedItem]:
@@ -159,4 +181,4 @@ def _parse_groq_response(payload: dict[str, Any]) -> list[DetectedItem]:
     text = message.get("content") or ""
     if not isinstance(text, str) or not text.strip():
         return []
-    return _parse_food_json(text)
+    return _parse_vision_result(text).detected

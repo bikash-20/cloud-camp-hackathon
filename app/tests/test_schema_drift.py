@@ -233,6 +233,15 @@ MUST_MATCH = {
     "AnalyzeResult",
     "NutrientContribution",
     "ResolveNutritionResult",
+    "InputMode",
+    "RecipeSuggestion",
+    "MenuItemAnalysis",
+    # AI Coach
+    "CoachRole",
+    "CoachAgentType",
+    "CoachMessage",
+    "CoachChatRequest",
+    "CoachChatResponse",
     # Profile + personalization
     "HealthGoals",
     "DietaryPreference",
@@ -304,6 +313,7 @@ def test_no_unexpected_types_in_either_file() -> None:
         "field_validator",
         "PipelineStage",
         "PipelineStatus",
+        "VisionDetectionResult",
     }
 
     unexpected_ts = ts_only - allowed_ts_only

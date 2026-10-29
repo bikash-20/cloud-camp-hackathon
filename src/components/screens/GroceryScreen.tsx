@@ -16,6 +16,7 @@ import ConfidenceRing from '../ConfidenceRing';
 import SectionLabel from '../SectionLabel';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 import { toBengaliDigits } from '../../lib/format';
+import { resolveMarketPrice } from '../../lib/marketPrices';
 
 const container = {
   hidden: {},
@@ -332,7 +333,8 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
               const existing = new Set(list.groups.flatMap((g) => g.items.map((i) => i.name)));
               for (const name of ingredients) {
                 if (existing.has(name)) continue;
-                await apiAddItem('Other', name, 40);
+                const priceInfo = resolveMarketPrice(name);
+                await apiAddItem('Produce', name, priceInfo.estimatedCost);
                 existing.add(name);
                 added++;
               }
@@ -707,7 +709,7 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
   const { language } = useLanguage();
   const isBn = language === 'bn';
   const [name, setName] = useState('');
-  const [price, setPrice] = useState(40);
+  const [price, setPrice] = useState(60);
   const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -756,7 +758,15 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
       <input
         ref={inputRef}
         value={name}
-        onChange={(e) => { setName(e.target.value); if (error) setError(null); }}
+        onChange={(e) => {
+          const val = e.target.value;
+          setName(val);
+          if (error) setError(null);
+          const market = resolveMarketPrice(val);
+          if (market.matched) {
+            setPrice(market.estimatedCost);
+          }
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
           if (e.key === 'Escape') onCancel();

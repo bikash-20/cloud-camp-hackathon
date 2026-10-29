@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { resolveFoodName } from '../lib/foodAliases';
 
 export type Language = 'en' | 'bn';
 
@@ -619,8 +620,16 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       language,
       setLanguage,
       translate: language === 'bn' ? translateText : (text) => text,
-      foodName: (name, bengaliName) =>
-        language === 'bn' ? (bengaliName?.trim() || translateText(name)) : name,
+      foodName: (name, bengaliName) => {
+        if (!name) return '';
+        if (language === 'bn') {
+          if (bengaliName && bengaliName.trim()) return bengaliName.trim();
+          const canonicalBn = resolveFoodName(name, 'bn');
+          if (canonicalBn && canonicalBn !== name) return canonicalBn;
+          return translateText(name);
+        }
+        return resolveFoodName(name, 'en') || name;
+      },
     }),
     [language],
   );

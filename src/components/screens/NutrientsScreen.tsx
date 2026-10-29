@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles, ShoppingBag, CheckCircle } from 'lucide-react';
 import { T, NUTRITION_DB } from '../../data';
-import { resolveNutrition } from '../../lib/api';
+import { resolveNutrition, addGroceryItem } from '../../lib/api';
 import { focusedNutrients, unitForNutrient, getEffectiveNutrition, getDynamicTargets } from '../../lib/personalize';
+import { checkDietConflicts, CLINICAL_DISCLAIMER_BN, CLINICAL_DISCLAIMER_EN } from '../../lib/dietConflict';
+import { generateDietaryPivots, type DietaryPivot } from '../../lib/pivotEngine';
 import { MOCK_TARGETS } from '../../mocks/fixtures';
 import type { DetectedItem, MacroTargets, NutrientContribution, NutritionFacts, UserProfile } from '../../types/schemas';
 import Bar from '../Bar';
@@ -715,6 +717,37 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
   // focus logic in `lib/personalize.ts` so the verdict strip can't drift.
   const flaggedNutrients = focusedNutrients(profile);
 
+  const [pivotToast, setPivotToast] = useState<string | null>(null);
+  const [addedPivotIds, setAddedPivotIds] = useState<Record<string, boolean>>({});
+
+  const dietConflicts = useMemo(() => {
+    if (!profile || detected.length === 0) return [];
+    return checkDietConflicts(detected, profile, resolvedNutritionMap);
+  }, [detected, profile, resolvedNutritionMap]);
+
+  const dietaryPivots = useMemo(() => {
+    if (detected.length === 0) return [];
+    return generateDietaryPivots(detected, profile, resolvedNutritionMap);
+  }, [detected, profile, resolvedNutritionMap]);
+
+  const handleAddPivotToGrocery = async (pivot: DietaryPivot) => {
+    try {
+      for (const item of pivot.grocery_items_to_add) {
+        await addGroceryItem(item.category || 'Pantry', item.name, item.price_bdt);
+      }
+      setAddedPivotIds((prev) => ({ ...prev, [pivot.id]: true }));
+      setPivotToast(
+        language === 'bn'
+          ? `${toBengaliDigits(pivot.grocery_items_to_add.length)}টি স্বাস্থ্যকর উপাদান মুদির তালিকায় যোগ করা হয়েছে!`
+          : `Added ${pivot.grocery_items_to_add.length} pivot items to your Grocery List!`
+      );
+      setTimeout(() => setPivotToast(null), 3500);
+    } catch {
+      setPivotToast(language === 'bn' ? 'যোগ করতে ব্যর্থ হয়েছে' : 'Failed to add items');
+      setTimeout(() => setPivotToast(null), 3000);
+    }
+  };
+
   return (
     <LocalizedContent>
     <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
@@ -848,6 +881,111 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
           ? (language === 'bn' ? 'আপনার প্রিডায়াবেটিস-বান্ধব লক্ষ্যের জন্য বাছাই করা হয়েছে।' : 'Filtered for your prediabetic-friendly goal.')
           : (language === 'bn' ? 'আপনার সক্রিয় লক্ষ্য অনুসারে সাজানো হয়েছে।' : 'Personalized against your active goals.')}
       </motion.p>
+
+      {/* Prominent Red Clinical Safety Alert Card */}
+      {dietConflicts.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="glass-card"
+          style={{
+            marginBottom: 20,
+            borderRadius: 20,
+            padding: '16px 18px',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1.5px solid rgba(239, 68, 68, 0.35)',
+            boxShadow: '0 4px 16px rgba(239, 68, 68, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <span
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: '50%',
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: '#DC2626',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <AlertTriangle size={17} strokeWidth={2.4} />
+            </span>
+            <div>
+              <h3
+                style={{
+                  fontFamily: 'Inter',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: '#B91C1C',
+                  margin: 0,
+                }}
+              >
+                {language === 'bn' ? '⚠️ ক্লিনিক্যাল ও খাদ্যাভ্যাস নিরাপত্তা সতর্কতা' : '⚠️ Clinical & Dietary Safety Alert'}
+              </h3>
+              <div style={{ fontSize: 11, color: T.inkSoft, marginTop: 2 }}>
+                {language === 'bn' ? 'আপনার প্রোফাইলের সাথে খাবারের দ্বন্দ্ব শনাক্ত হয়েছে' : 'Conflicts detected with your health profile'}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {dietConflicts.map((c) => (
+              <div
+                key={c.id}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.65)',
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  border: '1px solid rgba(239, 68, 68, 0.18)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: '#991B1B' }}>
+                    {language === 'bn' ? c.title_bn : c.title_en}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: 999,
+                      background: c.severity === 'critical' ? '#FEE2E2' : '#FEF3C7',
+                      color: c.severity === 'critical' ? '#991B1B' : '#92400E',
+                    }}
+                  >
+                    {c.severity === 'critical' ? (language === 'bn' ? 'জরুরি বর্জনীয়' : 'Critical') : (language === 'bn' ? 'সতর্কতা' : 'Warning')}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: T.ink, lineHeight: 1.45 }}>
+                  {language === 'bn' ? c.detail_bn : c.detail_en}
+                </div>
+                {c.recommendation_bn && (
+                  <div style={{ marginTop: 6, fontSize: 11.5, color: T.primary, fontWeight: 600 }}>
+                    💡 {language === 'bn' ? c.recommendation_bn : c.recommendation_en}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              paddingTop: 8,
+              borderTop: '1px solid rgba(239, 68, 68, 0.2)',
+              fontSize: 11,
+              lineHeight: 1.45,
+              color: T.inkSoft,
+            }}
+          >
+            {language === 'bn' ? CLINICAL_DISCLAIMER_BN : CLINICAL_DISCLAIMER_EN}
+          </div>
+        </motion.div>
+      )}
 
       {/* Macro donuts */}
       <motion.div
@@ -999,6 +1137,58 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
         )}
       </AnimatePresence>
 
+      {/* ── Official Domain Citations (RAG-backed) ── */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 6,
+          alignItems: 'center',
+          marginBottom: 16,
+          padding: '6px 2px',
+        }}
+      >
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: T.inkSoft, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {language === 'bn' ? 'তথ্যসূত্র ও গাইডলাইন:' : 'Citations:'}
+        </span>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            padding: '2px 8px',
+            borderRadius: 6,
+            background: 'rgba(74, 58, 52, 0.08)',
+            color: T.ink,
+          }}
+        >
+          {language === 'bn' ? '[উৎস: INFS/BIRDEM গাইডলাইন]' : '[Source: INFS/BIRDEM Guidelines]'}
+        </span>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            padding: '2px 8px',
+            borderRadius: 6,
+            background: 'rgba(74, 58, 52, 0.08)',
+            color: T.ink,
+          }}
+        >
+          {language === 'bn' ? '[উৎস: ICMR/WHO প্রটোকল]' : '[Source: ICMR/WHO Protocols]'}
+        </span>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            padding: '2px 8px',
+            borderRadius: 6,
+            background: 'rgba(74, 58, 52, 0.08)',
+            color: T.ink,
+          }}
+        >
+          {language === 'bn' ? '[উৎস: দাম/TCB বাজারদর]' : '[Source: DAM/TCB Market Benchmarks]'}
+        </span>
+      </div>
+
       {/* Soft warning when carbs + glycemic load are both high together. */}
       <AnimatePresence>
         {showWarning && (
@@ -1052,6 +1242,228 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
                 </>
               )}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Phase 3: Smart Dietary Pivot & Market Intelligence Card ── */}
+      {dietaryPivots.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45 }}
+          className="glass-card"
+          style={{
+            marginTop: 18,
+            marginBottom: 20,
+            borderRadius: 22,
+            padding: '18px 20px',
+            background: 'rgba(255, 255, 255, 0.85)',
+            border: '1.5px solid rgba(201, 98, 45, 0.3)',
+            boxShadow: '0 8px 30px rgba(46, 37, 34, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <span
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: T.primary,
+                color: '#FFFFFF',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Sparkles size={16} />
+            </span>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.ink }}>
+                {language === 'bn' ? '💡 খাদ্যাভ্যাস পরিবর্তন ও স্মার্ট বাজার' : '💡 Smart Dietary Pivot & Market Intelligence'}
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: 11.5, color: T.inkSoft }}>
+                {language === 'bn' ? 'ক্লিনিক্যাল লক্ষ্য ও স্থানীয় বাজারদরের সুনির্দিষ্ট সমন্বয়' : 'Tailored meal swap with exact macro & BDT market deltas'}
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {dietaryPivots.map((pivot) => {
+              const alreadyAdded = addedPivotIds[pivot.id];
+              return (
+                <div
+                  key={pivot.id}
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: 16,
+                    background: 'rgba(249, 242, 228, 0.65)',
+                    border: '1px solid rgba(74, 58, 52, 0.1)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: T.primaryDeep }}>
+                      {language === 'bn' ? pivot.title_bn : pivot.title_en}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                        background: '#DCFCE7',
+                        color: '#166534',
+                      }}
+                    >
+                      {language === 'bn' ? `গ্লাইসেমিক লোড -${pivot.glycemic_reduction_pct}%` : `-${pivot.glycemic_reduction_pct}% Glycemic`}
+                    </span>
+                  </div>
+
+                  <p style={{ margin: '0 0 10px', fontSize: 12, color: T.ink, lineHeight: 1.45 }}>
+                    {language === 'bn' ? pivot.rationale_bn : pivot.rationale_en}
+                  </p>
+
+                  {/* Visual Delta Metrics Badge Strip */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '4px 8px',
+                        borderRadius: 8,
+                        background: pivot.delta.kcal < 0 ? '#DCFCE7' : '#FEF3C7',
+                        color: pivot.delta.kcal < 0 ? '#166534' : '#92400E',
+                      }}
+                    >
+                      Δ {pivot.delta.kcal > 0 ? '+' : ''}{pivot.delta.kcal} {language === 'bn' ? 'ক্যালরি' : 'kcal'}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '4px 8px',
+                        borderRadius: 8,
+                        background: pivot.delta.carbs < 0 ? '#DCFCE7' : '#FEF3C7',
+                        color: pivot.delta.carbs < 0 ? '#166534' : '#92400E',
+                      }}
+                    >
+                      Δ {pivot.delta.carbs > 0 ? '+' : ''}{pivot.delta.carbs}g {language === 'bn' ? 'কার্বস' : 'carbs'}
+                    </span>
+                    {pivot.delta.fiber !== 0 && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '4px 8px',
+                          borderRadius: 8,
+                          background: '#DCFCE7',
+                          color: '#166534',
+                        }}
+                      >
+                        +{pivot.delta.fiber}g {language === 'bn' ? 'আঁশ' : 'fiber'}
+                      </span>
+                    )}
+                    {pivot.delta.sodium !== 0 && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '4px 8px',
+                          borderRadius: 8,
+                          background: pivot.delta.sodium < 0 ? '#DCFCE7' : '#FEE2E2',
+                          color: pivot.delta.sodium < 0 ? '#166534' : '#991B1B',
+                        }}
+                      >
+                        Δ {pivot.delta.sodium > 0 ? '+' : ''}{pivot.delta.sodium}mg {language === 'bn' ? 'সোডিয়াম' : 'sodium'}
+                      </span>
+                    )}
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '4px 8px',
+                        borderRadius: 8,
+                        background: 'rgba(74, 58, 52, 0.08)',
+                        color: T.ink,
+                      }}
+                    >
+                      Δ ৳{pivot.delta.cost_bdt > 0 ? '+' : ''}{pivot.delta.cost_bdt} {language === 'bn' ? 'খরচ' : 'cost'}
+                    </span>
+                  </div>
+
+                  {/* 1-Click Grocery Sync CTA */}
+                  <motion.button
+                    type="button"
+                    onClick={() => handleAddPivotToGrocery(pivot)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    disabled={alreadyAdded}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      padding: '8px 16px',
+                      borderRadius: 999,
+                      background: alreadyAdded ? '#2E7D32' : T.primary,
+                      color: '#FFFFFF',
+                      border: 'none',
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: alreadyAdded ? 'default' : 'pointer',
+                      boxShadow: '0 4px 12px rgba(201, 98, 45, 0.25)',
+                    }}
+                  >
+                    {alreadyAdded ? (
+                      <>
+                        <CheckCircle size={14} /> {language === 'bn' ? 'মুদির তালিকায় যুক্ত হয়েছে' : 'Added to Grocery List'}
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingBag size={14} /> {language === 'bn' ? 'মুদির তালিকায় এই সমন্বয় যোগ করুন' : 'Add pivot items to Grocery List'}
+                      </>
+                    )}
+                  </motion.button>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Floating Pivot Feedback Toast */}
+      <AnimatePresence>
+        {pivotToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            role="status"
+            aria-live="polite"
+            style={{
+              position: 'fixed',
+              bottom: 84,
+              left: 20,
+              right: 20,
+              maxWidth: 420,
+              margin: '0 auto',
+              background: '#2E7D32',
+              color: '#FFFFFF',
+              padding: '12px 18px',
+              borderRadius: 14,
+              fontFamily: 'Inter',
+              fontSize: 12.5,
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              boxShadow: '0 8px 24px rgba(46, 125, 50, 0.35)',
+              zIndex: 99,
+            }}
+          >
+            <CheckCircle size={16} />
+            <span>{pivotToast}</span>
           </motion.div>
         )}
       </AnimatePresence>

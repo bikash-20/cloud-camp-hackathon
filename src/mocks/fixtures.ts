@@ -136,6 +136,7 @@ export const MOCK_TABS: TabDescriptor[] = [
   { id: 'nutrients', label: 'Nutrients', icon: 'Activity' },
   { id: 'profile',   label: 'Profile',   icon: 'User' },
   { id: 'grocery',   label: 'Grocery',   icon: 'ShoppingBag' },
+  { id: 'coach',     label: 'AI Coach',  icon: 'Bot' },
 ];
 
 // ── Demo users (admin dashboard only) ────────────────────────────────

@@ -27,7 +27,13 @@ from typing import Any
 
 import httpx
 
-from app.models.schemas import BBox, DetectedItem
+from app.models.schemas import (
+    BBox,
+    DetectedItem,
+    MenuItemAnalysis,
+    RecipeSuggestion,
+    VisionDetectionResult,
+)
 from app.services._http_logging import log_http_failure
 
 
@@ -37,24 +43,60 @@ DEFAULT_MODEL = "gemini-2.0-flash"
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 USER_AGENT = "NutriVisionDemo/0.1 (hackathon demo)"
 
-# The prompt intentionally asks for strict JSON so we can `json.loads`
-# without a heavy parser. Gemini 2.0 Flash respects this most of the
-# time but occasionally wraps in ```json … ``` fences — `re.DOTALL`
-# below strips them.
+# Strict multimodal prompt: supports 3-way input modes (cooked_meal, raw_ingredients, restaurant_menu),
+# non-food safety gate with rejection reason, hidden ingredient inference, and recipe/menu suggestions.
 _DETECTION_PROMPT = """\
-You are an expert food vision and nutrition analysis AI system.
+You are an expert food vision, clinical nutrition, and culinary AI system.
 Look at the photo and detect all food items, meat, cooked dishes, raw ingredients, beverages, or meals present.
+Carefully inspect the image and determine whether it contains cooked food, raw grocery ingredients, a restaurant menu, or a non-food item.
 
-Return ONLY a JSON array of detected items.
-Each item must match this shape:
-  {"name": "<canonical English food name>", "name_bn": "<Bengali food name>", "confidence": <0–100 integer>, "grams": <estimated portion in grams>, "bbox": [x, y, w, h]}
+Return ONLY a strict JSON object matching this exact schema:
+{
+  "is_food": true | false,
+  "input_mode": "cooked_meal" | "raw_ingredients" | "restaurant_menu",
+  "overall_confidence": <float 0.0 to 1.0>,
+  "rejection_reason_en": "<explanation in English if is_food is false, otherwise null>",
+  "rejection_reason_bn": "<explanation in Bengali if is_food is false, otherwise null>",
+  "inferred_hidden_ingredients": ["<inferred cooking oils, ghee, added sugars, sodium, or thickeners likely present>"],
+  "detected": [
+    {
+      "name": "<canonical English food name>",
+      "name_bn": "<Bengali food name>",
+      "confidence": <0-100 integer>,
+      "grams": <estimated portion in grams>,
+      "bbox": [x, y, w, h]
+    }
+  ],
+  "recipe_suggestions": [
+    {
+      "title_en": "<Recipe name in English>",
+      "title_bn": "<Recipe name in Bengali>",
+      "description_en": "<Brief cooking instructions/overview>",
+      "description_bn": "<সংক্ষিপ্ত রান্নার প্রণালী>",
+      "matched_ingredients": ["<ingredient from image>"],
+      "missing_ingredients": ["<ingredient needed to buy>"]
+    }
+  ],
+  "menu_analysis": [
+    {
+      "dish_name_en": "<Dish on menu>",
+      "dish_name_bn": "<বাংলা নাম>",
+      "is_healthy_pick": true | false,
+      "is_ultra_processed": true | false,
+      "notes_en": "<Why healthy or why flagged>",
+      "notes_bn": "<সংক্ষিপ্ত কারণ>"
+    }
+  ]
+}
 
 Guidelines:
-1. Detect any food shown in the image, including any meat (beef, chicken, steak, mutton, lamb, pork, kebab, meat curry, roasted/grilled meat, cuts), fish, rice, lentils/dal, bread, vegetables, salads, or snacks.
-2. Even if there is only a single piece of food or meat, ALWAYS detect it and return it in the JSON array: [{"name": "Grilled Beef Steak", ...}].
-3. For South Asian and Bangladeshi meals, use a specific local dish name in both `name` and `name_bn` when supported (for example: rice / ভাত, lentil dal / ডাল, khichuri / খিচুড়ি, biryani / বিরিয়ানি, fish curry / মাছের তরকারি, beef curry / গরুর মাংস, bhorta / ভর্তা, bhaji / ভাজি, roti / রুটি, or paratha / পরোটা).
-4. Keep `name` in concise English for nutrition database lookups.
-5. ONLY return [] if the image contains no food, ingredients, or drinks whatsoever (e.g. furniture, electronic device, car).
+1. NON-FOOD SAFETY GATE:
+   - If the image contains NO food, produce, drinks, edible ingredients, or restaurant menus (e.g. shoes, laptop, car, pets, furniture, documents, people without food), set "is_food": false, "overall_confidence": 0.95, "detected": [], "rejection_reason_en": "No food detected in this photo. Please take a photo of food or ingredients.", "rejection_reason_bn": "এই ছবিতে কোনো খাবার বা উপাদান শনাক্ত করা যায়নি। অনুগ্রহ করে কোনো খাবার বা রান্নার উপাদানের ছবি তুলুন।"
+2. 3-WAY VISION MODES:
+   - If cooked food / plated meal: set "input_mode": "cooked_meal", "is_food": true, detect every item in "detected", and infer cooking media (e.g., "Mustard oil", "Soybean oil", "Ghee", "Salt", "Sugar") in "inferred_hidden_ingredients". Detect dishes like khichuri / খিচুড়ি, biryani, dal, curry, meat, fish, vegetables, or rice.
+   - If raw ingredients / groceries (raw chicken, vegetables, lentils, spices): set "input_mode": "raw_ingredients", "is_food": true, detect items in "detected", and provide 2 healthy South Asian / Bangladeshi recipes in "recipe_suggestions" with missing ingredients to buy.
+   - If a restaurant menu or printed food list: set "input_mode": "restaurant_menu", "is_food": true, extract dishes into "menu_analysis", highlight healthy picks, and flag ultra-processed or deep-fried dishes.
+3. Keep `name` in concise English for database lookup; provide natural Bengali in `name_bn`.
 """
 
 
@@ -91,21 +133,21 @@ class GeminiClient:
         """True iff a key is set — the route uses this to select a provider."""
         return bool(self.api_key)
 
-    def detect(self, image_ref: str) -> list[DetectedItem]:
-        """Run the Gemini detection prompt against the image.
-
-        `image_ref` is a base64 data URL (`data:image/jpeg;base64,…`)
-        or a local file path. Returns `[]` on any error so callers can
-        fall back to Hugging Face or return no detections without
-        raising an exception.
-        """
+    def detect_vision(self, image_ref: str) -> VisionDetectionResult:
+        """Run multimodal vision analysis returning rich 3-way mode results."""
         if not self.is_configured():
-            return []
+            return VisionDetectionResult(is_food=False, overall_confidence=0.0, detected=[])
         try:
             image_b64, mime = _read_image(image_ref)
         except (OSError, ValueError) as exc:
             log.warning("Gemini: cannot read image (%s)", type(exc).__name__)
-            return []
+            return VisionDetectionResult(
+                is_food=False,
+                overall_confidence=0.0,
+                rejection_reason_en="Cannot read image file",
+                rejection_reason_bn="ছবির ফাইলটি পড়া যায়নি",
+                detected=[],
+            )
 
         body = {
             "contents": [
@@ -144,9 +186,16 @@ class GeminiClient:
             payload = resp.json()
         except (httpx.HTTPError, ValueError) as exc:
             log_http_failure("Gemini", exc, image_ref=image_ref)
-            return []
+            return VisionDetectionResult(is_food=False, overall_confidence=0.0, detected=[])
 
-        return _parse_gemini_response(payload)
+        text = _extract_text(payload)
+        if not text:
+            return VisionDetectionResult(is_food=False, overall_confidence=0.0, detected=[])
+        return _parse_vision_result(text)
+
+    def detect(self, image_ref: str) -> list[DetectedItem]:
+        """Backward-compatible helper returning detected items list."""
+        return self.detect_vision(image_ref).detected
 
 
 def _read_image(image_ref: str) -> tuple[str, str]:
@@ -184,7 +233,126 @@ def _parse_gemini_response(payload: dict[str, Any]) -> list[DetectedItem]:
     text = _extract_text(payload)
     if not text:
         return []
-    return _parse_food_json(text)
+    res = _parse_vision_result(text)
+    return res.detected
+
+
+def _parse_vision_result(text: str) -> VisionDetectionResult:
+    """Parse strict JSON object with support for 3-way modes, non-food rejection, and legacy arrays."""
+    text = text.strip()
+    match = _JSON_FENCE_RE.search(text)
+    if match:
+        text = match.group(1).strip()
+
+    parsed = None
+    try:
+        parsed = json.loads(text)
+    except Exception:
+        pass
+
+    if parsed is None:
+        start_obj = text.find("{")
+        end_obj = text.rfind("}")
+        if start_obj != -1 and end_obj != -1 and end_obj > start_obj:
+            try:
+                parsed = json.loads(text[start_obj : end_obj + 1])
+            except Exception:
+                pass
+
+    if parsed is None or isinstance(parsed, list):
+        items = _parse_food_json(text)
+        is_food = len(items) > 0
+        conf = max([it.confidence / 100.0 for it in items], default=0.85) if items else 0.0
+        return VisionDetectionResult(
+            is_food=is_food,
+            input_mode="cooked_meal",
+            overall_confidence=conf,
+            rejection_reason_en=None if is_food else "No food detected in photo.",
+            rejection_reason_bn=None if is_food else "এই ছবিতে কোনো খাবার শনাক্ত করা যায়নি।",
+            detected=items,
+        )
+
+    if isinstance(parsed, dict):
+        is_food = bool(parsed.get("is_food", True))
+        raw_mode = parsed.get("input_mode", "cooked_meal")
+        input_mode = raw_mode if raw_mode in ("cooked_meal", "raw_ingredients", "restaurant_menu") else "cooked_meal"
+
+        try:
+            overall_confidence = float(parsed.get("overall_confidence", 0.85))
+        except (TypeError, ValueError):
+            overall_confidence = 0.85
+
+        rejection_reason_en = parsed.get("rejection_reason_en")
+        rejection_reason_bn = parsed.get("rejection_reason_bn")
+
+        inferred_hidden = [str(x) for x in parsed.get("inferred_hidden_ingredients", []) if x]
+
+        # Parse detected items
+        raw_detected = parsed.get("detected") or parsed.get("items") or parsed.get("foods")
+        if isinstance(raw_detected, list):
+            detected_items = _parse_food_json(json.dumps(raw_detected))
+        elif "name" in parsed or "food" in parsed or "dish" in parsed:
+            detected_items = _parse_food_json(json.dumps([parsed]))
+        else:
+            detected_items = []
+
+        if not is_food:
+            detected_items = []
+            if not rejection_reason_en:
+                rejection_reason_en = "Non-food item detected. Please take a photo of food or ingredients."
+            if not rejection_reason_bn:
+                rejection_reason_bn = "খাবার হিসেবে শনাক্ত করা যায়নি। অনুগ্রহ করে কোনো খাবার বা রান্নার উপাদানের ছবি তুলুন।"
+
+        recipe_suggestions: list[RecipeSuggestion] = []
+        if isinstance(parsed.get("recipe_suggestions"), list):
+            for r in parsed["recipe_suggestions"]:
+                if isinstance(r, dict):
+                    recipe_suggestions.append(
+                        RecipeSuggestion(
+                            title_en=str(r.get("title_en", "")),
+                            title_bn=str(r.get("title_bn", "")),
+                            description_en=str(r.get("description_en", "")),
+                            description_bn=str(r.get("description_bn", "")),
+                            matched_ingredients=[str(x) for x in r.get("matched_ingredients", [])],
+                            missing_ingredients=[str(x) for x in r.get("missing_ingredients", [])],
+                        )
+                    )
+
+        menu_analysis: list[MenuItemAnalysis] = []
+        if isinstance(parsed.get("menu_analysis"), list):
+            for m in parsed["menu_analysis"]:
+                if isinstance(m, dict):
+                    menu_analysis.append(
+                        MenuItemAnalysis(
+                            dish_name_en=str(m.get("dish_name_en", "")),
+                            dish_name_bn=str(m.get("dish_name_bn", "")),
+                            is_healthy_pick=bool(m.get("is_healthy_pick", False)),
+                            is_ultra_processed=bool(m.get("is_ultra_processed", False)),
+                            notes_en=str(m.get("notes_en", "")),
+                            notes_bn=str(m.get("notes_bn", "")),
+                        )
+                    )
+
+        return VisionDetectionResult(
+            is_food=is_food,
+            input_mode=input_mode,
+            overall_confidence=overall_confidence,
+            rejection_reason_en=rejection_reason_en,
+            rejection_reason_bn=rejection_reason_bn,
+            inferred_hidden_ingredients=inferred_hidden,
+            recipe_suggestions=recipe_suggestions or None,
+            menu_analysis=menu_analysis or None,
+            detected=detected_items,
+        )
+
+    return VisionDetectionResult(
+        is_food=False,
+        overall_confidence=0.0,
+        rejection_reason_en="Could not analyze image.",
+        rejection_reason_bn="ছবিটি বিশ্লেষণ করা যায়নি।",
+        detected=[],
+    )
+
 
 
 def _parse_food_json(text: str) -> list[DetectedItem]:

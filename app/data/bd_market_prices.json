@@ -1,0 +1,1027 @@
+[
+  {
+    "name": "White rice (Miniket)",
+    "name_bn": "মিনিকেট চাল",
+    "aliases": [
+      "white rice",
+      "rice",
+      "miniket",
+      "chal",
+      "bhat",
+      "cooked rice"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 72.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "White rice (Nazirshail)",
+    "name_bn": "নাজিরশাইল চাল",
+    "aliases": [
+      "nazirshail",
+      "nazirshail rice"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 78.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Brown rice (Lal chal)",
+    "name_bn": "লাল চাল",
+    "aliases": [
+      "brown rice",
+      "lal chal"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 90.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Basmati rice",
+    "name_bn": "বাসমতী চাল",
+    "aliases": [
+      "basmati",
+      "basmati rice"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 280.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Chinigura / Kalijira aromatic rice",
+    "name_bn": "চিনিগুঁড়া / পোলাও চাল",
+    "aliases": [
+      "polao rice",
+      "chinigura",
+      "kalijira",
+      "aromatic rice"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 140.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Whole wheat atta",
+    "name_bn": "লাল আটা",
+    "aliases": [
+      "atta",
+      "whole wheat flour",
+      "flour",
+      "roti atta"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 58.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "White flour (Maida)",
+    "name_bn": "ময়দা",
+    "aliases": [
+      "maida",
+      "white flour",
+      "all purpose flour"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 65.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Rolled oats",
+    "name_bn": "ওটস",
+    "aliases": [
+      "oats",
+      "rolled oats"
+    ],
+    "category": "Grains & staples",
+    "unit": "pack",
+    "price_bdt": 240.0,
+    "default_pack_g": 500
+  },
+  {
+    "name": "Suji / Semolina",
+    "name_bn": "সুজি",
+    "aliases": [
+      "suji",
+      "semolina"
+    ],
+    "category": "Grains & staples",
+    "unit": "pack",
+    "price_bdt": 60.0,
+    "default_pack_g": 500
+  },
+  {
+    "name": "Chira (Flattened rice)",
+    "name_bn": "চিঁড়া",
+    "aliases": [
+      "chira",
+      "flattened rice"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 70.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Muri (Puffed rice)",
+    "name_bn": "মুড়ি",
+    "aliases": [
+      "muri",
+      "puffed rice"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 80.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Masoor dal (fine)",
+    "name_bn": "চিকন মসুর ডাল",
+    "aliases": [
+      "masoor dal",
+      "red lentils",
+      "lentil dal",
+      "dal",
+      "musur dal"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 150.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Masoor dal (coarse)",
+    "name_bn": "মোটা মসুর ডাল",
+    "aliases": [
+      "coarse red lentil",
+      "mota musur"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 110.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Moong dal",
+    "name_bn": "মুগ ডাল",
+    "aliases": [
+      "moong dal",
+      "mung bean",
+      "yellow dal"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 165.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Chana / Buter dal (Bengal gram)",
+    "name_bn": "ছোলার ডাল",
+    "aliases": [
+      "chana dal",
+      "buter dal",
+      "bengal gram"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 130.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Whole chola / Chickpeas",
+    "name_bn": "ছোলা বুট",
+    "aliases": [
+      "chickpeas",
+      "chola",
+      "black chickpeas"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 115.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Kheshari dal",
+    "name_bn": "খেসারি ডাল",
+    "aliases": [
+      "kheshari dal",
+      "grass pea"
+    ],
+    "category": "Grains & staples",
+    "unit": "kg",
+    "price_bdt": 95.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Broiler chicken",
+    "name_bn": "ব্রয়লার মুরগি",
+    "aliases": [
+      "chicken",
+      "broiler chicken",
+      "chicken meat"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 200.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Sonali chicken",
+    "name_bn": "সোনালী মুরগি",
+    "aliases": [
+      "sonali chicken",
+      "local breed chicken"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 320.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Deshi chicken",
+    "name_bn": "দেশি মুরগি",
+    "aliases": [
+      "deshi chicken",
+      "country chicken"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 550.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Chicken breast (boneless)",
+    "name_bn": "মুরগির বুকের মাংস",
+    "aliases": [
+      "chicken breast",
+      "boneless chicken"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 380.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Beef (with bone)",
+    "name_bn": "গরুর মাংস (হাড়সহ)",
+    "aliases": [
+      "beef",
+      "gorur mangsho",
+      "beef curry meat"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 780.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Beef (boneless)",
+    "name_bn": "গরুর সলিড মাংস",
+    "aliases": [
+      "boneless beef",
+      "beef steak meat"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 900.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Mutton / Goat meat",
+    "name_bn": "খাসির মাংস",
+    "aliases": [
+      "mutton",
+      "goat meat",
+      "khasir mangsho"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 1150.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Eggs (Farm, brown)",
+    "name_bn": "ফার্মের লাল ডিম",
+    "aliases": [
+      "eggs",
+      "egg",
+      "brown eggs",
+      "dim"
+    ],
+    "category": "Protein",
+    "unit": "dozen",
+    "price_bdt": 140.0,
+    "default_pack_g": 600
+  },
+  {
+    "name": "Eggs (Duck)",
+    "name_bn": "হাঁসের ডিম",
+    "aliases": [
+      "duck eggs",
+      "haser dim"
+    ],
+    "category": "Protein",
+    "unit": "dozen",
+    "price_bdt": 190.0,
+    "default_pack_g": 700
+  },
+  {
+    "name": "Rui fish (medium 1.5-2kg)",
+    "name_bn": "রুই মাছ",
+    "aliases": [
+      "rui",
+      "rohu",
+      "rui mach",
+      "rohu fish"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 380.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Katla fish",
+    "name_bn": "কাতলা মাছ",
+    "aliases": [
+      "katla",
+      "katla mach"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 400.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Ilish fish (Padma, 800g-1kg)",
+    "name_bn": "পদ্মার ইলিশ মাছ",
+    "aliases": [
+      "ilish",
+      "hilsa",
+      "hilsa fish",
+      "ilish mach"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 1450.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Pangas fish",
+    "name_bn": "পাঙ্গাস মাছ",
+    "aliases": [
+      "pangas",
+      "pangash"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 180.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Tilapia fish",
+    "name_bn": "তেলাপিয়া মাছ",
+    "aliases": [
+      "tilapia",
+      "tilapia mach"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 220.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Koi fish (Climbing perch)",
+    "name_bn": "কৈ মাছ",
+    "aliases": [
+      "koi",
+      "koi mach"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 300.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Chingri / Tiger Prawn",
+    "name_bn": "বাগদা / গলদা চিংড়ি",
+    "aliases": [
+      "shrimp",
+      "prawn",
+      "chingri",
+      "bagda chingri"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 850.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Small Chingri (Gura)",
+    "name_bn": "গুঁড়া চিংড়ি",
+    "aliases": [
+      "small shrimp",
+      "gura chingri"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 450.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Shing fish (Catfish)",
+    "name_bn": "শিং মাছ",
+    "aliases": [
+      "shing",
+      "shing mach"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 480.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Kachki fish",
+    "name_bn": "কাচকি মাছ",
+    "aliases": [
+      "kachki",
+      "kachki mach"
+    ],
+    "category": "Protein",
+    "unit": "kg",
+    "price_bdt": 350.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Pure Mustard oil (Shorsher tel)",
+    "name_bn": "খাঁটি সরিষার তেল",
+    "aliases": [
+      "mustard oil",
+      "shorsher tel",
+      "shorisha tel"
+    ],
+    "category": "Pantry",
+    "unit": "litre",
+    "price_bdt": 290.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Soybean oil",
+    "name_bn": "সয়াবিন তেল",
+    "aliases": [
+      "soybean oil",
+      "cooking oil",
+      "vegetable oil"
+    ],
+    "category": "Pantry",
+    "unit": "litre",
+    "price_bdt": 170.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Pure Ghee (Gawa ghee)",
+    "name_bn": "খাঁটি গাওয়া ঘি",
+    "aliases": [
+      "ghee",
+      "gawa ghee",
+      "clarified butter"
+    ],
+    "category": "Pantry",
+    "unit": "jar (500g)",
+    "price_bdt": 650.0,
+    "default_pack_g": 500
+  },
+  {
+    "name": "Cow Milk (Pasteurized pouch)",
+    "name_bn": "পাস্তুরিত খাঁটি দুধ",
+    "aliases": [
+      "milk",
+      "cow milk",
+      "pasteurized milk",
+      "aarong milk"
+    ],
+    "category": "Produce",
+    "unit": "litre",
+    "price_bdt": 90.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Tok Doi (Sour curd / Yogurt)",
+    "name_bn": "টক দই",
+    "aliases": [
+      "sour curd",
+      "yogurt",
+      "tok doi",
+      "curd",
+      "plain yogurt"
+    ],
+    "category": "Produce",
+    "unit": "pot (500g)",
+    "price_bdt": 110.0,
+    "default_pack_g": 500
+  },
+  {
+    "name": "Paneer / Cottage cheese",
+    "name_bn": "পনির",
+    "aliases": [
+      "paneer",
+      "cottage cheese"
+    ],
+    "category": "Produce",
+    "unit": "pack (250g)",
+    "price_bdt": 180.0,
+    "default_pack_g": 250
+  },
+  {
+    "name": "Potato (Alu)",
+    "name_bn": "আলু",
+    "aliases": [
+      "potato",
+      "potatoes",
+      "alu",
+      "gol alu"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 45.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Onion (Local deshi)",
+    "name_bn": "দেশি পেঁয়াজ",
+    "aliases": [
+      "onion",
+      "onions",
+      "peyaj",
+      "deshi peyaj"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 95.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Garlic (Deshi)",
+    "name_bn": "দেশি রসুন",
+    "aliases": [
+      "garlic",
+      "roshun"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 220.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Ginger (Ada)",
+    "name_bn": "আদা",
+    "aliases": [
+      "ginger",
+      "ada"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 240.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Tomatoes",
+    "name_bn": "টমেটো",
+    "aliases": [
+      "tomato",
+      "tomatoes",
+      "paka tomato"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 60.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Cucumber (Shosha)",
+    "name_bn": "শসা",
+    "aliases": [
+      "cucumber",
+      "shosha",
+      "salad cucumber"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 50.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Green Chili (Kacha morich)",
+    "name_bn": "কাঁচা মরিচ",
+    "aliases": [
+      "green chili",
+      "chili",
+      "kacha morich"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 160.0,
+    "default_pack_g": 250
+  },
+  {
+    "name": "Begun / Eggplant",
+    "name_bn": "বেগুন",
+    "aliases": [
+      "eggplant",
+      "begun",
+      "brinjal",
+      "aubergine"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 70.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Cauliflower (Phulkopi)",
+    "name_bn": "ফুলকপি",
+    "aliases": [
+      "cauliflower",
+      "phulkopi",
+      "fulkopi"
+    ],
+    "category": "Produce",
+    "unit": "piece",
+    "price_bdt": 40.0,
+    "default_pack_g": 600
+  },
+  {
+    "name": "Cabbage (Badhakopi)",
+    "name_bn": "বাঁধাকপি",
+    "aliases": [
+      "cabbage",
+      "badhakopi"
+    ],
+    "category": "Produce",
+    "unit": "piece",
+    "price_bdt": 35.0,
+    "default_pack_g": 800
+  },
+  {
+    "name": "Korola / Bitter gourd",
+    "name_bn": "করলা",
+    "aliases": [
+      "bitter gourd",
+      "korola",
+      "uchhe"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 80.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Potol / Pointed gourd",
+    "name_bn": "পটল",
+    "aliases": [
+      "potol",
+      "pointed gourd"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 60.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Dherosh / Okra / Ladies finger",
+    "name_bn": "ঢ্যাঁড়শ / ভেন্ডি",
+    "aliases": [
+      "okra",
+      "dherosh",
+      "bhendi",
+      "ladies finger"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 65.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Lau / Bottle gourd",
+    "name_bn": "লাউ",
+    "aliases": [
+      "bottle gourd",
+      "lau",
+      "kaddu"
+    ],
+    "category": "Produce",
+    "unit": "piece",
+    "price_bdt": 60.0,
+    "default_pack_g": 1200
+  },
+  {
+    "name": "Misty kumra / Sweet pumpkin",
+    "name_bn": "মিষ্টি কুমড়া",
+    "aliases": [
+      "pumpkin",
+      "sweet pumpkin",
+      "misti kumra"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 40.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Palong shak (Spinach)",
+    "name_bn": "পালং শাক",
+    "aliases": [
+      "spinach",
+      "palong shak",
+      "shak"
+    ],
+    "category": "Produce",
+    "unit": "bundle",
+    "price_bdt": 25.0,
+    "default_pack_g": 300
+  },
+  {
+    "name": "Lal shak (Red amaranth)",
+    "name_bn": "লাল শাক",
+    "aliases": [
+      "lal shak",
+      "red amaranth"
+    ],
+    "category": "Produce",
+    "unit": "bundle",
+    "price_bdt": 20.0,
+    "default_pack_g": 300
+  },
+  {
+    "name": "Pui shak (Malabar spinach)",
+    "name_bn": "পুঁই শাক",
+    "aliases": [
+      "pui shak",
+      "malabar spinach"
+    ],
+    "category": "Produce",
+    "unit": "bundle",
+    "price_bdt": 30.0,
+    "default_pack_g": 400
+  },
+  {
+    "name": "Kochur loti",
+    "name_bn": "কচুর লতি",
+    "aliases": [
+      "kochur loti",
+      "taro stem"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 80.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Shim / Flat green beans",
+    "name_bn": "শিম",
+    "aliases": [
+      "shim",
+      "flat beans",
+      "hyacinth beans"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 75.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Carrots (Gajor)",
+    "name_bn": "গাজর",
+    "aliases": [
+      "carrot",
+      "carrots",
+      "gajor"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 70.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Green papaya (Kacha pepe)",
+    "name_bn": "কাঁচা পেঁপে",
+    "aliases": [
+      "papaya",
+      "green papaya",
+      "kacha pepe"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 40.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Lemon (Kagoji lebu)",
+    "name_bn": "কাগজি লেবু (৪টি)",
+    "aliases": [
+      "lemon",
+      "lime",
+      "lebu",
+      "kagoji lebu"
+    ],
+    "category": "Produce",
+    "unit": "4 pcs",
+    "price_bdt": 25.0,
+    "default_pack_g": 150
+  },
+  {
+    "name": "Coriander leaves (Dhone pata)",
+    "name_bn": "ধনে পাতা",
+    "aliases": [
+      "coriander",
+      "dhone pata",
+      "cilantro"
+    ],
+    "category": "Produce",
+    "unit": "bundle",
+    "price_bdt": 15.0,
+    "default_pack_g": 100
+  },
+  {
+    "name": "Banana (Shobri)",
+    "name_bn": "সবরি কলা (হালি)",
+    "aliases": [
+      "banana",
+      "bananas",
+      "kola",
+      "shobri kola"
+    ],
+    "category": "Produce",
+    "unit": "4 pcs",
+    "price_bdt": 40.0,
+    "default_pack_g": 400
+  },
+  {
+    "name": "Apple (Fuji)",
+    "name_bn": "ফুজি আপেল",
+    "aliases": [
+      "apple",
+      "apples",
+      "apel"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 320.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Orange (Malta)",
+    "name_bn": "মাল্টা",
+    "aliases": [
+      "orange",
+      "malta",
+      "citrus"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 260.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Guava (Peyara)",
+    "name_bn": "পেয়ারা",
+    "aliases": [
+      "guava",
+      "peyara"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 80.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Ripe Papaya (Paka pepe)",
+    "name_bn": "পাকা পেঁপে",
+    "aliases": [
+      "ripe papaya",
+      "paka pepe"
+    ],
+    "category": "Produce",
+    "unit": "kg",
+    "price_bdt": 100.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Turmeric powder (Holud)",
+    "name_bn": "হলুদ গুঁড়া",
+    "aliases": [
+      "turmeric",
+      "turmeric powder",
+      "holud gura"
+    ],
+    "category": "Pantry",
+    "unit": "pack (200g)",
+    "price_bdt": 85.0,
+    "default_pack_g": 200
+  },
+  {
+    "name": "Chili powder (Morich)",
+    "name_bn": "মরিচ গুঁড়া",
+    "aliases": [
+      "chili powder",
+      "red chili powder",
+      "morich gura"
+    ],
+    "category": "Pantry",
+    "unit": "pack (200g)",
+    "price_bdt": 110.0,
+    "default_pack_g": 200
+  },
+  {
+    "name": "Cumin powder (Jira)",
+    "name_bn": "ভাজা জিরা গুঁড়া",
+    "aliases": [
+      "cumin",
+      "cumin powder",
+      "jira gura"
+    ],
+    "category": "Pantry",
+    "unit": "pack (100g)",
+    "price_bdt": 130.0,
+    "default_pack_g": 100
+  },
+  {
+    "name": "Coriander powder (Dhone)",
+    "name_bn": "ধনে গুঁড়া",
+    "aliases": [
+      "coriander powder",
+      "dhone gura"
+    ],
+    "category": "Pantry",
+    "unit": "pack (200g)",
+    "price_bdt": 70.0,
+    "default_pack_g": 200
+  },
+  {
+    "name": "Iodized Salt (Labon)",
+    "name_bn": "আয়োডিনযুক্ত লবণ",
+    "aliases": [
+      "salt",
+      "table salt",
+      "iodized salt",
+      "lobon"
+    ],
+    "category": "Pantry",
+    "unit": "kg",
+    "price_bdt": 40.0,
+    "default_pack_g": 1000
+  },
+  {
+    "name": "Garam masala powder",
+    "name_bn": "গরম মসলা গুঁড়া",
+    "aliases": [
+      "garam masala",
+      "hot spice mix"
+    ],
+    "category": "Pantry",
+    "unit": "pack (50g)",
+    "price_bdt": 95.0,
+    "default_pack_g": 50
+  },
+  {
+    "name": "Bay leaves (Tejpata)",
+    "name_bn": "তেজপাতা",
+    "aliases": [
+      "bay leaves",
+      "tejpata"
+    ],
+    "category": "Pantry",
+    "unit": "pack (50g)",
+    "price_bdt": 30.0,
+    "default_pack_g": 50
+  },
+  {
+    "name": "Cinnamon (Darchini)",
+    "name_bn": "দারুচিনি",
+    "aliases": [
+      "cinnamon",
+      "darchini"
+    ],
+    "category": "Pantry",
+    "unit": "pack (50g)",
+    "price_bdt": 60.0,
+    "default_pack_g": 50
+  },
+  {
+    "name": "Cardamom (Elachi)",
+    "name_bn": "ছোট এলাচ",
+    "aliases": [
+      "cardamom",
+      "elachi"
+    ],
+    "category": "Pantry",
+    "unit": "pack (50g)",
+    "price_bdt": 210.0,
+    "default_pack_g": 50
+  }
+]

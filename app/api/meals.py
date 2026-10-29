@@ -94,11 +94,35 @@ def get_today_summary(state: State = Depends(get_state)) -> TodaySummary:
     )
 
 
+from datetime import date, timedelta
+
+
+def _calculate_streak(days: set[str]) -> int:
+    if not days:
+        return 0
+    sorted_days = sorted(days, reverse=True)
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+
+    if today.isoformat() in days:
+        cur = today
+    elif yesterday.isoformat() in days:
+        cur = yesterday
+    else:
+        parts = [int(p) for p in sorted_days[0].split("-")]
+        cur = date(parts[0], parts[1], parts[2])
+
+    streak = 0
+    while cur.isoformat() in days:
+        streak += 1
+        cur -= timedelta(days=1)
+    return streak
+
+
 @router.get("/stats", response_model=UserStats)
 def get_user_stats(state: State = Depends(get_state)) -> UserStats:
-    """Aggregate user-level stats for the Profile screen. Mirrors the
-    frontend's `getUserStats()` exactly — including the simplified
-    `streakDays == totalDaysActive` rule (good enough for the demo)."""
+    """Aggregate user-level stats for the Profile screen. Calculates real
+    consecutive calendar-day streak and total active days."""
     meals = state.list_meals()
     if not meals:
         return UserStats(
@@ -110,5 +134,5 @@ def get_user_stats(state: State = Depends(get_state)) -> UserStats:
         total_meals=len(meals),
         total_days_active=len(days),
         avg_daily_kcal=round(total_kcal / len(days)),
-        streak_days=len(days),
+        streak_days=_calculate_streak(days),
     )

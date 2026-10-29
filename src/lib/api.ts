@@ -21,6 +21,8 @@
 
 import type {
   AnalyzeResult,
+  CoachChatRequest,
+  CoachChatResponse,
   DetectedItem,
   GroceryGroup,
   GroceryItem,
@@ -352,6 +354,42 @@ export async function getTodaySummary(): Promise<TodaySummary> {
   };
 }
 
+export function calculateStreak(days: Set<string>): number {
+  if (days.size === 0) return 0;
+  const sortedDays = Array.from(days).sort().reverse();
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const toDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  const todayStr = toDateStr(now);
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = toDateStr(yesterday);
+
+  let checkDate: Date;
+  if (days.has(todayStr)) {
+    checkDate = now;
+  } else if (days.has(yesterdayStr)) {
+    checkDate = yesterday;
+  } else {
+    const mostRecentStr = sortedDays[0];
+    const parts = mostRecentStr.split('-').map(Number);
+    checkDate = new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+
+  let streak = 0;
+  while (true) {
+    const s = toDateStr(checkDate);
+    if (days.has(s)) {
+      streak += 1;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
 /** Get aggregated user statistics for the profile screen. */
 export async function getUserStats(): Promise<UserStats> {
   await delay(40, 80);
@@ -365,7 +403,84 @@ export async function getUserStats(): Promise<UserStats> {
     totalMeals: mealHistory.length,
     totalDaysActive: days.size,
     avgDailyKcal: Math.round(totalKcal / days.size),
-    streakDays: days.size, // simplified streak for demo
+    streakDays: calculateStreak(days),
+  };
+}
+
+/**
+ * Send messages to Multi-Agent AI Coach (`POST /api/coach/chat`).
+ */
+export async function sendCoachChat(req: CoachChatRequest): Promise<CoachChatResponse> {
+  if (useLiveBackend) {
+    try {
+      const res = await fetch(`${API_BASE}/api/coach/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req),
+      });
+      if (res.ok) {
+        return (await res.json()) as CoachChatResponse;
+      }
+    } catch {
+      // Degrade gracefully to local synthesis if backend call fails
+    }
+  }
+
+  // Local fallback response
+  const isScientist = req.agent_type === 'scientist';
+  const lastMsg = req.messages[req.messages.length - 1]?.content || '';
+  const isBn = /[\u0980-\u09FF]/.test(lastMsg);
+
+  if (isScientist) {
+    return {
+      reply: isBn
+        ? '🔬 **বায়োকেমিক্যাল পুষ্টি বিশ্লেষণ:**\n\n' +
+          'খাবারের গ্লাইসেমিক লোড নিয়ন্ত্রণে রাখতে পর্যাপ্ত দ্রবণীয় ফাইবার (শাকসবজি) যুক্ত করুন এবং রান্নার তেলের পরিমাণ পরিমিত রাখুন। ' +
+          'ভাতের সাথে এক বাটি ঘন ডাল বা মাছের ঝোল পেটের শূন্য হওয়ার গতি শ্লথ করে রক্তে শর্করার মাত্রা স্থিতিশীল রাখে।\n\n' +
+          '[উৎস: BIRDEM ক্লিনিক্যাল গাইডলাইন ও INFS ডাটাবেজ]'
+        : '🔬 **Nutritional Biochemical Analysis:**\n\n' +
+          'To optimize the glycemic response of this meal, buffer carbs with dietary soluble fiber and protein. ' +
+          'Cooling starches slightly increases resistant starch, helping flatten postprandial glucose curves.\n\n' +
+          '[Source: BIRDEM Clinical Protocols & INFS Nutrition DB]',
+      citations: ['BIRDEM ক্লিনিক্যাল গাইডলাইন', 'INFS খাদ্য ডাটাবেজ'],
+      suggested_prompts: isBn
+        ? [
+            'এই খাবারের গ্লাইসেমিক লোড কীভাবে কমাব?',
+            'রান্নায় তেল শোষণ কমানোর বৈজ্ঞানিক পদ্ধতি কী?',
+            'বাজেট ফ্রেন্ডলি প্রোটিন উৎস কী কী?',
+          ]
+        : [
+            'How do I lower the glycemic load of this meal?',
+            'How to reduce cooking oil absorption?',
+            'What are budget-friendly protein sources?',
+          ],
+      agent_type: 'scientist',
+    };
+  }
+
+  return {
+    reply: isBn
+      ? '🧠 **আচরণ ও অভ্যাস কোচের বার্তা:**\n\n' +
+        'খাবারের আনন্দ ও সংস্কৃতি উপভোগ করা জীবনের অংশ! কোনো খাবার নিয়ে অপরাধবোধ করার প্রয়োজন নেই। ' +
+        'ছোট ছোট অভ্যাস যেমন খাবারের পর ১৫ মিনিটের শান্ত পদচারণা (শতপদ) এবং প্রচুর পানি পান আপনাকে সুস্থ ও সতেজ রাখতে সবচেয়ে কার্যকর।\n\n' +
+        'আপনি দারুণভাবে এগিয়ে যাচ্ছেন! 💚'
+      : '🧠 **Habit Coach Perspective:**\n\n' +
+        'Food and cultural gatherings are meant to be enjoyed! Never let guilt hold you back. ' +
+        'Small, compassionate habits like a relaxing 15-minute walk and mindful hydration build sustainable vitality.\n\n' +
+        'You are doing great! 💚',
+    citations: ['CBT ও অভ্যাস বিজ্ঞান', 'WHO লাইফস্টাইল গাইডলাইন'],
+    suggested_prompts: isBn
+      ? [
+          'দাওয়াতে অতিরিক্ত খাওয়ার পর কী করব?',
+          'রাতের মিষ্টি বা চায়ের আড্ডার লোভ কীভাবে সামলাব?',
+          'ব্যস্ত দিনে হেলদি ডায়েট ধরে রাখার সহজ রুটিন কী?',
+        ]
+      : [
+          'How to bounce back after a heavy feast?',
+          'How to manage evening sweet cravings?',
+          'Easy routines for healthy habits on busy days?',
+        ],
+    agent_type: 'behavioral',
   };
 }
 

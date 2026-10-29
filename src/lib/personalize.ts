@@ -18,6 +18,7 @@ import type {
 } from '../types/schemas';
 import { MOCK_TARGETS, MOCK_NUTRITION_DB } from '../mocks/fixtures';
 import { toBengaliDigits } from './format';
+import { findCanonicalFood } from './foodAliases';
 
 export interface BiometricsBreakdown {
   bmr: number;
@@ -343,6 +344,19 @@ export function getEffectiveNutrition(
 ): NutritionFacts {
   if (nutrition && (nutrition.kcal > 0 || nutrition.protein > 0 || nutrition.carbs > 0)) {
     return nutrition;
+  }
+  const canonical = findCanonicalFood(name);
+  if (canonical) {
+    return {
+      protein: canonical.proteinPer100g,
+      carbs: canonical.carbsPer100g,
+      fat: canonical.fatPer100g,
+      kcal: canonical.kcalPer100g,
+      fiber: canonical.fiberPer100g,
+      sodium: canonical.sodiumMgPer100g,
+      sugar: canonical.sugarPer100g,
+      glycemic: canonical.glycemicIndex,
+    };
   }
   const lower = name.toLowerCase().trim();
   for (const [k, v] of Object.entries(MOCK_NUTRITION_DB)) {

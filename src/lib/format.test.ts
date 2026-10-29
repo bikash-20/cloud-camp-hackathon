@@ -1,5 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { formatRelative, hashStr, pickThumbnailStyle, toBengaliDigits } from './format';
+import { formatNumberForDisplay, formatRelative, hashStr, pickThumbnailStyle, toBengaliDigits } from './format';
+
+describe('formatNumberForDisplay', () => {
+  it('formats numbers into Bengali strictly when lang === bn', () => {
+    expect(formatNumberForDisplay(2500, 'bn')).toBe('২৫০০');
+    expect(formatNumberForDisplay('130 kcal', 'bn')).toBe('১৩০ kcal');
+    expect(formatNumberForDisplay(75.5, 'bn')).toBe('৭৫.৫');
+  });
+
+  it('keeps standard English/ASCII digits when lang === en', () => {
+    expect(formatNumberForDisplay(2500, 'en')).toBe('2500');
+    expect(formatNumberForDisplay(0, 'en')).toBe('0');
+    expect(formatNumberForDisplay('130 kcal', 'en')).toBe('130 kcal');
+  });
+
+  it('handles null and undefined', () => {
+    expect(formatNumberForDisplay(null, 'bn')).toBe('');
+    expect(formatNumberForDisplay(undefined, 'en')).toBe('');
+  });
+});
 
 describe('toBengaliDigits', () => {
   it('converts ASCII digits to Bengali digits', () => {

@@ -22,7 +22,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import grocery, meals, nutrition, profile, vision
+from app.api import coach, grocery, meals, nutrition, profile, rag, vision
 from app.services.state import init_state
 
 
@@ -79,10 +79,14 @@ def _state_path() -> Path:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Initialize the state singleton on startup. `init_state` is
-    idempotent — repeated calls are no-ops."""
+    """Initialize the state singleton and ensure RAG collections on startup."""
     path = _state_path()
     init_state(path)
+    try:
+        from app.services.rag_service import get_rag_service
+        get_rag_service().ensure_collections()
+    except Exception:
+        pass
     yield
 
 
@@ -129,6 +133,8 @@ def create_app() -> FastAPI:
     app.include_router(profile.router)
     app.include_router(grocery.router)
     app.include_router(meals.router)
+    app.include_router(rag.router)
+    app.include_router(coach.router)
 
     @app.get("/", tags=["meta"])
     def root() -> dict[str, str]:

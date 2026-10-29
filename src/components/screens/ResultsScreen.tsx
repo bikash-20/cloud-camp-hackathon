@@ -1,11 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit3, Plus, Share2 } from 'lucide-react';
 import {
-  T, NUTRITION_DB, HISTORY_SUGGESTIONS,
+  Edit3,
+  Plus,
+  Share2,
+  AlertTriangle,
+  AlertOctagon,
+  ShoppingBag,
+  Sparkles,
+  CheckCircle2,
+  BookOpen,
+} from 'lucide-react';
+import {
+  T, NUTRITION_DB,
 } from '../../data';
 import { getEffectiveNutrition } from '../../lib/personalize';
-import type { DetectedItem, UserProfile } from '../../types/schemas';
+import { getContextAwarePairings } from '../../lib/foodAliases';
+import { addGroceryItem } from '../../lib/api';
+import { checkDietConflicts, CLINICAL_DISCLAIMER_BN, CLINICAL_DISCLAIMER_EN } from '../../lib/dietConflict';
+import type { DetectedItem, UserProfile, AnalyzeResult } from '../../types/schemas';
 import PhotoThumb from '../PhotoThumb';
 import StepIndicator from '../StepIndicator';
 import SummaryCard from '../SummaryCard';
@@ -53,6 +66,7 @@ interface ResultsScreenProps {
   profile?: UserProfile;
   capturedImage?: string | null;
   analysisMessage?: string | null;
+  analysisResult?: AnalyzeResult | null;
   onRetake?: () => void;
 }
 
@@ -63,12 +77,19 @@ export default function ResultsScreen({
   profile,
   capturedImage,
   analysisMessage,
+  analysisResult,
   onRetake,
 }: ResultsScreenProps) {
   const { foodName, language } = useLanguage();
   const isBn = language === 'bn';
   const [detected, setDetected] = useState(detectedProp ?? []);
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
+  const [addedGroceryIds, setAddedGroceryIds] = useState<Record<string, boolean>>({});
+
+  const dietConflicts = useMemo(() => {
+    if (!profile) return [];
+    return checkDietConflicts(detected, profile);
+  }, [detected, profile]);
   const [sortKey, setSortKey] = useState<typeof SORT_OPTIONS[number]['key']>('conf');
   const [step, setStep] = useState(0);
   const [editMode, setEditMode] = useState(false);
@@ -79,6 +100,10 @@ export default function ResultsScreen({
   const [addCustomOpen, setAddCustomOpen] = useState(false);
 
   const diabeticMode = !!profile?.goals.diabetic;
+
+  const contextPairings = useMemo(() => {
+    return getContextAwarePairings(detected, 6);
+  }, [detected]);
 
   // Sync local → parent so Nutrients recomputes when grams change
   const updateDetected = (updater: DetectedItem[] | ((prev: DetectedItem[]) => DetectedItem[])) => {
@@ -185,17 +210,17 @@ export default function ResultsScreen({
   };
 
   const addPairing = (_existingName: string, pairingName: string) => {
-    const meta = HISTORY_SUGGESTIONS.find((h: { name: string }) => h.name === pairingName);
+    const meta = contextPairings.find((h) => h.name.toLowerCase() === pairingName.toLowerCase());
     if (!meta) return;
-    if (detected.some((d) => d.name === meta.name)) {
-      triggerToast(`${meta.name} already in list`);
+    if (detected.some((d) => d.name.toLowerCase() === meta.name.toLowerCase())) {
+      triggerToast(isBn ? `${isBn ? meta.name_bn : meta.name} ইতিমধ্যে তালিকায় রয়েছে` : `${meta.name} already in list`);
       return;
     }
     updateDetected((rows) => [
       ...rows,
-      { name: meta.name, confidence: meta.confidence, grams: meta.grams, note: null },
+      { name: meta.name, name_bn: meta.name_bn, confidence: meta.confidence, grams: meta.grams, note: null },
     ]);
-    triggerToast(`Added ${meta.name}`);
+    triggerToast(isBn ? `${isBn ? meta.name_bn : meta.name} যোগ করা হয়েছে` : `Added ${meta.name}`);
   };
 
   const openAddCustom = () => setAddCustomOpen(true);
@@ -260,6 +285,24 @@ export default function ResultsScreen({
     return it && it.confidence >= 60;
   });
 
+  const handleAddMissingToGrocery = async (recipeIdx: number, items: string[]) => {
+    try {
+      for (const item of items) {
+        await addGroceryItem('Pantry', item, 60);
+      }
+      setAddedGroceryIds((prev) => ({ ...prev, [recipeIdx]: true }));
+      triggerToast(
+        isBn
+          ? `${toBengaliDigits(items.length)}টি উপাদান বাজারে যুক্ত হয়েছে!`
+          : `Added ${items.length} items to Grocery List!`,
+      );
+    } catch {
+      triggerToast(isBn ? 'বাজারে যোগ করতে ব্যর্থ হয়েছে' : 'Failed to add items');
+    }
+  };
+
+  const isNonFoodRejection = analysisResult?.is_food === false;
+
   const visibleItems = step === 1
     ? sorted.filter((it) => it.confidence < 80)
     : sorted;
@@ -280,49 +323,449 @@ export default function ResultsScreen({
         }}
       >
         <PhotoThumb src={capturedImage} />
-        <StepIndicator step={step} onStep={setStep} />
+        {!isNonFoodRejection && <StepIndicator step={step} onStep={setStep} />}
       </div>
 
-      {analysisMessage && (
-        <div
-          role="alert"
+      {/* ── Non-Food Rejection Safety Gate View ── */}
+      {isNonFoodRejection && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.35 }}
+          className="glass-card"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            margin: '0 0 12px',
-            padding: '12px 14px',
-            borderRadius: 12,
-            background: 'rgba(201, 98, 45, 0.12)',
-            border: '1px solid rgba(201, 98, 45, 0.3)',
-            color: T.ink,
-            fontFamily: 'Inter',
-            fontSize: 12,
+            marginTop: 16,
+            padding: '36px 20px',
+            textAlign: 'center',
+            borderRadius: 22,
+            background: 'rgba(239, 68, 68, 0.07)',
+            border: '1.5px solid rgba(239, 68, 68, 0.3)',
+            boxShadow: '0 8px 32px rgba(239, 68, 68, 0.08)',
           }}
         >
-          <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{analysisMessage}</span>
+          <div
+            style={{
+              width: 68,
+              height: 68,
+              margin: '0 auto 16px',
+              borderRadius: '50%',
+              background: 'rgba(239, 68, 68, 0.14)',
+              color: '#DC2626',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <AlertOctagon size={36} strokeWidth={2.2} />
+          </div>
+          <h3
+            style={{
+              fontFamily: 'Inter',
+              fontSize: 19,
+              fontWeight: 700,
+              color: T.ink,
+              margin: '0 0 8px',
+            }}
+          >
+            {isBn ? 'খাবার হিসেবে শনাক্ত করা যায়নি' : 'Non-Food Item Detected'}
+          </h3>
+          <p
+            style={{
+              fontFamily: 'Inter',
+              fontSize: 13,
+              color: T.inkSoft,
+              lineHeight: 1.5,
+              maxWidth: 320,
+              margin: '0 auto 24px',
+            }}
+          >
+            {isBn
+              ? (analysisResult.rejection_reason_bn || 'এই ছবিতে কোনো খাবার বা উপাদান শনাক্ত করা যায়নি। অনুগ্রহ করে কোনো খাবার বা উপাদানের ছবি তুলুন।')
+              : (analysisResult.rejection_reason_en || 'No food items were detected in this image. Please take a clear photo of a meal or ingredient.')}
+          </p>
           {onRetake && (
-            <button
+            <motion.button
               type="button"
               onClick={onRetake}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
               style={{
-                flexShrink: 0,
-                border: 0,
-                borderRadius: 999,
-                padding: '8px 12px',
                 background: T.primary,
                 color: '#FFFFFF',
-                font: 'inherit',
+                border: 'none',
+                borderRadius: 999,
+                padding: '12px 28px',
+                fontFamily: 'Inter',
+                fontSize: 13.5,
                 fontWeight: 600,
                 cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(201, 98, 45, 0.35)',
               }}
             >
-              {isBn ? 'আবার চেষ্টা করুন' : 'Try again'}
-            </button>
+              {isBn ? 'পুনরায় ছবি তুলুন' : 'Retake Photo'}
+            </motion.button>
           )}
+        </motion.div>
+      )}
+
+      {/* ── Diet-Conflict Alert Banner ── */}
+      {!isNonFoodRejection && dietConflicts.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          role="alert"
+          style={{
+            marginBottom: 14,
+            padding: '14px 16px',
+            borderRadius: 16,
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1.5px solid rgba(239, 68, 68, 0.35)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <AlertTriangle size={17} color="#DC2626" />
+            <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#B91C1C' }}>
+              {isBn ? '⚠️ খাদ্য নিরাপত্তা সতর্কতা' : '⚠️ Dietary Conflict Alert'}
+            </h4>
+          </div>
+          {dietConflicts.map((c) => (
+            <div key={c.id} style={{ marginTop: 6, fontSize: 12, color: T.ink, lineHeight: 1.4 }}>
+              <span style={{ fontWeight: 700, color: '#991B1B' }}>{isBn ? c.title_bn : c.title_en}:</span>{' '}
+              {isBn ? c.detail_bn : c.detail_en}
+              {c.recommendation_bn && (
+                <div style={{ marginTop: 4, color: T.primary, fontSize: 11.5, fontWeight: 600 }}>
+                  💡 {isBn ? c.recommendation_bn : c.recommendation_en}
+                </div>
+              )}
+            </div>
+          ))}
+          <div
+            style={{
+              marginTop: 10,
+              paddingTop: 6,
+              borderTop: '1px solid rgba(239, 68, 68, 0.15)',
+              fontSize: 10.5,
+              color: T.inkSoft,
+            }}
+          >
+            {isBn ? CLINICAL_DISCLAIMER_BN : CLINICAL_DISCLAIMER_EN}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Inferred Hidden Ingredients Culinary Strip ── */}
+      {!isNonFoodRejection && analysisResult?.inferred_hidden_ingredients && analysisResult.inferred_hidden_ingredients.length > 0 && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: '8px 12px',
+            borderRadius: 12,
+            background: 'rgba(249, 242, 228, 0.7)',
+            border: '1px solid rgba(74, 58, 52, 0.12)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 600, color: T.inkSoft }}>
+            🍳 {isBn ? 'অনুমানকৃত রান্নার উপাদান:' : 'Inferred Cooking Media:'}
+          </span>
+          {analysisResult.inferred_hidden_ingredients.map((ing, idx) => (
+            <span
+              key={idx}
+              style={{
+                fontSize: 10.5,
+                fontWeight: 600,
+                padding: '2px 8px',
+                borderRadius: 999,
+                background: 'rgba(201, 98, 45, 0.12)',
+                color: T.primary,
+              }}
+            >
+              {ing}
+            </span>
+          ))}
         </div>
       )}
+
+      {/* ── Mode 2: Raw Ingredients & Recipe Suggestions Card ── */}
+      {!isNonFoodRejection && analysisResult?.input_mode === 'raw_ingredients' && analysisResult.recipe_suggestions && analysisResult.recipe_suggestions.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card"
+          style={{
+            marginBottom: 16,
+            padding: '16px',
+            borderRadius: 20,
+            background: 'rgba(255, 255, 255, 0.75)',
+            border: '1.5px solid rgba(201, 98, 45, 0.25)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <span
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: '50%',
+                background: T.primary,
+                color: '#FFFFFF',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Sparkles size={14} />
+            </span>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.ink }}>
+                {isBn ? '🥬 কাঁচা উপাদান ও রেসিপি অনুপ্রেরণা' : '🥬 Raw Produce & Recipe Inspiration'}
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: 11, color: T.inkSoft }}>
+                {isBn ? 'শনাক্তকৃত উপাদান দিয়ে তৈরি স্বাস্থ্যকর রান্না' : 'Healthy dishes you can cook with these ingredients'}
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {analysisResult.recipe_suggestions.map((recipe, rIdx) => {
+              const alreadyAdded = addedGroceryIds[rIdx];
+              return (
+                <div
+                  key={rIdx}
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 14,
+                    background: 'rgba(249, 242, 228, 0.65)',
+                    border: '1px solid rgba(74, 58, 52, 0.1)',
+                  }}
+                >
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: T.ink, marginBottom: 4 }}>
+                    {isBn ? recipe.title_bn : recipe.title_en}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: T.inkSoft, lineHeight: 1.4, marginBottom: 8 }}>
+                    {isBn ? recipe.description_bn : recipe.description_en}
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                    {recipe.matched_ingredients.map((m, mIdx) => (
+                      <span
+                        key={mIdx}
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          padding: '2px 7px',
+                          borderRadius: 999,
+                          background: 'rgba(46, 125, 50, 0.12)',
+                          color: '#2E7D32',
+                        }}
+                      >
+                        ✓ {m}
+                      </span>
+                    ))}
+                    {recipe.missing_ingredients.map((miss, missIdx) => (
+                      <span
+                        key={missIdx}
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          padding: '2px 7px',
+                          borderRadius: 999,
+                          background: 'rgba(201, 98, 45, 0.12)',
+                          color: T.primary,
+                        }}
+                      >
+                        + {miss}
+                      </span>
+                    ))}
+                  </div>
+
+                  {recipe.missing_ingredients.length > 0 && (
+                    <motion.button
+                      type="button"
+                      onClick={() => handleAddMissingToGrocery(rIdx, recipe.missing_ingredients)}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.97 }}
+                      disabled={alreadyAdded}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '6px 12px',
+                        borderRadius: 999,
+                        background: alreadyAdded ? '#2E7D32' : T.primary,
+                        color: '#FFFFFF',
+                        border: 'none',
+                        fontFamily: 'Inter',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: alreadyAdded ? 'default' : 'pointer',
+                      }}
+                    >
+                      {alreadyAdded ? (
+                        <>
+                          <CheckCircle2 size={12} /> {isBn ? 'বাজারে যোগ করা হয়েছে' : 'Added to Grocery'}
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingBag size={12} /> {isBn ? 'মুদির তালিকায় বাকি উপাদান যোগ করুন' : 'Add Missing to Grocery'}
+                        </>
+                      )}
+                    </motion.button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Mode 3: Restaurant Menu Analyzer Card ── */}
+      {!isNonFoodRejection && analysisResult?.input_mode === 'restaurant_menu' && analysisResult.menu_analysis && analysisResult.menu_analysis.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card"
+          style={{
+            marginBottom: 16,
+            padding: '16px',
+            borderRadius: 20,
+            background: 'rgba(255, 255, 255, 0.75)',
+            border: '1.5px solid rgba(74, 58, 52, 0.15)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <span
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: '50%',
+                background: '#2E7D32',
+                color: '#FFFFFF',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <BookOpen size={14} />
+            </span>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.ink }}>
+                {isBn ? '📋 রেস্তোরাঁর মেনু স্বাস্থ্য বিশ্লেষক' : '📋 Restaurant Menu Health Analyzer'}
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: 11, color: T.inkSoft }}>
+                {isBn ? 'আপনার প্রোফাইল অনুযায়ী সর্বোত্তম পছন্দ' : 'Ranked choices tailored to your health profile'}
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {analysisResult.menu_analysis.map((dish, dIdx) => (
+              <div
+                key={dIdx}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  background: dish.is_healthy_pick
+                    ? 'rgba(46, 125, 50, 0.08)'
+                    : dish.is_ultra_processed
+                    ? 'rgba(239, 68, 68, 0.08)'
+                    : 'rgba(249, 242, 228, 0.6)',
+                  border: `1px solid ${
+                    dish.is_healthy_pick
+                      ? 'rgba(46, 125, 50, 0.25)'
+                      : dish.is_ultra_processed
+                      ? 'rgba(239, 68, 68, 0.25)'
+                      : 'rgba(74, 58, 52, 0.1)'
+                  }`,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>
+                    {isBn ? dish.dish_name_bn : dish.dish_name_en}
+                  </span>
+                  {dish.is_healthy_pick && (
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                        padding: '2px 7px',
+                        borderRadius: 999,
+                        background: '#DCFCE7',
+                        color: '#166534',
+                      }}
+                    >
+                      ★ {isBn ? 'স্বাস্থ্যকর পছন্দ' : 'Healthy Pick'}
+                    </span>
+                  )}
+                  {dish.is_ultra_processed && (
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                        padding: '2px 7px',
+                        borderRadius: 999,
+                        background: '#FEE2E2',
+                        color: '#991B1B',
+                      }}
+                    >
+                      ⚠️ {isBn ? 'প্রক্রিয়াজাত' : 'Ultra-Processed'}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11.5, color: T.inkSoft, lineHeight: 1.4 }}>
+                  {isBn ? dish.notes_bn : dish.notes_en}
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Main Detected List & Totals (Hidden if Non-Food Rejection) ── */}
+      {!isNonFoodRejection && (
+        <>
+          {analysisMessage && (
+            <div
+              role="alert"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                margin: '0 0 12px',
+                padding: '12px 14px',
+                borderRadius: 12,
+                background: 'rgba(201, 98, 45, 0.12)',
+                border: '1px solid rgba(201, 98, 45, 0.3)',
+                color: T.ink,
+                fontFamily: 'Inter',
+                fontSize: 12,
+              }}
+            >
+              <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{analysisMessage}</span>
+              {onRetake && (
+                <button
+                  type="button"
+                  onClick={onRetake}
+                  style={{
+                    flexShrink: 0,
+                    border: 0,
+                    borderRadius: 999,
+                    padding: '8px 12px',
+                    background: T.primary,
+                    color: '#FFFFFF',
+                    font: 'inherit',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isBn ? 'আবার চেষ্টা করুন' : 'Try again'}
+                </button>
+              )}
+            </div>
+          )}
 
       <div
         style={{
@@ -526,30 +969,30 @@ export default function ResultsScreen({
               {isBn ? 'এর সাথে সাধারণত যা খাওয়া হয়' : 'Frequently eaten with this'}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {HISTORY_SUGGESTIONS.map((h: { name: string; emoji: string; confidence: number; grams: number }) => (
+              {contextPairings.map((h) => (
                 <motion.button
                   key={h.name}
                   type="button"
                   onClick={() => {
-                    if (detected.some((d) => d.name === h.name)) {
-                      triggerToast(isBn ? `${foodName(h.name)} আগেই যোগ করা হয়েছে` : `${h.name} already added`);
+                    if (detected.some((d) => d.name.toLowerCase() === h.name.toLowerCase())) {
+                      triggerToast(isBn ? `${isBn ? h.name_bn : h.name} আগেই যোগ করা হয়েছে` : `${h.name} already added`);
                       return;
                     }
                     updateDetected((rows) => [
                       ...rows,
-                      { name: h.name, confidence: h.confidence, grams: h.grams, note: null },
+                      { name: h.name, name_bn: h.name_bn, confidence: h.confidence, grams: h.grams, note: null },
                     ]);
-                    triggerToast(isBn ? `${foodName(h.name)} যোগ করা হয়েছে` : `Added ${h.name}`);
+                    triggerToast(isBn ? `${isBn ? h.name_bn : h.name} যোগ করা হয়েছে` : `Added ${h.name}`);
                   }}
                   whileHover={{ y: -1, scale: 1.03 }}
                   whileTap={{ scale: 0.95 }}
                   transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                  aria-label={isBn ? `ইতিহাস থেকে ${foodName(h.name)} যোগ করুন` : `Add ${h.name} from history`}
+                  aria-label={isBn ? `${isBn ? h.name_bn : h.name} যোগ করুন` : `Add ${h.name}`}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 4,
-                    padding: '6px 10px',
+                    gap: 5,
+                    padding: '6px 12px',
                     borderRadius: 999,
                     background: 'rgba(249, 242, 228, 0.75)',
                     border: '1px solid rgba(74, 58, 52, 0.18)',
@@ -561,7 +1004,9 @@ export default function ResultsScreen({
                     minHeight: 32,
                   }}
                 >
-                  {h.emoji} {foodName(h.name)} {isBn ? '+ যোগ' : '+ Add'}
+                  <span aria-hidden="true">{h.emoji}</span>
+                  <span>{isBn ? h.name_bn : h.name}</span>
+                  <span style={{ color: T.primary, fontWeight: 700 }}>+</span>
                 </motion.button>
               ))}
             </div>
@@ -619,6 +1064,8 @@ export default function ResultsScreen({
         onSubmit={submitAddCustom}
         existingNames={detected.map((d) => d.name)}
       />
+      </>
+      )}
 
       <AnimatePresence>
         {toast && (

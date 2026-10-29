@@ -17,6 +17,23 @@ export function toBengaliDigits(val: number | string | null | undefined): string
   return String(val).replace(/[0-9]/g, (d) => BN_DIGITS[Number(d)]);
 }
 
+/**
+ * Pure presentation helper for number rendering in JSX/UI.
+ * Converts digits to Bengali (০-৯) only inside UI text when lang === 'bn'.
+ * CRITICAL RULE: Never use this formatted string for mathematical calculations,
+ * state variables, +/- steppers, or API payloads.
+ */
+export function formatNumberForDisplay(
+  value: number | string | null | undefined,
+  lang: 'en' | 'bn' = 'en',
+): string {
+  if (value === null || value === undefined) return '';
+  if (lang === 'bn') {
+    return toBengaliDigits(value);
+  }
+  return String(value);
+}
+
 /** Format an ISO timestamp as a short relative string for the recent-meals
  *  list. We deliberately drop absolute time for the most-recent entries and
  *  fall back to "Yesterday" / weekday for older ones — phone-first UX, not a

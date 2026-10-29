@@ -137,9 +137,51 @@ class PipelineTrace(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+InputMode = Literal["cooked_meal", "raw_ingredients", "restaurant_menu"]
+
+
+class RecipeSuggestion(BaseModel):
+    title_en: str
+    title_bn: str
+    description_en: str
+    description_bn: str
+    matched_ingredients: list[str] = Field(default_factory=list)
+    missing_ingredients: list[str] = Field(default_factory=list)
+
+
+class MenuItemAnalysis(BaseModel):
+    dish_name_en: str
+    dish_name_bn: str
+    is_healthy_pick: bool = False
+    is_ultra_processed: bool = False
+    notes_en: str = ""
+    notes_bn: str = ""
+
+
+class VisionDetectionResult(BaseModel):
+    is_food: bool = True
+    input_mode: InputMode = "cooked_meal"
+    overall_confidence: float = 0.85
+    rejection_reason_en: str | None = None
+    rejection_reason_bn: str | None = None
+    inferred_hidden_ingredients: list[str] = Field(default_factory=list)
+    recipe_suggestions: list[RecipeSuggestion] | None = None
+    menu_analysis: list[MenuItemAnalysis] | None = None
+    detected: list[DetectedItem] = Field(default_factory=list)
+
+
 class AnalyzeResult(BaseModel):
     detected: list[DetectedItem]
     pipeline: list[PipelineTrace]
+    is_food: bool = True
+    input_mode: InputMode = "cooked_meal"
+    overall_confidence: float = 0.85
+    rejection_reason_en: str | None = None
+    rejection_reason_bn: str | None = None
+    inferred_hidden_ingredients: list[str] = Field(default_factory=list)
+    recipe_suggestions: list[RecipeSuggestion] | None = None
+    menu_analysis: list[MenuItemAnalysis] | None = None
+
 
 
 class NutrientContribution(BaseModel):
@@ -337,6 +379,34 @@ class MacroTargets(BaseModel):
     carbs: float
     fat: float
     kcal: float
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Multi-Agent AI Coach (Groq / Gemini)
+# ─────────────────────────────────────────────────────────────────────────
+
+CoachRole = Literal["user", "assistant", "system"]
+CoachAgentType = Literal["scientist", "behavioral"]
+
+
+class CoachMessage(BaseModel):
+    role: CoachRole
+    content: str
+    image_ref: str | None = None
+
+
+class CoachChatRequest(BaseModel):
+    messages: list[CoachMessage]
+    agent_type: CoachAgentType = "scientist"
+    user_profile: UserProfile | None = None
+    recent_meals: list[MealEntry] | None = None
+
+
+class CoachChatResponse(BaseModel):
+    reply: str
+    citations: list[str] = Field(default_factory=list)
+    suggested_prompts: list[str] = Field(default_factory=list)
+    agent_type: CoachAgentType
 
 
 # ─────────────────────────────────────────────────────────────────────────

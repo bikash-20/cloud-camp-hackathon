@@ -121,9 +121,37 @@ export interface PipelineTrace {
   label: string;
 }
 
+export type InputMode = 'cooked_meal' | 'raw_ingredients' | 'restaurant_menu';
+
+export interface RecipeSuggestion {
+  title_en: string;
+  title_bn: string;
+  description_en: string;
+  description_bn: string;
+  matched_ingredients: string[];
+  missing_ingredients: string[];
+}
+
+export interface MenuItemAnalysis {
+  dish_name_en: string;
+  dish_name_bn: string;
+  is_healthy_pick: boolean;
+  is_ultra_processed: boolean;
+  notes_en: string;
+  notes_bn: string;
+}
+
 export interface AnalyzeResult {
   detected: DetectedItem[];
   pipeline: PipelineTrace[];
+  is_food?: boolean;
+  input_mode?: InputMode;
+  overall_confidence?: number;
+  rejection_reason_en?: string | null;
+  rejection_reason_bn?: string | null;
+  inferred_hidden_ingredients?: string[];
+  recipe_suggestions?: RecipeSuggestion[] | null;
+  menu_analysis?: MenuItemAnalysis[] | null;
 }
 
 export interface ResolveNutritionResult {
@@ -287,10 +315,37 @@ export interface GroceryList {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+//  Multi-Agent AI Coach (Groq / Gemini)
+// ─────────────────────────────────────────────────────────────────────────
+
+export type CoachRole = 'user' | 'assistant' | 'system';
+export type CoachAgentType = 'scientist' | 'behavioral';
+
+export interface CoachMessage {
+  role: CoachRole;
+  content: string;
+  image_ref?: string | null;
+}
+
+export interface CoachChatRequest {
+  messages: CoachMessage[];
+  agent_type: CoachAgentType;
+  user_profile?: UserProfile | null;
+  recent_meals?: MealEntry[] | null;
+}
+
+export interface CoachChatResponse {
+  reply: string;
+  citations: string[];
+  suggested_prompts: string[];
+  agent_type: CoachAgentType;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 //  Tabs (client-side)
 // ─────────────────────────────────────────────────────────────────────────
 
-export type TabId = 'capture' | 'results' | 'nutrients' | 'profile' | 'grocery';
+export type TabId = 'capture' | 'results' | 'nutrients' | 'profile' | 'grocery' | 'coach';
 
 export interface TabDescriptor {
   id: TabId;

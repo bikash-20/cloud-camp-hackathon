@@ -44,7 +44,9 @@ from app.services.off_client import OFFClient
 from app.services.usda_client import USDAClient
 
 _BD_FOODS_PATH = Path(__file__).resolve().parents[1] / "data" / "bd_food_composition.json"
+_ALIASES_PATH = Path(__file__).resolve().parents[1] / "data" / "food_aliases.json"
 _BD_FOODS_CACHE: dict[str, Any] | None = None
+_ALIASES_CACHE: list[dict[str, Any]] | None = None
 
 
 def _get_bd_foods() -> dict[str, Any]:
@@ -60,6 +62,19 @@ def _get_bd_foods() -> dict[str, Any]:
     return _BD_FOODS_CACHE
 
 
+def _get_aliases() -> list[dict[str, Any]]:
+    global _ALIASES_CACHE
+    if _ALIASES_CACHE is None:
+        if _ALIASES_PATH.is_file():
+            try:
+                _ALIASES_CACHE = json.loads(_ALIASES_PATH.read_text(encoding="utf-8"))
+            except Exception:
+                _ALIASES_CACHE = []
+        else:
+            _ALIASES_CACHE = []
+    return _ALIASES_CACHE
+
+
 def _lookup_bd_food(name: str, name_bn: str | None = None) -> FoodDescriptor | None:
     db = _get_bd_foods()
     if not db:
@@ -72,6 +87,57 @@ def _lookup_bd_food(name: str, name_bn: str | None = None) -> FoodDescriptor | N
             return FoodDescriptor(**item)
         if bn_l and (bn_l in item.get("name_bn", "") or item.get("name_bn", "") in bn_l):
             return FoodDescriptor(**item)
+    return None
+
+
+def _lookup_alias_food(name: str, name_bn: str | None = None) -> FoodDescriptor | None:
+    aliases = _get_aliases()
+    if not aliases:
+        return None
+    name_l = name.lower().strip()
+    bn_l = (name_bn or "").strip()
+
+    for item in aliases:
+        en = item.get("name_en", "").lower()
+        bn = item.get("name_bn", "")
+        item_aliases = [a.lower() for a in item.get("aliases", [])]
+
+        if name_l == en or name_l in item_aliases:
+            cat = item.get("category", "other")
+            if cat in ("dairy", "beverages"):
+                cat = "other"
+            return FoodDescriptor(
+                protein=item.get("proteinPer100g", 0.0),
+                carbs=item.get("carbsPer100g", 0.0),
+                fat=item.get("fatPer100g", 0.0),
+                kcal=item.get("kcalPer100g", 0.0),
+                fiber=item.get("fiberPer100g", 0.0),
+                sodium=item.get("sodiumMgPer100g", 0.0),
+                sugar=item.get("sugarPer100g", 0.0),
+                glycemic=item.get("glycemicIndex", 0.0),
+                emoji=item.get("emoji", "🍽"),
+                category=cat,
+                alternatives=item.get("alternatives", ["Healthy Alternative"]),
+                pairings=item.get("pairings", []),
+            )
+        if bn_l and (bn_l == bn or bn in bn_l):
+            cat = item.get("category", "other")
+            if cat in ("dairy", "beverages"):
+                cat = "other"
+            return FoodDescriptor(
+                protein=item.get("proteinPer100g", 0.0),
+                carbs=item.get("carbsPer100g", 0.0),
+                fat=item.get("fatPer100g", 0.0),
+                kcal=item.get("kcalPer100g", 0.0),
+                fiber=item.get("fiberPer100g", 0.0),
+                sodium=item.get("sodiumMgPer100g", 0.0),
+                sugar=item.get("sugarPer100g", 0.0),
+                glycemic=item.get("glycemicIndex", 0.0),
+                emoji=item.get("emoji", "🍽"),
+                category=cat,
+                alternatives=item.get("alternatives", ["Healthy Alternative"]),
+                pairings=item.get("pairings", []),
+            )
     return None
 
 
@@ -230,6 +296,16 @@ def resolve_with_cascade(
             nutrition=facts,
             descriptor=None,
             source="fruityvice",
+            partial=False,
+        )
+    # 4b. Canonical food aliases fallback.
+    alias_desc = _lookup_alias_food(item.name, item.name_bn)
+    if alias_desc is not None:
+        return ResolvedItem(
+            **item.model_dump(),
+            nutrition=alias_desc,
+            descriptor=alias_desc,
+            source="cache",
             partial=False,
         )
     # 5. Estimated fallback — partial=True signals to the UI that the

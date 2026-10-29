@@ -1,11 +1,11 @@
 import { motion } from 'framer-motion';
 import {
-  Camera, ScanLine, Activity, User, ShoppingBag,
+  Camera, ScanLine, Activity, User, ShoppingBag, Bot,
 } from 'lucide-react';
 import { T, TABS } from '../data';
 import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
-const ICONS: Record<string, typeof Camera> = { Camera, ScanLine, Activity, User, ShoppingBag };
+const ICONS: Record<string, typeof Camera> = { Camera, ScanLine, Activity, User, ShoppingBag, Bot };
 
 interface BottomNavProps {
   active: number;
@@ -27,6 +27,7 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
       case 'nutrients': return 'পুষ্টি';
       case 'profile': return 'প্রোফাইল';
       case 'grocery': return 'বাজার';
+      case 'coach': return 'AI কোচ';
       default: return fallback;
     }
   };
@@ -74,13 +75,13 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
           justifyContent: 'space-between',
           height: 72,
           borderRadius: 28,
-          padding: '8px 10px',
+          padding: '6px 8px',
           boxShadow:
             '0 8px 32px rgba(46, 37, 34, 0.10), inset 0 1px 0 rgba(255,255,255,0.55)',
         }}
       >
         {TABS.map((t, i) => {
-          const Icon = ICONS[t.icon];
+          const Icon = ICONS[t.icon] || Camera;
           const isActive = i === active;
           return (
             <motion.button
@@ -103,11 +104,11 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 4,
+                gap: 3,
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
-                padding: '4px 0',
+                padding: '2px 0',
                 fontFamily: 'inherit',
                 minHeight: 56,
                 zIndex: 1,
@@ -116,8 +117,8 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
               <div
                 style={{
                   position: 'relative',
-                  width: 48,
-                  height: 48,
+                  width: 42,
+                  height: 42,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -148,7 +149,7 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
                   }}
                 >
                   <Icon
-                    size={isActive ? 22 : 24}
+                    size={isActive ? 20 : 21}
                     strokeWidth={1.8}
                     color="currentColor"
                   />
@@ -162,8 +163,8 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
                       position: 'absolute',
                       top: 0,
                       left: 0,
-                      width: 48,
-                      height: 48,
+                      width: 42,
+                      height: 42,
                       borderRadius: '50%',
                       background: 'rgba(74, 58, 52, 0.08)',
                       opacity: 0,
@@ -179,10 +180,11 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
                 className="nav-tab-label"
                 style={{
                   fontFamily: 'Inter',
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: isActive ? 600 : 400,
                   color: isActive ? T.primary : T.inkSoft,
-                  letterSpacing: '0.02em',
+                  letterSpacing: '0.01em',
+                  whiteSpace: 'nowrap',
                   transition: 'color 200ms ease, font-weight 200ms ease',
                 }}
               >

@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 from app.cache.sqlite_cache import TTLCache
 from app.cache.vector_cache import VectorCache
-from app.models.schemas import AnalyzeResult, DetectedItem, PipelineTrace
+from app.models.schemas import AnalyzeResult, DetectedItem, PipelineTrace, VisionDetectionResult
 from app.services import portion as portion_svc
 from app.services import reconcile as reconcile_svc
 from app.services.gemini_client import GeminiClient
@@ -189,18 +189,78 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
     # 2. Live cascade pipeline: Gemini -> Groq fallback -> HF validation.
     detected_items: list[DetectedItem] = []
     primary_stage_label = "Vision ID (Gemini)"
+    vision_meta: VisionDetectionResult | None = None
 
     if gemini.is_configured():
-        detected_items = gemini.detect(body.image_ref)
+        if hasattr(gemini, "detect_vision"):
+            vision_meta = gemini.detect_vision(body.image_ref)
+            detected_items = vision_meta.detected
+        else:
+            detected_items = gemini.detect(body.image_ref)
+            if detected_items:
+                conf = max([it.confidence / 100.0 for it in detected_items], default=0.85)
+                vision_meta = VisionDetectionResult(
+                    detected=detected_items,
+                    is_food=True,
+                    overall_confidence=conf,
+                )
         if detected_items:
             primary_stage_label = "Vision ID (Gemini)"
 
-    # Cascade to Groq if Gemini was not configured or returned no items (e.g. error, rate limit, or miss)
-    if not detected_items and groq.is_configured():
-        groq_items = groq.detect(body.image_ref)
-        if groq_items:
-            detected_items = groq_items
-            primary_stage_label = "Vision ID (Groq cascaded)"
+    # Cascade to Groq if Gemini was not configured or returned no items (and did not explicitly reject)
+    gemini_explicitly_not_food = vision_meta is not None and not vision_meta.is_food
+    if (not detected_items and not gemini_explicitly_not_food) and groq.is_configured():
+        if hasattr(groq, "detect_vision"):
+            groq_meta = groq.detect_vision(body.image_ref)
+            if groq_meta.detected or not groq_meta.is_food:
+                vision_meta = groq_meta
+                detected_items = groq_meta.detected
+                primary_stage_label = "Vision ID (Groq cascaded)"
+        else:
+            groq_items = groq.detect(body.image_ref)
+            if groq_items:
+                detected_items = groq_items
+                conf = max([it.confidence / 100.0 for it in groq_items], default=0.85)
+                vision_meta = VisionDetectionResult(
+                    detected=groq_items,
+                    is_food=True,
+                    overall_confidence=conf,
+                )
+                primary_stage_label = "Vision ID (Groq cascaded)"
+
+    # 3. Non-Food Safety Gate (Pre-Cache Filter)
+    is_non_food = vision_meta is not None and not vision_meta.is_food
+    is_low_conf = vision_meta is not None and vision_meta.overall_confidence < 0.45
+    if is_non_food or is_low_conf:
+        # Pre-cache filter: BYPASS writing to ChromaDB / SQLite cache
+        pipeline.extend(
+            [
+                make_trace(
+                    "vision-id",
+                    "Safety Gate (Non-food item)" if is_non_food else "Safety Gate (Low confidence)",
+                    "fallback",
+                ),
+                make_trace("hf-validate", "HF validator (bypassed)", "fallback"),
+                make_trace("reconcile", "Reconcile (bypassed)", "fallback"),
+            ]
+        )
+        return AnalyzeResult(
+            detected=[],
+            pipeline=pipeline,
+            is_food=False,
+            input_mode=vision_meta.input_mode if vision_meta else "cooked_meal",
+            overall_confidence=vision_meta.overall_confidence if vision_meta else 0.0,
+            rejection_reason_en=(
+                vision_meta.rejection_reason_en
+                if (vision_meta and vision_meta.rejection_reason_en)
+                else "No food detected in this photo. Please retake photo with food or ingredients."
+            ),
+            rejection_reason_bn=(
+                vision_meta.rejection_reason_bn
+                if (vision_meta and vision_meta.rejection_reason_bn)
+                else "এই ছবিতে কোনো খাবার বা উপাদান শনাক্ত করা যায়নি। অনুগ্রহ করে কোনো খাবারের ছবি তুলুন।"
+            ),
+        )
 
     hf_labels = hf.classify(body.image_ref) if hf.is_configured() else []
 
@@ -253,7 +313,18 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
         except Exception:  # noqa: BLE001
             pass
 
-    return AnalyzeResult(detected=detected, pipeline=pipeline)
+    return AnalyzeResult(
+        detected=detected,
+        pipeline=pipeline,
+        is_food=True,
+        input_mode=vision_meta.input_mode if vision_meta else "cooked_meal",
+        overall_confidence=vision_meta.overall_confidence if vision_meta else 0.85,
+        rejection_reason_en=None,
+        rejection_reason_bn=None,
+        inferred_hidden_ingredients=vision_meta.inferred_hidden_ingredients if vision_meta else [],
+        recipe_suggestions=vision_meta.recipe_suggestions if vision_meta else None,
+        menu_analysis=vision_meta.menu_analysis if vision_meta else None,
+    )
 
 
 # Re-exported for test fixtures.

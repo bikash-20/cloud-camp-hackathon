@@ -14,6 +14,7 @@ import ResultsScreen from './components/screens/ResultsScreen';
 import NutrientsScreen from './components/screens/NutrientsScreen';
 import ProfileScreen from './components/screens/ProfileScreen';
 import GroceryScreen from './components/screens/GroceryScreen';
+import CoachScreen from './components/screens/CoachScreen';
 import PwaInstallBanner from './components/PwaInstallBanner';
 import LoginScreen from './components/auth/LoginScreen';
 import AdminLayout from './components/admin/AdminLayout';
@@ -97,6 +98,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
   const [pipeline, setPipeline] = useState<PipelineTrace[]>([]);
   const [pipelineToast, setPipelineToast] = useState<string | null>(null);
   const [analysisMessage, setAnalysisMessage] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<import('./types/schemas').AnalyzeResult | null>(null);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -116,6 +118,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
   const handleCapture = async (imageDataUrl?: string) => {
     setCaptured(true);
     setAnalysisMessage(null);
+    setAnalysisResult(null);
     if (imageDataUrl) setCapturedImage(imageDataUrl);
     setDirection(1);
     setPipelineToast(translate('Analyzing photo…'));
@@ -125,9 +128,14 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
     try {
       if (!imageDataUrl) throw new Error('A photo is required to analyze a meal');
       const result = await analyzeMeal(imageDataUrl);
+      setAnalysisResult(result);
       next = result.detected;
       trace = result.pipeline;
-      if (next.length === 0) {
+      if (result.is_food === false) {
+        setAnalysisMessage(
+          result.rejection_reason_bn || result.rejection_reason_en || translate('No food was detected. Try a clearer photo.')
+        );
+      } else if (next.length === 0) {
         setAnalysisMessage(translate('No food was detected. Try a clearer photo.'));
       }
     } catch (err) {
@@ -192,6 +200,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
     setDetected([]);
     setPipeline([]);
     setAnalysisMessage(null);
+    setAnalysisResult(null);
   };
 
   if (!profile) {
@@ -261,6 +270,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
               profile={profile}
               capturedImage={capturedImage}
               analysisMessage={analysisMessage}
+              analysisResult={analysisResult}
               onRetake={() => {
                 handleRetake();
                 goToTab(0);
@@ -277,6 +287,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
             />
           )}
           {tab === 4 && <GroceryScreen profile={profile} />}
+          {tab === 5 && <CoachScreen profile={profile} />}
         </motion.div>
         </LocalizedContent>
 
