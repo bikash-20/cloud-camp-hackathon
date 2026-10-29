@@ -36,7 +36,8 @@ interface GroceryScreenProps {
 }
 
 export default function GroceryScreen({ profile }: GroceryScreenProps) {
-  const { foodName } = useLanguage();
+  const { foodName, language } = useLanguage();
+  const isBn = language === 'bn';
   const [groups, setGroups] = useState<DisplayGroup[]>([]);
   const [budget, setBudget] = useState(profile.budget);
   const [toast, setToast] = useState<string | null>(null);
@@ -226,7 +227,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
         <span className="tnum" style={{ fontWeight: 600 }}>
           ৳{totalSpent}
         </span>{' '}
-        spent ·{' '}
+        {isBn ? 'খরচ · ' : 'spent · '}
         <span
           className="tnum"
           style={{
@@ -236,11 +237,13 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
         >
           ৳{remaining}
         </span>{' '}
-        left of{' '}
+        {isBn ? 'বাকি আছে মোট ' : 'left of '}
         <span className="tnum" style={{ fontWeight: 600 }}>
           ৳{weeklyCap}
         </span>{' '}
-        <span style={{ color: T.inkMuted }}>(৳{budget}/day × 7 days)</span>
+        <span style={{ color: T.inkMuted }}>
+          {isBn ? `(৳${budget}/দিন × ৭ দিন)` : `(৳${budget}/day × 7 days)`}
+        </span>
       </motion.p>
 
       <motion.div
@@ -260,7 +263,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
           whileHover={{ y: -1 }}
           whileTap={{ scale: 0.95 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-          aria-label="Share grocery list"
+          aria-label={isBn ? 'বাজারের তালিকা শেয়ার করুন' : 'Share grocery list'}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -275,7 +278,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
             cursor: 'pointer',
           }}
         >
-          <Share2 size={12} /> Share list
+          <Share2 size={12} /> {isBn ? 'তালিকা শেয়ার করুন' : 'Share list'}
         </motion.button>
       </motion.div>
 
@@ -361,7 +364,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
               letterSpacing: '0.01em',
             }}
           >
-            <Sparkles size={13} color="#FFFFFF" /> Generate from meals
+            <Sparkles size={13} color="#FFFFFF" /> {isBn ? 'খাবার থেকে তৈরি করুন' : 'Generate from meals'}
           </motion.button>
         )}
 
@@ -375,18 +378,18 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
             onClick={async () => {
               if (!confirmingClear) {
                 setConfirmingClear(true);
-                triggerToast('Tap again to confirm — clearing all items');
+                triggerToast(isBn ? 'সব মুছে ফেলতে আবার চাপুন' : 'Tap again to confirm — clearing all items');
                 return;
               }
               setConfirmingClear(false);
               setGroups([]);
               await clearGroceryList();
-              triggerToast('List cleared');
+              triggerToast(isBn ? 'তালিকা মুছে ফেলা হয়েছে' : 'List cleared');
             }}
             whileHover={{ y: -1 }}
             whileTap={{ scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            aria-label={confirmingClear ? 'Tap again to confirm clear all' : 'Clear all grocery items'}
+            aria-label={confirmingClear ? (isBn ? 'নিশ্চিত করতে আবার চাপুন' : 'Tap again to confirm clear all') : (isBn ? 'সব মুছে ফেলুন' : 'Clear all grocery items')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -408,7 +411,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
             }}
           >
             <Trash size={13} color="#FFFFFF" />{' '}
-            {confirmingClear ? 'Tap to confirm' : 'Clear all'}
+            {confirmingClear ? (isBn ? 'নিশ্চিত করতে চাপুন' : 'Tap to confirm') : (isBn ? 'সব মুছুন' : 'Clear all')}
           </motion.button>
         )}
       </motion.div>
@@ -440,10 +443,10 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
             <ShoppingBag size={24} color={T.inkMuted} />
           </div>
           <div style={{ fontFamily: 'Inter', fontSize: 16, fontWeight: 600, color: T.ink, marginBottom: 8 }}>
-            Your grocery list is empty
+            {isBn ? 'আপনার বাজারের তালিকা খালি' : 'Your grocery list is empty'}
           </div>
           <div style={{ fontFamily: 'Inter', fontSize: 13, color: T.inkSoft, lineHeight: 1.4 }}>
-            Snap a meal or add items manually
+            {isBn ? 'খাবারের ছবি তুলুন অথবা সরাসরি উপাদান যোগ করুন' : 'Snap a meal or add items manually'}
           </div>
         </motion.div>
       )}
@@ -472,10 +475,10 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
         {groups.map((g, gi) => (
           <motion.div key={g.cat} variants={group} layout style={{ marginBottom: 18 }}>
             <SectionLabel
-              action={addingAt === gi ? undefined : '+ Add'}
+              action={addingAt === gi ? undefined : (isBn ? '+ যোগ করুন' : '+ Add')}
               onAction={() => setAddingAt(gi)}
             >
-              {g.cat}
+              {foodName(g.cat)}
             </SectionLabel>
 
             <AnimatePresence initial={false}>
@@ -700,6 +703,8 @@ interface AddItemFormProps {
 }
 
 function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   const [name, setName] = useState('');
   const [price, setPrice] = useState(40);
   const [error, setError] = useState<string | null>(null);
@@ -755,8 +760,8 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
           if (e.key === 'Enter') submit();
           if (e.key === 'Escape') onCancel();
         }}
-        placeholder="Item name"
-        aria-label="New item name"
+        placeholder={isBn ? 'উপাদানের নাম' : 'Item name'}
+        aria-label={isBn ? 'নতুন উপাদানের নাম' : 'New item name'}
         aria-invalid={!!error}
         aria-describedby={error ? 'add-item-error' : undefined}
         style={{

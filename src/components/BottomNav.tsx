@@ -3,7 +3,7 @@ import {
   Camera, ScanLine, Activity, User, ShoppingBag,
 } from 'lucide-react';
 import { T, TABS } from '../data';
-import { LocalizedContent } from '../i18n/LanguageContext';
+import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
 const ICONS: Record<string, typeof Camera> = { Camera, ScanLine, Activity, User, ShoppingBag };
 
@@ -16,6 +16,21 @@ interface BottomNavProps {
  * Floating bottom navigation dock per spec §4D.
  */
 export default function BottomNav({ active, onChange }: BottomNavProps) {
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
+
+  const getTabLabel = (id: string, fallback: string) => {
+    if (!isBn) return fallback;
+    switch (id) {
+      case 'capture': return 'ক্যামেরা';
+      case 'results': return 'ফলাফল';
+      case 'nutrients': return 'পুষ্টি';
+      case 'profile': return 'প্রোফাইল';
+      case 'grocery': return 'বাজার';
+      default: return fallback;
+    }
+  };
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
@@ -171,7 +186,7 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
                   transition: 'color 200ms ease, font-weight 200ms ease',
                 }}
               >
-                {t.label}
+                {getTabLabel(t.id, t.label)}
               </span>
             </motion.button>
           );

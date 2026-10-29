@@ -6,7 +6,7 @@ import { login, SEEDED_ACCOUNTS } from '../../lib/auth';
 import type { AuthSession } from '../../types/schemas';
 import PhoneFrame from '../PhoneFrame';
 import LanguageToggle from '../../i18n/LanguageToggle';
-import { LocalizedContent } from '../../i18n/LanguageContext';
+import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 
 interface LoginScreenProps {
   /** Called with the new session once login succeeds. */
@@ -21,6 +21,8 @@ interface LoginScreenProps {
  * the form fills, then they tap Sign In.
  */
 export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   const reduceMotion = useReducedMotion();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -120,7 +122,9 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
               lineHeight: 1.4,
             }}
           >
-            Sign in to track meals or open the admin dashboard.
+            {isBn
+              ? 'খাবার ট্র্যাক করতে বা অ্যাডমিন ড্যাশবোর্ড দেখতে সাইন ইন করুন।'
+              : 'Sign in to track meals or open the admin dashboard.'}
           </p>
         </motion.div>
 
@@ -147,7 +151,7 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
         >
           <Field
             icon={<Mail size={14} color={T.inkSoft} strokeWidth={2} />}
-            label="Email"
+            label={isBn ? 'ইমেইল' : 'Email'}
           >
             <input
               ref={emailRef}
@@ -178,7 +182,7 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
 
           <Field
             icon={<Lock size={14} color={T.inkSoft} strokeWidth={2} />}
-            label="Password"
+            label={isBn ? 'পাসওয়ার্ড' : 'Password'}
             right={
               <button
                 type="button"
@@ -275,7 +279,7 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
               boxShadow: '0 8px 18px -8px rgba(46, 37, 34, 0.55)',
             }}
           >
-            {submitting ? 'Signing in…' : 'Sign in'}
+            {submitting ? (isBn ? 'সাইন ইন হচ্ছে…' : 'Signing in…') : (isBn ? 'সাইন ইন করুন' : 'Sign in')}
             {!submitting && <ArrowRight size={14} strokeWidth={2.5} />}
           </motion.button>
         </motion.form>
@@ -298,17 +302,17 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
               marginBottom: 8,
             }}
           >
-            Try a demo account
+            {isBn ? 'ডেমো অ্যাকাউন্ট পরখ করুন' : 'Try a demo account'}
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
             <DemoChip
               icon={<ShieldCheck size={13} color={T.primary} strokeWidth={2.2} />}
-              label="Admin"
+              label={isBn ? 'অ্যাডমিন' : 'Admin'}
               onClick={() => fillDemo('admin')}
             />
             <DemoChip
               icon={<UserIcon size={13} color={T.primary} strokeWidth={2.2} />}
-              label="User"
+              label={isBn ? 'ইউজার' : 'User'}
               onClick={() => fillDemo('user')}
             />
           </div>
@@ -321,9 +325,19 @@ export default function LoginScreen({ onSignedIn }: LoginScreenProps) {
               lineHeight: 1.45,
             }}
           >
-            Admin → KPI dashboard.
-            <br />
-            User → regular PWA.
+            {isBn ? (
+              <>
+                অ্যাডমিন → কেপিআই ড্যাশবোর্ড।
+                <br />
+                ইউজার → সাধারণ পিডব্লিউএ।
+              </>
+            ) : (
+              <>
+                Admin → KPI dashboard.
+                <br />
+                User → regular PWA.
+              </>
+            )}
           </div>
         </motion.div>
       </div>

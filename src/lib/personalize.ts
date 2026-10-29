@@ -32,15 +32,18 @@ export interface BiometricsBreakdown {
  * Calculates BMR (Mifflin-St Jeor), TDEE, and safe daily calorie recommendation.
  * Mirrors `app/services/targets.py` on the client.
  */
-export function calculateBiometricsBreakdown(profile?: {
-  age?: number | null;
-  sex?: Sex | null;
-  heightCm?: number | null;
-  weightKg?: number | null;
-  activityLevel?: ActivityLevel | null;
-  goal?: GoalType | null;
-  targetRateKgPerWeek?: number | null;
-} | null): BiometricsBreakdown {
+export function calculateBiometricsBreakdown(
+  profile?: {
+    age?: number | null;
+    sex?: Sex | null;
+    heightCm?: number | null;
+    weightKg?: number | null;
+    activityLevel?: ActivityLevel | null;
+    goal?: GoalType | null;
+    targetRateKgPerWeek?: number | null;
+  } | null,
+  lang: 'en' | 'bn' = 'en',
+): BiometricsBreakdown {
   const age = Math.max(1, profile?.age ?? 28);
   const sex = profile?.sex ?? 'male';
   const weight = Math.max(10, profile?.weightKg ?? 70);
@@ -82,14 +85,36 @@ export function calculateBiometricsBreakdown(profile?: {
     recommended = floor;
   }
 
-  let explanation = `BMR ${bmr} kcal (Mifflin-St Jeor) × ${mult} (${activity}) = TDEE ${tdee} kcal.`;
-  if (goal === 'lose') {
-    explanation += ` Loss deficit: ${Math.abs(delta)} kcal/day.`;
-  } else if (goal === 'gain') {
-    explanation += ` Surplus: +${delta} kcal/day.`;
-  }
-  if (isFloored) {
-    explanation += ` Safety floor enforced: min ${floor} kcal/day.`;
+  const actMapBn: Record<string, string> = {
+    sedentary: 'বসে কাজ',
+    light: 'হালকা ব্যায়াম',
+    moderate: 'মাঝারি ব্যায়াম',
+    active: 'খুব সক্রিয়',
+    very_active: 'অতিরিক্ত পরিশ্রম',
+  };
+  const actText = lang === 'bn' ? (actMapBn[activity] || activity) : activity;
+
+  let explanation = '';
+  if (lang === 'bn') {
+    explanation = `বিএমআর ${bmr} কিলোক্যালরি (মিফলিন-সেন্ট জিওর) × ${mult} (${actText}) = মোট দৈনিক ব্যয় (টিডিইই) ${tdee} কিলোক্যালরি।`;
+    if (goal === 'lose') {
+      explanation += ` নিরাপদ চর্বি কমানোর ঘাটতি: ${Math.abs(delta)} কিলোক্যালরি/দিন।`;
+    } else if (goal === 'gain') {
+      explanation += ` ক্যালরি বৃদ্ধির উদ্বৃত্ত: +${delta} কিলোক্যালরি/দিন।`;
+    }
+    if (isFloored) {
+      explanation += ` স্বাস্থ্য সুরক্ষা সীমা: দৈনিক সর্বনিম্ন ${floor} কিলোক্যালরি প্রয়োগ করা হয়েছে।`;
+    }
+  } else {
+    explanation = `BMR ${bmr} kcal (Mifflin-St Jeor) × ${mult} (${activity}) = TDEE ${tdee} kcal.`;
+    if (goal === 'lose') {
+      explanation += ` Loss deficit: ${Math.abs(delta)} kcal/day.`;
+    } else if (goal === 'gain') {
+      explanation += ` Surplus: +${delta} kcal/day.`;
+    }
+    if (isFloored) {
+      explanation += ` Safety floor enforced: min ${floor} kcal/day.`;
+    }
   }
 
   return {

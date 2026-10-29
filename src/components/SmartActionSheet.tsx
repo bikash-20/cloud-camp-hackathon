@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ArrowRight, Edit3, X, Sparkles } from 'lucide-react';
 import { T } from '../data';
-import { LocalizedContent } from '../i18n/LanguageContext';
+import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
 interface SmartActionSheetProps {
   open: boolean;
@@ -21,6 +21,8 @@ export default function SmartActionSheet({
   onDiscard,
   onClose,
 }: SmartActionSheetProps) {
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   return (
     <LocalizedContent>
     <AnimatePresence>
@@ -97,7 +99,7 @@ export default function SmartActionSheet({
                     margin: 0,
                   }}
                 >
-                  All items confirmed!
+                  {isBn ? 'সব খাবার নিশ্চিত করা হয়েছে!' : 'All items confirmed!'}
                 </h3>
               </div>
               <motion.button
@@ -106,7 +108,7 @@ export default function SmartActionSheet({
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.92 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                aria-label="Close"
+                aria-label={isBn ? 'বন্ধ করুন' : 'Close'}
                 style={{
                   width: 28,
                   height: 28,
@@ -133,7 +135,9 @@ export default function SmartActionSheet({
                 lineHeight: 1.4,
               }}
             >
-              Your meal is ready. See the full nutrient breakdown or make final tweaks.
+              {isBn
+                ? 'আপনার খাবার প্রস্তুত। সম্পূর্ণ পুষ্টি বিশ্লেষণ দেখুন বা সমন্বয় করুন।'
+                : 'Your meal is ready. See the full nutrient breakdown or make final tweaks.'}
             </p>
 
             <motion.button
@@ -142,7 +146,7 @@ export default function SmartActionSheet({
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.98 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-              aria-label="View nutrients for this meal"
+              aria-label={isBn ? 'এই খাবারের পুষ্টি বিশ্লেষণ দেখুন' : 'View nutrients for this meal'}
               style={{
                 width: '100%',
                 display: 'flex',
@@ -162,7 +166,7 @@ export default function SmartActionSheet({
                 boxShadow: `0 8px 18px -6px ${T.primary}66`,
               }}
             >
-              <Sparkles size={14} /> View Nutrients
+              <Sparkles size={14} /> {isBn ? 'পুষ্টি বিশ্লেষণ দেখুন' : 'View Nutrients'}
               <ArrowRight size={14} />
             </motion.button>
 
@@ -172,7 +176,7 @@ export default function SmartActionSheet({
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.98 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-              aria-label="Edit meal before saving"
+              aria-label={isBn ? 'সংরক্ষণ করার আগে খাবার সম্পাদনা করুন' : 'Edit meal before saving'}
               style={{
                 width: '100%',
                 display: 'flex',
@@ -191,7 +195,7 @@ export default function SmartActionSheet({
                 marginBottom: 8,
               }}
             >
-              <Edit3 size={12} /> Edit Meal
+              <Edit3 size={12} /> {isBn ? 'খাবার সম্পাদনা' : 'Edit Meal'}
             </motion.button>
 
             <motion.button
@@ -200,7 +204,7 @@ export default function SmartActionSheet({
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.97 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-              aria-label="Discard this meal"
+              aria-label={isBn ? 'এই খাবার বাতিল করুন' : 'Discard this meal'}
               style={{
                 width: '100%',
                 background: 'none',
@@ -213,7 +217,7 @@ export default function SmartActionSheet({
                 padding: '6px 0',
               }}
             >
-              Discard
+              {isBn ? 'বাতিল করুন' : 'Discard'}
             </motion.button>
           </motion.div>
         </>

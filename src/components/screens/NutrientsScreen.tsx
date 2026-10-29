@@ -22,7 +22,8 @@ interface MacroDonutProps {
 
 function MacroDonut({ value, target, color, label, size = 88, stroke = 8, delay = 0 }: MacroDonutProps) {
   const reduceMotion = useReducedMotion();
-  const { translate } = useLanguage();
+  const { language, translate } = useLanguage();
+  const isBn = language === 'bn';
   const pct = Math.min(100, Math.round((value / target) * 100));
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -114,7 +115,7 @@ function MacroDonut({ value, target, color, label, size = 88, stroke = 8, delay 
           >
             {value}
             <span style={{ fontSize: 10, fontWeight: 500, color: T.inkSoft }}>
-              g
+              {isBn ? 'গ্রাম' : 'g'}
             </span>
           </div>
           <div
@@ -139,7 +140,7 @@ function MacroDonut({ value, target, color, label, size = 88, stroke = 8, delay 
           color: T.ink,
         }}
       >
-        {translate(label)}
+        {isBn ? (label === 'Protein' ? 'প্রোটিন' : label === 'Carbs' ? 'কার্বোহাইড্রেট' : 'চর্বি') : translate(label)}
       </div>
     </motion.div>
   );
@@ -152,7 +153,8 @@ interface ExplainabilityStripProps {
 
 /** SHAP-style "Why these flags?" panel — shows contributing items per flagged nutrient. */
 function ExplainabilityStrip({ contributions, flaggedNutrients }: ExplainabilityStripProps) {
-  const { foodName } = useLanguage();
+  const { foodName, language } = useLanguage();
+  const isBn = language === 'bn';
   const flagged = flaggedNutrients
     .map((f) => ({
       ...f,
@@ -206,7 +208,7 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
             color: T.ink,
           }}
         >
-          Why these flags?
+          {isBn ? 'এই সতর্কতাগুলোর কারণ কী?' : 'Why these flags?'}
         </div>
         <div
           style={{
@@ -222,7 +224,7 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
             borderRadius: 6,
           }}
         >
-          SHAP-style
+          {isBn ? 'অবদান বিশ্লেষণ' : 'SHAP-style'}
         </div>
       </div>
 
@@ -243,10 +245,10 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
                 marginBottom: 6,
               }}
             >
-              <span>{f.nutrient}</span>
+              <span>{isBn ? (f.nutrient === 'sodium' ? 'সোডিয়াম' : f.nutrient === 'sugar' ? 'চিনি' : 'আঁশ') : f.nutrient}</span>
               <span style={{ color: T.ink }}>
                 {f.contributions.reduce((s, c) => s + c.amount, 0).toFixed(0)}
-                {unitForNutrient(f.nutrient)} total
+                {isBn ? (f.nutrient === 'sodium' ? ' মিগ্রা মোট' : ' গ্রাম মোট') : ` ${unitForNutrient(f.nutrient)} total`}
               </span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -509,7 +511,7 @@ function ExplainabilityVerdicts({ contributions, profile }: ExplainabilityVerdic
             color: T.ink,
           }}
         >
-          Why we flagged this
+          {language === 'bn' ? 'সতর্কতার বিশ্লেষণ' : 'Why we flagged this'}
         </div>
         <div
           style={{
@@ -525,13 +527,13 @@ function ExplainabilityVerdicts({ contributions, profile }: ExplainabilityVerdic
             borderRadius: 6,
           }}
         >
-          Per-item reasoning
+          {language === 'bn' ? 'খাবারভিত্তিক কারণ' : 'Per-item reasoning'}
         </div>
       </div>
 
       <div
         role="list"
-        aria-label="Per-item verdict explanations"
+        aria-label={language === 'bn' ? 'খাবারভিত্তিক সতর্কতার কারণ' : 'Per-item verdict explanations'}
         style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
       >
         {verdicts.map((v, idx) => (
@@ -604,7 +606,7 @@ function ExplainabilityVerdicts({ contributions, profile }: ExplainabilityVerdic
           color: T.ink,
           lineHeight: 1.45,
         }}
-        aria-label="Meal verdict"
+        aria-label={language === 'bn' ? 'খাবারের সারসংক্ষেপ' : 'Meal verdict'}
       >
         <span
           style={{
@@ -618,7 +620,7 @@ function ExplainabilityVerdicts({ contributions, profile }: ExplainabilityVerdic
             textTransform: 'uppercase',
           }}
         >
-          Meal verdict
+          {language === 'bn' ? 'সারসংক্ষেপ' : 'Meal verdict'}
         </span>
         <br />
         {mealVerdict}
@@ -769,7 +771,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
             marginBottom: 8,
           }}
         >
-          <ChevronLeft size={14} /> Back to results
+          <ChevronLeft size={14} /> {language === 'bn' ? 'ফলাফলে ফিরে যান' : 'Back to results'}
         </motion.button>
       )}
 
@@ -786,7 +788,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
             letterSpacing: '-0.02em',
           }}
         >
-          This meal, explained
+          {language === 'bn' ? 'এই খাবারের পুষ্টি বিশ্লেষণ' : 'This meal, explained'}
         </motion.h2>
         {detected.length > 0 && (
           <motion.button
@@ -806,7 +808,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
             whileHover={{ y: -1 }}
             whileTap={{ scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            aria-label="Share nutrition summary"
+            aria-label={language === 'bn' ? 'পুষ্টির সারসংক্ষেপ শেয়ার করুন' : 'Share nutrition summary'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -822,7 +824,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
               minHeight: 32,
             }}
           >
-            <Share2 size={12} /> Share
+            <Share2 size={12} /> {language === 'bn' ? 'শেয়ার' : 'Share'}
           </motion.button>
         )}
       </div>
@@ -839,8 +841,8 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
         }}
       >
         {profile?.goals.diabetic
-          ? 'Filtered for your prediabetic-friendly goal.'
-          : 'Personalized against your active goals.'}
+          ? (language === 'bn' ? 'আপনার প্রিডায়াবেটিস-বান্ধব লক্ষ্যের জন্য বাছাই করা হয়েছে।' : 'Filtered for your prediabetic-friendly goal.')
+          : (language === 'bn' ? 'আপনার সক্রিয় লক্ষ্য অনুসারে সাজানো হয়েছে।' : 'Personalized against your active goals.')}
       </motion.p>
 
       {/* Macro donuts */}
@@ -935,10 +937,10 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
               color: T.ink,
             }}
           >
-            Micronutrients
+            {language === 'bn' ? 'অণুপুষ্টি' : 'Micronutrients'}
           </div>
           <div
-            title="Daily reference values"
+            title={language === 'bn' ? 'দৈনিক মানদণ্ড' : 'Daily reference values'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -948,29 +950,29 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
               color: T.inkSoft,
             }}
           >
-            <Info size={10} /> vs targets
+            <Info size={10} /> {language === 'bn' ? 'লক্ষ্যের সাথে তুলনা' : 'vs targets'}
           </div>
         </div>
 
         <Bar
-          label="Fiber"
+          label={language === 'bn' ? 'আঁশ' : 'Fiber'}
           pct={Math.min(100, Math.round((totals.fiber / targets.fiber) * 100))}
           color={T.primary}
-          sub={`${Math.round(fiber)}g / target ${targets.fiber}g`}
+          sub={language === 'bn' ? `${Math.round(fiber)} গ্রাম / লক্ষ্য ${targets.fiber} গ্রাম` : `${Math.round(fiber)}g / target ${targets.fiber}g`}
           delay={0.4}
         />
         <Bar
-          label="Sodium"
+          label={language === 'bn' ? 'সোডিয়াম' : 'Sodium'}
           pct={Math.min(100, Math.round((totals.sodium / targets.sodium) * 100))}
           color={T.accentAmber}
-          sub={`${Math.round(sodium)}mg / ${targets.sodium}mg`}
+          sub={language === 'bn' ? `${Math.round(sodium)} মিগ্রা / ${targets.sodium} মিগ্রা` : `${Math.round(sodium)}mg / ${targets.sodium}mg`}
           delay={0.47}
         />
         <Bar
-          label="Sugar"
+          label={language === 'bn' ? 'চিনি' : 'Sugar'}
           pct={Math.min(100, Math.round((totals.sugar / targets.sugar) * 100))}
           color={T.accentWarn}
-          sub={`${Math.round(sugar)}g / ${targets.sugar}g`}
+          sub={language === 'bn' ? `${Math.round(sugar)} গ্রাম / ${targets.sugar} গ্রাম` : `${Math.round(sugar)}g / ${targets.sugar}g`}
           delay={0.54}
         />
       </motion.div>

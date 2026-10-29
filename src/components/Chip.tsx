@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { T } from '../data';
@@ -13,8 +14,11 @@ interface ChipProps {
 
 /**
  * Tag-style chip with check toggle. Used for dietary preferences and allergens.
+ *
+ * Memoized to prevent unnecessary re-renders when sibling chips toggle — only
+ * re-renders when its own `active` or `label` props change.
  */
-export default function Chip({
+const Chip = memo(function Chip({
   label,
   active,
   onClick,
@@ -34,6 +38,7 @@ export default function Chip({
         whileHover={{ y: -1, scale: 1.03 }}
         whileTap={{ scale: 0.94 }}
         transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+        layout={false}
         style={{
           position: 'relative',
           display: 'inline-flex',
@@ -59,7 +64,7 @@ export default function Chip({
           WebkitBackdropFilter: active ? 'none' : 'blur(8px) saturate(130%)',
         }}
       >
-        <AnimatePresence>
+        <AnimatePresence initial={false}>
           {active && (
             <motion.span
               key="dot"
@@ -81,4 +86,6 @@ export default function Chip({
       </motion.button>
     </LocalizedContent>
   );
-}
+});
+
+export default Chip;

@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Check, Eye, Plus, X } from 'lucide-react';
 import { T } from '../data';
-import { LocalizedContent } from '../i18n/LanguageContext';
+import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
 interface BulkActionBarProps {
   count: number;
@@ -21,6 +21,8 @@ export default function BulkActionBar({
   onCancel,
   hasHighConf,
 }: BulkActionBarProps) {
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   return (
     <LocalizedContent>
     <motion.div
@@ -43,7 +45,7 @@ export default function BulkActionBar({
         boxShadow: '0 12px 28px -10px rgba(46, 37, 34, 0.30)',
       }}
       role="toolbar"
-      aria-label="Bulk actions"
+      aria-label={isBn ? 'একসাথে একাধিক কার্যক্রম' : 'Bulk actions'}
     >
       <div
         style={{
@@ -56,7 +58,7 @@ export default function BulkActionBar({
           whiteSpace: 'nowrap',
         }}
       >
-        {count} selected
+        {count} {isBn ? 'টি নির্বাচিত' : 'selected'}
       </div>
 
       <div style={{ display: 'flex', gap: 6, flex: 1, justifyContent: 'flex-end' }}>
@@ -67,7 +69,7 @@ export default function BulkActionBar({
             whileHover={{ y: -1, scale: 1.04 }}
             whileTap={{ scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            aria-label="Confirm all selected high-confidence items"
+            aria-label={isBn ? 'উচ্চ নিশ্চিততার সব খাবার নিশ্চিত করুন' : 'Confirm all selected high-confidence items'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -85,7 +87,7 @@ export default function BulkActionBar({
               boxShadow: `0 4px 10px -3px ${T.accentGood}66`,
             }}
           >
-            <Check size={11} strokeWidth={3} /> Confirm
+            <Check size={11} strokeWidth={3} /> {isBn ? 'নিশ্চিত করুন' : 'Confirm'}
           </motion.button>
         )}
 
@@ -95,7 +97,7 @@ export default function BulkActionBar({
           whileHover={{ y: -1, scale: 1.04 }}
           whileTap={{ scale: 0.95 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-          aria-label="Review all selected items"
+          aria-label={isBn ? 'নির্বাচিত সব খাবার পর্যালোচনা করুন' : 'Review all selected items'}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -112,7 +114,7 @@ export default function BulkActionBar({
             minHeight: 32,
           }}
         >
-          <Eye size={11} /> Review
+          <Eye size={11} /> {isBn ? 'পর্যালোচনা' : 'Review'}
         </motion.button>
 
         <motion.button
@@ -121,7 +123,7 @@ export default function BulkActionBar({
           whileHover={{ scale: 1.08, rotate: 90 }}
           whileTap={{ scale: 0.92 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-          aria-label="Add custom item"
+          aria-label={isBn ? 'কাস্টম খাবার যোগ করুন' : 'Add custom item'}
           style={{
             width: 32,
             height: 32,

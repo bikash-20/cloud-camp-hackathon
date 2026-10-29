@@ -64,7 +64,8 @@ export default function ResultsScreen({
   analysisMessage,
   onRetake,
 }: ResultsScreenProps) {
-  const { foodName } = useLanguage();
+  const { foodName, language } = useLanguage();
+  const isBn = language === 'bn';
   const [detected, setDetected] = useState(detectedProp ?? []);
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
   const [sortKey, setSortKey] = useState<typeof SORT_OPTIONS[number]['key']>('conf');
@@ -316,7 +317,7 @@ export default function ResultsScreen({
                 cursor: 'pointer',
               }}
             >
-              Try again
+              {isBn ? 'আবার চেষ্টা করুন' : 'Try again'}
             </button>
           )}
         </div>
@@ -341,7 +342,7 @@ export default function ResultsScreen({
               margin: 0,
             }}
           >
-            Detected items
+            {isBn ? 'শনাক্তকৃত খাবার' : 'Detected items'}
           </h2>
           <p
             style={{
@@ -351,7 +352,7 @@ export default function ResultsScreen({
               margin: '2px 0 0',
             }}
           >
-            {detected.length} {detected.length === 1 ? 'item' : 'items'} · {Math.round(totals.kcal)} kcal
+            {detected.length} {isBn ? 'টি খাবার' : detected.length === 1 ? 'item' : 'items'} · {Math.round(totals.kcal)} {isBn ? 'কিলোক্যালরি' : 'kcal'}
           </p>
         </div>
         <motion.button
@@ -365,7 +366,7 @@ export default function ResultsScreen({
           whileTap={{ scale: 0.95 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
           aria-pressed={editMode}
-          aria-label={editMode ? 'Exit edit mode' : 'Enter edit mode'}
+          aria-label={editMode ? (isBn ? 'সম্পাদনা বন্ধ করুন' : 'Exit edit mode') : (isBn ? 'সম্পাদনা শুরু করুন' : 'Enter edit mode')}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -382,7 +383,7 @@ export default function ResultsScreen({
             minHeight: 32,
           }}
         >
-          <Edit3 size={11} /> {editMode ? 'Done' : 'Edit'}
+          <Edit3 size={11} /> {editMode ? (isBn ? 'সম্পন্ন' : 'Done') : (isBn ? 'সম্পাদনা' : 'Edit')}
         </motion.button>
       </div>
 
@@ -412,9 +413,9 @@ export default function ResultsScreen({
                 borderRadius: 999,
                 letterSpacing: '0.02em',
               }}
-              title="Re-ranked for your diabetic profile"
+              title={isBn ? 'আপনার প্রোফাইল অনুযায়ী পুনর্ক্রমিত' : 'Re-ranked for your diabetic profile'}
             >
-              ✓ re-ranked
+              {isBn ? '✓ পুনর্ক্রমিত' : '✓ re-ranked'}
             </span>
           )}
           <motion.button
@@ -423,7 +424,7 @@ export default function ResultsScreen({
             whileHover={{ y: -1 }}
             whileTap={{ scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            aria-label="Share detected items"
+            aria-label={isBn ? 'শনাক্তকৃত খাবার শেয়ার করুন' : 'Share detected items'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -439,7 +440,7 @@ export default function ResultsScreen({
               minHeight: 32,
             }}
           >
-            <Share2 size={12} /> Share
+            <Share2 size={12} /> {isBn ? 'শেয়ার' : 'Share'}
           </motion.button>
         </div>
 
@@ -449,7 +450,7 @@ export default function ResultsScreen({
           whileHover={{ scale: 1.08, rotate: 90 }}
           whileTap={{ scale: 0.92 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-          aria-label="Add custom item"
+          aria-label={isBn ? 'কাস্টম খাবার যোগ করুন' : 'Add custom item'}
           style={{
             width: 32,
             height: 32,
@@ -521,7 +522,7 @@ export default function ResultsScreen({
                 marginBottom: 8,
               }}
             >
-              Frequently eaten with this
+              {isBn ? 'এর সাথে সাধারণত যা খাওয়া হয়' : 'Frequently eaten with this'}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {HISTORY_SUGGESTIONS.map((h: { name: string; emoji: string; confidence: number; grams: number }) => (
@@ -530,19 +531,19 @@ export default function ResultsScreen({
                   type="button"
                   onClick={() => {
                     if (detected.some((d) => d.name === h.name)) {
-                      triggerToast(`${h.name} already added`);
+                      triggerToast(isBn ? `${foodName(h.name)} আগেই যোগ করা হয়েছে` : `${h.name} already added`);
                       return;
                     }
                     updateDetected((rows) => [
                       ...rows,
                       { name: h.name, confidence: h.confidence, grams: h.grams, note: null },
                     ]);
-                    triggerToast(`Added ${h.name}`);
+                    triggerToast(isBn ? `${foodName(h.name)} যোগ করা হয়েছে` : `Added ${h.name}`);
                   }}
                   whileHover={{ y: -1, scale: 1.03 }}
                   whileTap={{ scale: 0.95 }}
                   transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                  aria-label={`Add ${h.name} from history`}
+                  aria-label={isBn ? `ইতিহাস থেকে ${foodName(h.name)} যোগ করুন` : `Add ${h.name} from history`}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -559,7 +560,7 @@ export default function ResultsScreen({
                     minHeight: 32,
                   }}
                 >
-                  {h.emoji} {foodName(h.name)} {foodName('Add')}
+                  {h.emoji} {foodName(h.name)} {isBn ? '+ যোগ' : '+ Add'}
                 </motion.button>
               ))}
             </div>
@@ -576,7 +577,7 @@ export default function ResultsScreen({
               fontSize: 13,
             }}
           >
-            No items to review. Tap + to add a custom item.
+            {isBn ? 'পর্যালোচনার জন্য কোনো খাবার নেই। নতুন খাবার যোগ করতে + চাপুন।' : 'No items to review. Tap + to add a custom item.'}
           </div>
         )}
       </motion.div>

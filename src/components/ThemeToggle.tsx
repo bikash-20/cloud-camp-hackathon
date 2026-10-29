@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { Moon, Sun } from 'lucide-react';
 import { useTokens } from '../theme/useTokens';
 import { T } from '../data';
-import { LocalizedContent } from '../i18n/LanguageContext';
+import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
 /**
  * Theme toggle pill — sits in the Profile screen header next to Reset
@@ -16,6 +16,8 @@ import { LocalizedContent } from '../i18n/LanguageContext';
  */
 export default function ThemeToggle() {
   const { theme, toggleTheme } = useTokens();
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   const isDark = theme === 'dark';
   // Alpha bumped from the previous (0.08/0.18) so the pill has a
   // visible surface on the cream Profile header — the icon and label
@@ -31,7 +33,7 @@ export default function ThemeToggle() {
         whileHover={{ y: -1, scale: 1.04 }}
         whileTap={{ scale: 0.96 }}
         transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+        aria-label={isDark ? (isBn ? 'লাইট মোড চালু করুন' : 'Switch to light mode') : (isBn ? 'ডার্ক মোড চালু করুন' : 'Switch to dark mode')}
         aria-pressed={isDark}
         style={{
           display: 'inline-flex',
@@ -54,7 +56,7 @@ export default function ThemeToggle() {
         ) : (
           <Moon size={12} strokeWidth={2.5} />
         )}
-        {isDark ? 'Light' : 'Dark'}
+        {isDark ? (isBn ? 'লাইট' : 'Light') : (isBn ? 'ডার্ক' : 'Dark')}
       </motion.button>
     </LocalizedContent>
   );

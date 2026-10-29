@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, X, Smartphone } from 'lucide-react';
 import { T } from '../data';
-import { LocalizedContent } from '../i18n/LanguageContext';
+import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
 const DISMISS_KEY = 'nutrivision-pwa-install-dismissed';
 const DISMISS_EXPIRY_MS = 24 * 60 * 60 * 1000; // Re-show after 24 hours
@@ -20,6 +20,8 @@ interface BeforeInstallPromptEvent extends Event {
  * via localStorage with a 24-hour expiry.
  */
 export default function PwaInstallBanner() {
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [installing, setInstalling] = useState(false);
@@ -182,7 +184,7 @@ export default function PwaInstallBanner() {
                     lineHeight: 1.3,
                   }}
                 >
-                  Install NutriVision
+                  {isBn ? 'নিউট্রিভিশন ইনস্টল করুন' : 'Install NutriVision'}
                 </div>
                 <div
                   style={{
@@ -194,7 +196,7 @@ export default function PwaInstallBanner() {
                     lineHeight: 1.3,
                   }}
                 >
-                  Add to home screen for quick access
+                  {isBn ? 'সহজে ব্যবহারের জন্য হোম স্ক্রিনে যোগ করুন' : 'Add to home screen for quick access'}
                 </div>
               </div>
 
@@ -225,7 +227,7 @@ export default function PwaInstallBanner() {
                 }}
               >
                 <Download size={13} strokeWidth={2.5} />
-                {installing ? 'Installing…' : 'Install'}
+                {installing ? (isBn ? 'ইনস্টল হচ্ছে…' : 'Installing…') : (isBn ? 'ইনস্টল' : 'Install')}
               </motion.button>
 
               {/* Dismiss button */}

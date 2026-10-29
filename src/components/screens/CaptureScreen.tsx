@@ -76,7 +76,8 @@ export default function CaptureScreen({
   previewUrl,
   onNavigateTab,
 }: CaptureScreenProps) {
-  const { foodName } = useLanguage();
+  const { foodName, language } = useLanguage();
+  const isBn = language === 'bn';
   const reduceMotion = useReducedMotion();
   const [phase, setPhase] = useState<CapturePhase>('idle');
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -311,9 +312,9 @@ export default function CaptureScreen({
   // so the two screens stay in lockstep.
   const macroTargets = getMacroTargets();
   const MACRO_METERS = [
-    { label: 'Protein', current: (s: TodaySummary) => s.totalProtein, target: () => macroTargets.protein, unit: 'g' as const, color: T.primary },
-    { label: 'Carbs',   current: (s: TodaySummary) => s.totalCarbs,   target: () => macroTargets.carbs,   unit: 'g' as const, color: T.accentAmber },
-    { label: 'Fat',     current: (s: TodaySummary) => s.totalFat,     target: () => macroTargets.fat,     unit: 'g' as const, color: T.accentGood },
+    { label: isBn ? 'প্রোটিন' : 'Protein', current: (s: TodaySummary) => s.totalProtein, target: () => macroTargets.protein, unit: 'g' as const, color: T.primary },
+    { label: isBn ? 'কার্বোহাইড্রেট' : 'Carbs',   current: (s: TodaySummary) => s.totalCarbs,   target: () => macroTargets.carbs,   unit: 'g' as const, color: T.accentAmber },
+    { label: isBn ? 'চর্বি' : 'Fat',     current: (s: TodaySummary) => s.totalFat,     target: () => macroTargets.fat,     unit: 'g' as const, color: T.accentGood },
   ];
 
   // ── Render ────────────────────────────────────────────────────────────
@@ -352,7 +353,7 @@ export default function CaptureScreen({
           textTransform: 'uppercase',
         }}
       >
-        {getGreeting()}, {USER_NAME}
+        {isBn ? 'শুভ দিন' : getGreeting()}, {USER_NAME}
       </motion.div>
 
       <motion.h1
@@ -369,7 +370,7 @@ export default function CaptureScreen({
           letterSpacing: '-0.02em',
         }}
       >
-        Every bite has a story.
+        {isBn ? 'প্রতিটি খাবারের একটি গল্প থাকে।' : 'Every bite has a story.'}
       </motion.h1>
 
       <motion.p
@@ -384,7 +385,7 @@ export default function CaptureScreen({
           lineHeight: 1.4,
         }}
       >
-        Snap your plate — we'll do the rest.
+        {isBn ? 'থালাটির ছবি তুলুন — বাকিটা আমরা দেখছি।' : "Snap your plate — we'll do the rest."}
       </motion.p>
 
       {/* ── Capture card ──────────────────────────────────────────── */}
@@ -472,10 +473,10 @@ export default function CaptureScreen({
                 <Camera size={26} color="#FFFFFF" strokeWidth={2} />
               </motion.div>
               <div style={{ fontFamily: 'Inter', fontWeight: 600, fontSize: 18, color: T.ink }}>
-                Tap to open camera
+                {isBn ? 'ক্যামেরা চালু করতে চাপুন' : 'Tap to open camera'}
               </div>
               <div style={{ fontFamily: 'Inter', fontSize: 14, color: T.inkSoft, marginTop: 6 }}>
-                Plate, ingredients, or a menu — all work
+                {isBn ? 'থালা, উপাদান বা মেনু — যেকোনো ছবিই চলবে' : 'Plate, ingredients, or a menu — all work'}
               </div>
             </motion.button>
 
@@ -502,7 +503,7 @@ export default function CaptureScreen({
                 cursor: 'pointer',
               }}
             >
-              <Upload size={12} /> Or upload a photo
+              <Upload size={12} /> {isBn ? 'অথবা ছবি আপলোড করুন' : 'Or upload a photo'}
             </motion.button>
           </div>
         )}
@@ -835,14 +836,14 @@ export default function CaptureScreen({
             >
               <Sparkles size={14} color={T.primary} />
             </motion.span>
-            <span style={{ flex: 1 }}>Analyzing your plate…</span>
+            <span style={{ flex: 1 }}>{isBn ? 'আপনার খাবার বিশ্লেষণ করা হচ্ছে…' : 'Analyzing your plate…'}</span>
             <motion.button
               type="button"
               onClick={onReset}
               whileHover={{ x: 1 }}
               whileTap={{ scale: 0.94 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-              aria-label="Retake photo"
+              aria-label={isBn ? 'পুনরায় ছবি তুলুন' : 'Retake photo'}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -857,7 +858,7 @@ export default function CaptureScreen({
                 cursor: 'pointer',
               }}
             >
-              <RotateCcw size={12} /> Retake
+              <RotateCcw size={12} /> {isBn ? 'পুনরায় ছবি' : 'Retake'}
             </motion.button>
           </motion.div>
         ) : phase === 'camera' ? (
@@ -875,7 +876,7 @@ export default function CaptureScreen({
               textAlign: 'center',
             }}
           >
-            Line up your plate and tap the shutter
+            {isBn ? 'খাবারটি ফ্রেমের মধ্যে রাখুন এবং শাটার চাপুন' : 'Line up your plate and tap the shutter'}
           </motion.div>
         ) : (
           <motion.div
@@ -892,7 +893,7 @@ export default function CaptureScreen({
               textAlign: 'center',
             }}
           >
-            Tap the card to open your camera
+            {isBn ? 'ক্যামেরা চালু করতে কার্ডটিতে চাপুন' : 'Tap the card to open your camera'}
           </motion.div>
         )}
       </AnimatePresence>
@@ -916,14 +917,14 @@ export default function CaptureScreen({
           {[
             {
               icon: UtensilsCrossed,
-              label: 'Log Meal',
+              label: isBn ? 'খাবার যোগ' : 'Log Meal',
               color: T.primary,
               // Log Meal = primary CTA, opens camera like the capture card
               onClick: handleTapCard,
             },
             {
               icon: History,
-              label: 'Recent',
+              label: isBn ? 'সাম্প্রতিক' : 'Recent',
               color: T.accentAmber,
               // Recent = scroll-anchor to the recent-meals section. Until we
               // have a dedicated History tab, anchoring keeps the affordance
@@ -937,7 +938,7 @@ export default function CaptureScreen({
             },
             {
               icon: ShoppingBag,
-              label: 'Grocery',
+              label: isBn ? 'বাজার' : 'Grocery',
               color: T.accentGood,
               onClick: () => onNavigateTab?.(TAB_GROCERY),
             },
@@ -1030,13 +1031,13 @@ export default function CaptureScreen({
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <span style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: T.inkSoft, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Today's Summary
+              {isBn ? 'আজকের সারসংক্ষেপ' : "Today's Summary"}
             </span>
             {todaySummary.mealsLogged > 0 ? (
               <ChevronRight size={14} color={T.inkSoft} aria-hidden="true" />
             ) : (
               <span style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: T.inkMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Empty
+                {isBn ? 'খালি' : 'Empty'}
               </span>
             )}
           </div>
@@ -1058,7 +1059,11 @@ export default function CaptureScreen({
             >
               <UtensilsCrossed size={16} color={T.inkMuted} strokeWidth={1.8} />
               <span>
-                No meals yet today — <strong style={{ color: T.ink }}>snap your first</strong> to start tracking.
+                {isBn ? (
+                  <>আজকের কোনো খাবার নেই — ট্র্যাকিং শুরু করতে <strong style={{ color: T.ink }}>প্রথম খাবারের ছবি তুলুন</strong>।</>
+                ) : (
+                  <>No meals yet today — <strong style={{ color: T.ink }}>snap your first</strong> to start tracking.</>
+                )}
               </span>
             </div>
           ) : (
@@ -1069,11 +1074,11 @@ export default function CaptureScreen({
                   {Math.round(todaySummary.totalKcal)}
                 </span>
                 <span style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: T.inkSoft }}>
-                  / {todaySummary.dailyKcalTarget} kcal
+                  / {todaySummary.dailyKcalTarget} {isBn ? 'কিলোক্যালরি' : 'kcal'}
                 </span>
                 <span style={{ flex: 1 }} />
                 <span style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
-                  {todaySummary.mealsLogged} meal{todaySummary.mealsLogged !== 1 ? 's' : ''}
+                  {todaySummary.mealsLogged} {isBn ? 'বেলা খাবার' : todaySummary.mealsLogged !== 1 ? 'meals' : 'meal'}
                 </span>
               </div>
 
@@ -1149,7 +1154,7 @@ export default function CaptureScreen({
           style={{ marginTop: 18, scrollMarginTop: 90 }}
         >
           <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: T.inkSoft, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-            Recent Meals
+            {isBn ? 'সাম্প্রতিক খাবার' : 'Recent Meals'}
           </div>
 
           {/* Empty state — only render after we've confirmed history is
@@ -1172,7 +1177,7 @@ export default function CaptureScreen({
             >
               <History size={16} color={T.inkMuted} strokeWidth={1.8} />
               <span>
-                Your last few meals will appear here once you log them.
+                {isBn ? 'খাবার নথিভুক্ত করা হলে তা এখানে দেখা যাবে।' : 'Your last few meals will appear here once you log them.'}
               </span>
             </div>
           )}
@@ -1198,12 +1203,12 @@ export default function CaptureScreen({
                       {meal.items.map((item) => foodName(item.name, item.name_bn)).join(', ') || meal.label}
                     </div>
                     <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft, marginTop: 2 }}>
-                      {formatRelative(meal.date)} · {meal.items.length} {meal.items.length === 1 ? 'item' : 'items'}
+                      {formatRelative(meal.date)} · {meal.items.length} {isBn ? 'টি খাবার' : meal.items.length === 1 ? 'item' : 'items'}
                     </div>
                   </div>
                   <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 700, color: T.accentAmber, flexShrink: 0, marginLeft: 8 }}>
                     {Math.round(meal.totals.kcal)}
-                    <span style={{ fontSize: 10, fontWeight: 500, color: T.inkSoft }}> kcal</span>
+                    <span style={{ fontSize: 10, fontWeight: 500, color: T.inkSoft }}> {isBn ? 'কিলোক্যালরি' : 'kcal'}</span>
                   </div>
                 </motion.div>
               ))}

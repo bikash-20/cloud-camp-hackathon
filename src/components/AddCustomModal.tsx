@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Check, X } from 'lucide-react';
 import { T } from '../data';
+import { useLanguage } from '../i18n/LanguageContext';
 
 type Mode = 'add' | 'rename';
 
@@ -44,14 +45,20 @@ export default function AddCustomModal({
   defaultGrams = 60,
 }: AddCustomModalProps) {
   const reduceMotion = useReducedMotion();
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   const [name, setName] = useState(defaultName);
   const [grams, setGrams] = useState(defaultGrams);
   const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(0);
   const nameRef = useRef<HTMLInputElement>(null);
 
-  const title = mode === 'rename' ? 'Rename item' : 'Add custom item';
-  const submitLabel = mode === 'rename' ? 'Save' : 'Add';
+  const title = mode === 'rename'
+    ? (isBn ? 'নাম পরিবর্তন করুন' : 'Rename item')
+    : (isBn ? 'কাস্টম খাবার যোগ করুন' : 'Add custom item');
+  const submitLabel = mode === 'rename'
+    ? (isBn ? 'সংরক্ষণ' : 'Save')
+    : (isBn ? 'যোগ করুন' : 'Add');
 
   // Reset state when the modal opens
   useEffect(() => {
@@ -220,7 +227,7 @@ export default function AddCustomModal({
                   marginBottom: 6,
                 }}
               >
-                Item name
+                {isBn ? 'খাবারের নাম' : 'Item name'}
               </label>
               <input
                 id="add-custom-name"
@@ -233,7 +240,7 @@ export default function AddCustomModal({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') submit();
                 }}
-                placeholder={mode === 'rename' ? 'New name' : 'e.g. Naan, Yogurt, Pickle'}
+                placeholder={mode === 'rename' ? (isBn ? 'নতুন নাম' : 'New name') : (isBn ? 'যেমন: নান, দই, সালাদ' : 'e.g. Naan, Yogurt, Pickle')}
                 aria-invalid={!!error}
                 autoComplete="off"
                 className="tnum"
@@ -268,7 +275,7 @@ export default function AddCustomModal({
                     marginBottom: 6,
                   }}
                 >
-                  Portion (grams)
+                  {isBn ? 'পরিমাণ (গ্রাম)' : 'Portion (grams)'}
                 </label>
                 <input
                   id="add-custom-grams"
@@ -281,7 +288,7 @@ export default function AddCustomModal({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') submit();
                   }}
-                  aria-label="Portion in grams"
+                  aria-label={isBn ? 'পরিমাণ গ্রামে' : 'Portion in grams'}
                   className="tnum"
                   style={{
                     width: 120,
@@ -328,8 +335,8 @@ export default function AddCustomModal({
                 }}
               >
                 {mode === 'rename'
-                  ? 'Enter a new name for this item. Press Enter to save.'
-                  : 'We\u2019ll estimate nutrition for this item once it\u2019s added. Press Enter to confirm.'}
+                  ? (isBn ? 'খাবারের নতুন নাম লিখুন। সংরক্ষণ করতে Enter চাপুন।' : 'Enter a new name for this item. Press Enter to save.')
+                  : (isBn ? 'যোগ করার পর পুষ্টির মান অনুমান করা হবে। নিশ্চিত করতে Enter চাপুন।' : 'We’ll estimate nutrition for this item once it’s added. Press Enter to confirm.')}
               </div>
             )}
 
@@ -354,7 +361,7 @@ export default function AddCustomModal({
                   minHeight: 40,
                 }}
               >
-                Cancel
+                {isBn ? 'বাতিল' : 'Cancel'}
               </motion.button>
               <motion.button
                 type="button"

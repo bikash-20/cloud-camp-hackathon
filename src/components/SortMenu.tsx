@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowUpDown, Check } from 'lucide-react';
 import { T } from '../data';
-import { LocalizedContent } from '../i18n/LanguageContext';
+import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
-export const SORT_OPTIONS: Array<{ key: 'conf' | 'kcal' | 'grams' | 'name'; label: string }> = [
-  { key: 'conf',  label: 'By Confidence' },
-  { key: 'kcal',  label: 'By Calories (high → low)' },
-  { key: 'grams', label: 'By Portion Size' },
-  { key: 'name',  label: 'Alphabetical' },
+export const SORT_OPTIONS: Array<{ key: 'conf' | 'kcal' | 'grams' | 'name'; label: string; labelBn: string }> = [
+  { key: 'conf',  label: 'By Confidence', labelBn: 'নিশ্চিততা অনুসারে' },
+  { key: 'kcal',  label: 'By Calories (high → low)', labelBn: 'ক্যালরি অনুসারে (বেশি → কম)' },
+  { key: 'grams', label: 'By Portion Size', labelBn: 'পরিমাণ অনুসারে' },
+  { key: 'name',  label: 'Alphabetical', labelBn: 'বর্ণানুক্রমিক' },
 ];
 
 interface SortMenuProps {
@@ -20,6 +20,8 @@ interface SortMenuProps {
 export default function SortMenu({ value, onChange }: SortMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
 
   useEffect(() => {
     if (!open) return;
@@ -38,6 +40,7 @@ export default function SortMenu({ value, onChange }: SortMenuProps) {
   }, [open]);
 
   const current = SORT_OPTIONS.find((o) => o.key === value) ?? SORT_OPTIONS[0];
+  const currentLabel = isBn ? current.labelBn : current.label.split(' (')[0];
 
   return (
     <LocalizedContent>
@@ -50,7 +53,7 @@ export default function SortMenu({ value, onChange }: SortMenuProps) {
         transition={{ type: 'spring', stiffness: 380, damping: 22 }}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Sort: ${current.label}. Tap to change.`}
+        aria-label={isBn ? `সাজান: ${current.labelBn}` : `Sort: ${current.label}. Tap to change.`}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -70,7 +73,7 @@ export default function SortMenu({ value, onChange }: SortMenuProps) {
         }}
       >
         <ArrowUpDown size={11} color={T.inkSoft} />
-        Sort: {current.label.split(' (')[0]}
+        {isBn ? `সাজান: ${currentLabel}` : `Sort: ${currentLabel}`}
       </motion.button>
 
       <AnimatePresence>
@@ -127,7 +130,7 @@ export default function SortMenu({ value, onChange }: SortMenuProps) {
                       textAlign: 'left',
                     }}
                   >
-                    <span>{opt.label}</span>
+                    <span>{isBn ? opt.labelBn : opt.label}</span>
                     {active && <Check size={12} color={T.primary} strokeWidth={3} />}
                   </motion.button>
                 </li>

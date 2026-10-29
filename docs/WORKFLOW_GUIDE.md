@@ -104,6 +104,23 @@ flowchart TD
 | **Visual Meal History** | Browse past meals with photos, timestamps, and macros | Keep accountability over days and weeks |
 
 ---
+
+### 6. Vector Database & RAG (Retrieval-Augmented Generation) Architecture
+
+#### Current State: Is RAG Implemented?
+- **Vector Store Infrastructure**: Implemented via **ChromaDB** in [`app/cache/vector_cache.py`](file:///Users/bikashtalukder/cloud-camp-hackathon/app/cache/vector_cache.py) with persistent storage at `app/cache/chroma/`.
+- **Current Mode**: Operates as an **exact-hash semantic cache scaffold** (`live-vision-v1:{sha256}`). If an identical image is uploaded, it retrieves cached `DetectedItem[]` results to prevent redundant API calls.
+- **Why It Is Not Yet a Full RAG Pipeline**: It does not yet generate dense vector embeddings (e.g. CLIP / SigLIP) or retrieve external culinary/clinical knowledge to augment LLM generation prompts.
+
+#### What We Can Do With Full RAG:
+1. **Multimodal Visual Semantic RAG (CLIP / SigLIP)**: Store 512-dim image embeddings; retrieve detections for visually similar meals (cosine similarity > 0.92) with zero API latency and zero cost.
+2. **South Asian Recipe Knowledge RAG**: Ingest local recipes to ground LLM estimations on authentic cooking methods (hidden mustard oil, ghee, sugar in gravies).
+3. **Clinical Nutrition & Medical RAG**: Retrieve peer-reviewed dietary guidelines (ADA diabetes rules, KDIGO renal thresholds, WHO sodium caps) to deliver grounded, hallucination-free health explanations.
+4. **Hyper-Local Grocery Alternative RAG**: Automatically suggest local affordable swaps (e.g., swapping high-GI White Rice with Foxtail Millet or Brown Basmati).
+
+*(See comprehensive architecture details in [`docs/RAG_ARCHITECTURE.md`](file:///Users/bikashtalukder/cloud-camp-hackathon/docs/RAG_ARCHITECTURE.md).)*
+
+---
 ---
 
 ## Part 2: সম্পূর্ণ বাংলা সংস্করণ (Bengali Documentation)
@@ -202,3 +219,20 @@ flowchart TD
 | **ব্যাখ্যামূলক এআই গাইড** | "Why these flags?" বক্সটি পড়ুন | কেন রক্তে চিনি বা সোডিয়াম বাড়ছে তার বাস্তবসম্মত কারণ জানা যায় |
 | **স্মার্ট বাজার তালিকা** | খাবারের তালিকা থেকে গ্রোসারিতে যান | পরিবারের বাজেটের মধ্যে সুষম খাদ্যের বাজার পরিকল্পনা করা যায় |
 | **খাবারের ডায়েরি** | পূর্ববর্তী খাবারের রেকর্ড পর্যালোচনা করুন | দীর্ঘমেয়াদে ওজন ও ডায়েট নিয়ন্ত্রণে আত্মবিশ্বাস তৈরি হয় |
+
+---
+
+### ৬. ভেক্টর ডাটাবেস ও আরএজি (RAG - Retrieval-Augmented Generation) আর্কিটেকচার
+
+#### বর্তমান অবস্থা: প্রজেক্টে কি RAG যুক্ত আছে?
+- **ভেক্টর ডাটাবেস পরিকাঠামো**: [`app/cache/vector_cache.py`](file:///Users/bikashtalukder/cloud-camp-hackathon/app/cache/vector_cache.py) ফাইলে **ChromaDB** ইন্টিগ্রেট করা আছে এবং ডাটা সংরক্ষিত হয় `app/cache/chroma/` ডিরেক্টরিতে।
+- **বর্তমান কার্যপদ্ধতি**: এটি বর্তমানে একটি **এক্স্যাক্ট-হ্যাশ ক্যাশ স্কাফোল্ড (Exact-Hash Cache)** হিসেবে কাজ করছে। পূর্বে বিশ্লেষণ করা হুবহু একই ছবি এলে এটি ChromaDB থেকে পূর্বের ফলাফল প্রদান করে এআই এপিআই কল বাঁচায়।
+- **কেন এটি এখনও পূর্ণাঙ্গ RAG নয়**: ছবিতে কোনো ভেক্টর এমবেডিং (যেমন CLIP/SigLIP) তৈরি করা হচ্ছে না এবং কোনো বহিরাগত নলেজবেস থেকে তথ্য এনে জেমিনি বা গ্রক প্রম্পটে যুক্ত (Augment) করা হচ্ছে না।
+
+#### পূর্ণাঙ্গ RAG বাস্তবায়নের মাধ্যমে কী কী করা সম্ভব:
+১. **মাল্টিমোডাল ভিশন আরএজি (CLIP/SigLIP)**: ছবির ভেক্টর এমবেডিং তৈরি করে একই ধরনের খাবারের ক্ষেত্রে জিরো এপিআই খরচে মুহূর্তেই নির্ভুল ফল রিট্রিভ করা।
+২. **দেশি রান্নার খাঁটি রেসিপি নলেজ আরএজি**: দেশি রান্নার গোপন তেল, মশলা, চিনি ও ঘি-এর সঠিক তথ্য রিট্রিভ করে আন্তর্জাতিক মানের নির্ভুল পুষ্টিমান গণনা।
+৩. **ক্লিনিকাল ডায়াবেটিস ও চিকিৎসা গাইডলাইন আরএজি**: এডিএ (ADA), ডাব্লিউএইচও (WHO) এবং কেডিআইজিও (KDIGO) নির্দেশিকা রিট্রিভ করে চিকিৎসাগতভাবে প্রমাণিত স্বাস্থ্য পরামর্শ ও সতর্কবার্তা প্রদান।
+৪. **দেশি স্বাস্থ্যকর বিকল্প খাদ্য আরএজি**: ভাতের বদলে কম খরচে কাওনের চাল, লাল চাল বা ওটসের মতো স্বাস্থ্যকর বিকল্প স্বয়ংক্রিয়ভাবে বাজার তালিকায় যুক্ত করার সুবিধা।
+
+*(সম্পূর্ণ প্রযুক্তিগত আর্কিটেকচার জানতে দেখুন: [`docs/RAG_ARCHITECTURE.md`](file:///Users/bikashtalukder/cloud-camp-hackathon/docs/RAG_ARCHITECTURE.md)।)*

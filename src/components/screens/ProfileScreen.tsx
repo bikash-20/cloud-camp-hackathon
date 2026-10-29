@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Edit3, LogOut, Minus, Plus, RotateCcw, Zap } from 'lucide-react';
 import { T } from '../../data';
@@ -20,7 +20,7 @@ import type {
 import { DAILY_KCAL_TARGET_DEFAULT } from '../../types/schemas';
 import { DEFAULT_PROFILE, updateProfile, getUserStats } from '../../lib/api';
 import { logout } from '../../lib/auth';
-import { LocalizedContent } from '../../i18n/LanguageContext';
+import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 import { cmToFtIn, ftInToCm, kgToLb, lbToKg } from '../../lib/units';
 import { calculateBiometricsBreakdown } from '../../lib/personalize';
 import Pill from '../Pill';
@@ -31,72 +31,96 @@ import ThemeToggle from '../ThemeToggle';
 interface GoalConfig {
   key: keyof HealthGoals;
   label: string;
+  labelBn: string;
   tone?: 'accent' | 'warning';
 }
 
 const GOALS: GoalConfig[] = [
-  { key: 'diabetic', label: 'Prediabetic-friendly', tone: 'warning' },
-  { key: 'protein', label: 'High-protein' },
-  { key: 'budget', label: 'Budget-aware' },
-  { key: 'mediter', label: 'Mediterranean' },
+  { key: 'diabetic', label: 'Prediabetic-friendly', labelBn: 'প্রিডায়াবেটিস-বান্ধব', tone: 'warning' },
+  { key: 'protein', label: 'High-protein', labelBn: 'উচ্চ প্রোটিন' },
+  { key: 'budget', label: 'Budget-aware', labelBn: 'বাজেট-সচেতন' },
+  { key: 'mediter', label: 'Mediterranean', labelBn: 'মেডিটেরেনিয়ান' },
 ];
 
-const PREFS: DietaryPreference[] = [
-  'Vegetarian', 'Vegan', 'Pescatarian', 'Gluten-free', 'Dairy-free', 'Halal', 'Kosher',
+const PREFS: Array<{ key: DietaryPreference; label: string; labelBn: string }> = [
+  { key: 'Halal', label: 'Halal', labelBn: 'হালাল' },
+  { key: 'Vegetarian', label: 'Vegetarian', labelBn: 'নিরামিষভোজী' },
+  { key: 'Vegan', label: 'Vegan', labelBn: 'ভেগান' },
+  { key: 'Pescatarian', label: 'Pescatarian', labelBn: 'মাছসহ নিরামিষভোজী' },
+  { key: 'Gluten-free', label: 'Gluten-free', labelBn: 'গ্লুটেনমুক্ত' },
+  { key: 'Dairy-free', label: 'Dairy-free', labelBn: 'দুগ্ধজাত খাবারমুক্ত' },
+  { key: 'Kosher', label: 'Kosher', labelBn: 'কোশার' },
 ];
 
-const ALLERGENS: Allergen[] = [
-  'Peanuts', 'Tree nuts', 'Shellfish', 'Soy', 'Eggs', 'Dairy', 'Gluten', 'Sesame',
+const ALLERGENS: Array<{ key: Allergen; label: string; labelBn: string }> = [
+  { key: 'Peanuts', label: 'Peanuts', labelBn: 'চিনাবাদাম' },
+  { key: 'Tree nuts', label: 'Tree nuts', labelBn: 'গাছের বাদাম' },
+  { key: 'Shellfish', label: 'Shellfish', labelBn: 'শেলফিশ' },
+  { key: 'Soy', label: 'Soy', labelBn: 'সয়া' },
+  { key: 'Eggs', label: 'Eggs', labelBn: 'ডিম' },
+  { key: 'Dairy', label: 'Dairy', labelBn: 'দুগ্ধজাত খাবার' },
+  { key: 'Gluten', label: 'Gluten', labelBn: 'গ্লুটেন' },
+  { key: 'Sesame', label: 'Sesame', labelBn: 'তিল' },
 ];
 
-const SEX_OPTIONS: Array<{ key: Sex; label: string }> = [
-  { key: 'male', label: 'Male' },
-  { key: 'female', label: 'Female' },
-  { key: 'other', label: 'Other' },
+const SEX_OPTIONS: Array<{ key: Sex; label: string; labelBn: string }> = [
+  { key: 'male', label: 'Male', labelBn: 'পুরুষ' },
+  { key: 'female', label: 'Female', labelBn: 'নারী' },
+  { key: 'other', label: 'Other', labelBn: 'অন্যান্য' },
 ];
 
-const ACTIVITY_LEVELS: Array<{ key: ActivityLevel; label: string; desc: string }> = [
-  { key: 'sedentary', label: 'Sedentary', desc: '1.2×' },
-  { key: 'light', label: 'Light', desc: '1.375×' },
-  { key: 'moderate', label: 'Moderate', desc: '1.55×' },
-  { key: 'active', label: 'Active', desc: '1.725×' },
-  { key: 'very_active', label: 'Very active', desc: '1.9×' },
+const ACTIVITY_LEVELS: Array<{ key: ActivityLevel; label: string; labelBn: string; desc: string }> = [
+  { key: 'sedentary', label: 'Sedentary', labelBn: 'বসে কাজ (কম পরিশ্রম)', desc: '1.2×' },
+  { key: 'light', label: 'Light', labelBn: 'হালকা ব্যায়াম (১-২ দিন/সপ্তাহ)', desc: '1.375×' },
+  { key: 'moderate', label: 'Moderate', labelBn: 'মাঝারি ব্যায়াম (৩-৫ দিন/সপ্তাহ)', desc: '1.55×' },
+  { key: 'active', label: 'Active', labelBn: 'খুব সক্রিয় (৬-৭ দিন/সপ্তাহ)', desc: '1.725×' },
+  { key: 'very_active', label: 'Very active', labelBn: 'অতিরিক্ত সক্রিয় (ভারী পরিশ্রম)', desc: '1.9×' },
 ];
 
-const PRIMARY_GOALS: Array<{ key: GoalType; label: string }> = [
-  { key: 'maintain', label: 'Maintain weight' },
-  { key: 'lose', label: 'Lose weight' },
-  { key: 'gain', label: 'Gain weight' },
+const PRIMARY_GOALS: Array<{ key: GoalType; label: string; labelBn: string }> = [
+  { key: 'maintain', label: 'Maintain weight', labelBn: 'বর্তমান ওজন বজায় রাখা' },
+  { key: 'lose', label: 'Lose weight', labelBn: 'ওজন কমানো' },
+  { key: 'gain', label: 'Gain weight', labelBn: 'ওজন বৃদ্ধি' },
 ];
 
 const TARGET_RATES = [
-  { value: 0.25, label: '0.25 kg/wk' },
-  { value: 0.5, label: '0.5 kg/wk' },
-  { value: 0.75, label: '0.75 kg/wk' },
-  { value: 1.0, label: '1.0 kg/wk' },
+  { value: 0.25, label: '0.25 kg/wk', labelBn: '০.২৫ কেজি/সপ্তাহ' },
+  { value: 0.5, label: '0.5 kg/wk', labelBn: '০.৫ কেজি/সপ্তাহ (প্রস্তাবিত)' },
+  { value: 0.75, label: '0.75 kg/wk', labelBn: '০.৭৫ কেজি/সপ্তাহ' },
+  { value: 1.0, label: '1.0 kg/wk', labelBn: '১.০ কেজি/সপ্তাহ (সর্বোচ্চ)' },
 ];
 
-const MEDICAL_CONDITIONS: Array<{ key: MedicalCondition; label: string }> = [
-  { key: 'none', label: 'None' },
-  { key: 'prediabetes', label: 'Prediabetes' },
-  { key: 'diabetes_t2', label: 'Type 2 Diabetes' },
-  { key: 'diabetes_t1', label: 'Type 1 Diabetes' },
-  { key: 'hypertension', label: 'Hypertension' },
-  { key: 'high_cholesterol', label: 'High Cholesterol' },
-  { key: 'kidney', label: 'Kidney' },
+const MEDICAL_CONDITIONS: Array<{ key: MedicalCondition; label: string; labelBn: string }> = [
+  { key: 'none', label: 'None', labelBn: 'কোনোটিই নয়' },
+  { key: 'prediabetes', label: 'Prediabetes', labelBn: 'প্রিডায়াবেটিস' },
+  { key: 'diabetes_t2', label: 'Type 2 Diabetes', labelBn: 'টাইপ ২ ডায়াবেটিস' },
+  { key: 'diabetes_t1', label: 'Type 1 Diabetes', labelBn: 'টাইপ ১ ডায়াবেটিস' },
+  { key: 'hypertension', label: 'Hypertension', labelBn: 'উচ্চ রক্তচাপ (হাইপারটেনশন)' },
+  { key: 'high_cholesterol', label: 'High Cholesterol', labelBn: 'উচ্চ কোলেস্টেরল' },
+  { key: 'kidney', label: 'Kidney', labelBn: 'কিডনি সমস্যা' },
 ];
 
-const DIET_TYPES: Array<{ key: DietType; label: string }> = [
-  { key: 'halal', label: 'Halal' },
-  { key: 'omnivore', label: 'Omnivore' },
-  { key: 'vegetarian', label: 'Vegetarian' },
-  { key: 'vegan', label: 'Vegan' },
-  { key: 'pescatarian', label: 'Pescatarian' },
-  { key: 'kosher', label: 'Kosher' },
+const DIET_TYPES: Array<{ key: DietType; label: string; labelBn: string }> = [
+  { key: 'halal', label: 'Halal', labelBn: 'হালাল' },
+  { key: 'omnivore', label: 'Omnivore', labelBn: 'সর্বভুক (সাধারণ খাবার)' },
+  { key: 'vegetarian', label: 'Vegetarian', labelBn: 'নিরামিষভোজী' },
+  { key: 'vegan', label: 'Vegan', labelBn: 'ভেগান' },
+  { key: 'pescatarian', label: 'Pescatarian', labelBn: 'মাছসহ নিরামিষভোজী' },
+  { key: 'kosher', label: 'Kosher', labelBn: 'কোশার' },
 ];
 
 const toggleIn = (setState: React.Dispatch<React.SetStateAction<Record<string, boolean>>>) =>
   (k: string) => setState((s) => ({ ...s, [k]: !s[k] }));
+
+/** Shallow-compare two sorted string arrays for value equality. */
+function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
 
 interface ProfileScreenProps {
   profile: UserProfile;
@@ -106,6 +130,9 @@ interface ProfileScreenProps {
 }
 
 export default function ProfileScreen({ profile, onProfileChange, session, onSignOut }: ProfileScreenProps) {
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
+
   // Biometrics & demographics state
   const [sex, setSex] = useState<Sex>(profile.sex ?? 'male');
   const [age, setAge] = useState<number>(profile.age ?? 28);
@@ -171,18 +198,31 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
 
   // Dynamic BMR, TDEE, and safe recommendation breakdown
   const breakdown = useMemo(() => {
-    return calculateBiometricsBreakdown({
-      age,
-      sex,
-      heightCm,
-      weightKg,
-      activityLevel,
-      goal,
-      targetRateKgPerWeek: targetRate,
-    });
-  }, [age, sex, heightCm, weightKg, activityLevel, goal, targetRate]);
+    return calculateBiometricsBreakdown(
+      {
+        age,
+        sex,
+        heightCm,
+        weightKg,
+        activityLevel,
+        goal,
+        targetRateKgPerWeek: targetRate,
+      },
+      language,
+    );
+  }, [age, sex, heightCm, weightKg, activityLevel, goal, targetRate, language]);
+
+  // Guard: when true, the persist effect skips calling onProfileChange to
+  // break the prop→state→persist→onProfileChange→prop feedback loop.
+  const suppressPropSync = useRef(false);
 
   useEffect(() => {
+    // If we ourselves just pushed a change upstream, the incoming profile
+    // prop is our own echo — skip re-syncing local state from it.
+    if (suppressPropSync.current) {
+      suppressPropSync.current = false;
+      return;
+    }
     const prev = prevRef.current;
     if (profile.goals !== prev.goals) {
       setGoals(profile.goals);
@@ -240,7 +280,8 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
       setDietType(profile.dietType);
       prev.dietType = profile.dietType;
     }
-    if (profile.medicalConditions && profile.medicalConditions !== prev.medicalConditions) {
+    // Deep-compare arrays to prevent flicker from cloned references
+    if (profile.medicalConditions && !arraysEqual(profile.medicalConditions, prev.medicalConditions ?? [])) {
       setMedicalConditions(profile.medicalConditions);
       prev.medicalConditions = profile.medicalConditions;
     }
@@ -290,7 +331,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
     setDailyKcalTarget((v) => Math.min(4000, Math.max(1000, v + delta)));
   };
 
-  const toggleCondition = (cond: MedicalCondition) => {
+  const toggleCondition = useCallback((cond: MedicalCondition) => {
     if (cond === 'none') {
       setMedicalConditions(['none']);
       return;
@@ -301,7 +342,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
       const updated = exists ? withoutNone.filter((c) => c !== cond) : [...withoutNone, cond];
       return updated.length === 0 ? ['none'] : updated;
     });
-  };
+  }, []);
 
   const resetAll = async () => {
     const fresh = structuredClone(DEFAULT_PROFILE);
@@ -326,33 +367,43 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
     setMealsPerDay(fresh.mealsPerDay ?? 3);
     await updateProfile(fresh);
     onProfileChange?.(fresh);
-    triggerToast('Profile reset to defaults');
+    triggerToast(isBn ? 'প্রোফাইল ডিফল্ট সেটিংসে ফিরিয়ে নেওয়া হয়েছে' : 'Profile reset to defaults');
   };
 
-  // Persist all fields to storage/API
+  // Persist all fields to storage/API (debounced to prevent rapid fire)
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    const next: UserProfile = {
-      name,
-      age,
-      sex,
-      heightCm,
-      weightKg,
-      heightUnit,
-      weightUnit,
-      activityLevel,
-      goal,
-      targetRateKgPerWeek: targetRate,
-      dietType,
-      medicalConditions,
-      mealsPerDay,
-      goals,
-      preferences: PREFS.filter((p) => prefs[p]),
-      allergens: ALLERGENS.filter((a) => allergens[a]),
-      budget,
-      serving,
-      dailyKcalTarget,
+    // Clear any pending persist so only the latest state snapshot saves
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      const next: UserProfile = {
+        name,
+        age,
+        sex,
+        heightCm,
+        weightKg,
+        heightUnit,
+        weightUnit,
+        activityLevel,
+        goal,
+        targetRateKgPerWeek: targetRate,
+        dietType,
+        medicalConditions,
+        mealsPerDay,
+        goals,
+        preferences: PREFS.map((p) => p.key).filter((p) => prefs[p]),
+        allergens: ALLERGENS.map((a) => a.key).filter((a) => allergens[a]),
+        budget,
+        serving,
+        dailyKcalTarget,
+      };
+      // Mark that the next incoming profile prop is our own echo
+      suppressPropSync.current = true;
+      updateProfile(next).then((saved) => onProfileChange?.(saved));
+    }, 150);
+    return () => {
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
     };
-    updateProfile(next).then((saved) => onProfileChange?.(saved));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     name,
@@ -379,7 +430,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
   const commitName = () => {
     setEditingName(false);
     if (name.trim() && name !== profile.name) {
-      triggerToast(`Welcome, ${name}`);
+      triggerToast(isBn ? `স্বাগতম, ${name}` : `Welcome, ${name}`);
     }
   };
 
@@ -391,8 +442,8 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
   // Height display & step helpers
   const { feet: heightFeet, inches: heightInches } = cmToFtIn(heightCm);
   const heightDisplay = heightUnit === 'cm'
-    ? `${heightCm} cm`
-    : `${heightFeet} ft ${heightInches} in`;
+    ? `${heightCm} ${isBn ? 'সেমি' : 'cm'}`
+    : `${heightFeet} ${isBn ? 'ফুট' : 'ft'} ${heightInches} ${isBn ? 'ইঞ্চি' : 'in'}`;
 
   const adjustHeight = (delta: number) => {
     if (heightUnit === 'cm') {
@@ -405,8 +456,8 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
 
   // Weight display & step helpers
   const weightDisplay = weightUnit === 'kg'
-    ? `${weightKg.toFixed(1)} kg`
-    : `${kgToLb(weightKg).toFixed(1)} lb`;
+    ? `${weightKg.toFixed(1)} ${isBn ? 'কেজি' : 'kg'}`
+    : `${kgToLb(weightKg).toFixed(1)} ${isBn ? 'পাউন্ড' : 'lb'}`;
 
   const adjustWeight = (delta: number) => {
     if (weightUnit === 'kg') {
@@ -449,7 +500,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
               background: T.accentGood,
             }}
           />
-          Signed in as {session.email}
+          {isBn ? `সাইন ইন করেছেন: ${session.email}` : `Signed in as ${session.email}`}
         </motion.div>
       )}
 
@@ -474,7 +525,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
             letterSpacing: '-0.02em',
           }}
         >
-          Your health profile
+          {isBn ? 'আপনার স্বাস্থ্য প্রোফাইল' : 'Your health profile'}
         </h2>
         <div className="profile-heading-actions" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <ThemeToggle />
@@ -484,7 +535,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
             whileHover={{ y: -1, scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            aria-label="Reset profile to defaults"
+            aria-label={isBn ? 'প্রোফাইলের ডিফল্ট সেটিংস ফিরিয়ে আনুন' : 'Reset profile to defaults'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -501,7 +552,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
               minHeight: 28,
             }}
           >
-            <RotateCcw size={12} strokeWidth={2.5} /> Reset
+            <RotateCcw size={12} strokeWidth={2.5} /> {isBn ? 'রিসেট' : 'Reset'}
           </motion.button>
           {onSignOut && (
             <motion.button
@@ -510,7 +561,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
               whileHover={{ y: -1, scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-              aria-label="Sign out of NutriVision"
+              aria-label={isBn ? 'নিউট্রিভিশন থেকে সাইন আউট করুন' : 'Sign out of NutriVision'}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -528,7 +579,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 boxShadow: '0 4px 12px -4px rgba(201, 98, 45, 0.55)',
               }}
             >
-              <LogOut size={12} strokeWidth={2.5} /> Sign out
+              <LogOut size={12} strokeWidth={2.5} /> {isBn ? 'সাইন আউট' : 'Sign out'}
             </motion.button>
           )}
         </div>
@@ -543,7 +594,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           lineHeight: 1.4,
         }}
       >
-        Hi {name} — these shape every flag and swap you see.
+        {isBn ? `হ্যালো ${name} — এগুলো আপনার দেখা প্রতিটি সতর্কতা ও পরামর্শ নির্ধারণ করে।` : `Hi ${name} — these shape every flag and swap you see.`}
       </p>
 
       {/* Profile Header Card */}
@@ -565,7 +616,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.92 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            aria-label="Edit profile name"
+            aria-label={isBn ? 'প্রোফাইলের নাম সম্পাদনা করুন' : 'Edit profile name'}
             style={{
               width: 36,
               height: 36,
@@ -614,7 +665,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                       setEditingName(false);
                     }
                   }}
-                  aria-label="Profile name"
+                  aria-label={isBn ? 'প্রোফাইলের নাম' : 'Profile name'}
                   style={{
                     width: '100%',
                     fontFamily: 'Inter',
@@ -663,7 +714,9 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 marginTop: 2,
               }}
             >
-              Dhaka, Bangladesh · {serving > 1 ? `${serving} servings` : '12-day streak'}
+              {isBn
+                ? `ঢাকা, বাংলাদেশ · ${serving > 1 ? `${serving} পরিবেশন` : 'টানা ১২ দিনের ধারা'}`
+                : `Dhaka, Bangladesh · ${serving > 1 ? `${serving} servings` : '12-day streak'}`}
             </div>
           </div>
         </div>
@@ -672,7 +725,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
       {/* User Stats Card */}
       {!statsLoading && stats && stats.totalMeals > 0 && (
         <>
-          <SectionLabel>Your Stats</SectionLabel>
+          <SectionLabel>{isBn ? 'আপনার পরিসংখ্যান' : 'Your Stats'}</SectionLabel>
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -691,7 +744,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 {stats.totalMeals}
               </div>
               <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
-                meals logged
+                {isBn ? 'নথিভুক্ত খাবার' : 'meals logged'}
               </div>
             </div>
             <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
@@ -700,7 +753,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 {stats.totalDaysActive}
               </div>
               <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
-                days active
+                {isBn ? 'সক্রিয় দিন' : 'days active'}
               </div>
             </div>
             <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
@@ -709,7 +762,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 {stats.avgDailyKcal}
               </div>
               <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
-                avg kcal/day
+                {isBn ? 'গড় ক্যালরি/দিন' : 'avg kcal/day'}
               </div>
             </div>
           </motion.div>
@@ -717,7 +770,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
       )}
 
       {/* ── 1. Biological Sex ─────────────────────────────────── */}
-      <SectionLabel>Biological Sex</SectionLabel>
+      <SectionLabel>{isBn ? 'জৈবিক লিঙ্গ' : 'Biological Sex'}</SectionLabel>
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -732,26 +785,26 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
             onClick={() => setSex(opt.key)}
             ariaLabel={`Select ${opt.label}`}
           >
-            {opt.label}
+            {isBn ? opt.labelBn : opt.label}
           </Pill>
         ))}
       </motion.div>
 
       {/* ── 2. Age ────────────────────────────────────────────── */}
-      <SectionLabel>Age</SectionLabel>
+      <SectionLabel>{isBn ? 'বয়স' : 'Age'}</SectionLabel>
       <StepperRow
-        valueLabel={`${age} years`}
+        valueLabel={`${age} ${isBn ? 'বছর' : 'years'}`}
         onDec={() => setAge((a) => Math.max(1, a - 1))}
         onInc={() => setAge((a) => Math.min(100, a + 1))}
-        decLabel="Decrease age by 1 year"
-        incLabel="Increase age by 1 year"
-        hint="Used for Mifflin-St Jeor BMR calculation and pediatric safety rules"
+        decLabel={isBn ? 'বয়স ১ বছর কমান' : 'Decrease age by 1 year'}
+        incLabel={isBn ? 'বয়স ১ বছর বাড়ান' : 'Increase age by 1 year'}
+        hint={isBn ? 'মিফলিন-সেন্ট জিওর বিএমআর গণনা ও শিশু পুষ্টি সুরক্ষায় ব্যবহৃত হয়' : 'Used for Mifflin-St Jeor BMR calculation and pediatric safety rules'}
       />
 
       {/* ── 3. Height (with cm / ft-in toggle) ─────────────────── */}
       <div style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <SectionLabel>Height</SectionLabel>
+          <SectionLabel>{isBn ? 'উচ্চতা' : 'Height'}</SectionLabel>
           <div style={{ display: 'inline-flex', gap: 4 }}>
             <button
               type="button"
@@ -768,7 +821,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 color: heightUnit === 'cm' ? '#FFFFFF' : T.inkSoft,
               }}
             >
-              cm
+              {isBn ? 'সেমি' : 'cm'}
             </button>
             <button
               type="button"
@@ -785,7 +838,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 color: heightUnit === 'ft_in' ? '#FFFFFF' : T.inkSoft,
               }}
             >
-              ft · in
+              {isBn ? 'ফুট · ইঞ্চি' : 'ft · in'}
             </button>
           </div>
         </div>
@@ -793,16 +846,16 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           valueLabel={heightDisplay}
           onDec={() => adjustHeight(-1)}
           onInc={() => adjustHeight(1)}
-          decLabel="Decrease height"
-          incLabel="Increase height"
-          hint={`Normalized: ${heightCm} cm — used to calculate BMR`}
+          decLabel={isBn ? 'উচ্চতা কমান' : 'Decrease height'}
+          incLabel={isBn ? 'উচ্চতা বাড়ান' : 'Increase height'}
+          hint={isBn ? `স্বাভাবিক উচ্চতা: ${heightCm} সেমি — বিএমআর গণনায় ব্যবহৃত হয়` : `Normalized: ${heightCm} cm — used to calculate BMR`}
         />
       </div>
 
       {/* ── 4. Weight (with kg / lb toggle) ───────────────────── */}
       <div style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <SectionLabel>Weight</SectionLabel>
+          <SectionLabel>{isBn ? 'ওজন' : 'Weight'}</SectionLabel>
           <div style={{ display: 'inline-flex', gap: 4 }}>
             <button
               type="button"
@@ -819,7 +872,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 color: weightUnit === 'kg' ? '#FFFFFF' : T.inkSoft,
               }}
             >
-              kg
+              {isBn ? 'কেজি' : 'kg'}
             </button>
             <button
               type="button"
@@ -836,7 +889,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 color: weightUnit === 'lb' ? '#FFFFFF' : T.inkSoft,
               }}
             >
-              lb
+              {isBn ? 'পাউন্ড' : 'lb'}
             </button>
           </div>
         </div>
@@ -844,15 +897,15 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           valueLabel={weightDisplay}
           onDec={() => adjustWeight(-1)}
           onInc={() => adjustWeight(1)}
-          decLabel="Decrease weight"
-          incLabel="Increase weight"
-          hint={`Normalized: ${weightKg.toFixed(1)} kg — used for daily caloric expenditure`}
+          decLabel={isBn ? 'ওজন কমান' : 'Decrease weight'}
+          incLabel={isBn ? 'ওজন বাড়ান' : 'Increase weight'}
+          hint={isBn ? `স্বাভাবিক ওজন: ${weightKg.toFixed(1)} কেজি — দৈনিক ক্যালরি ব্যয়ের হিসাবে ব্যবহৃত হয়` : `Normalized: ${weightKg.toFixed(1)} kg — used for daily caloric expenditure`}
         />
       </div>
 
       {/* ── 5. Activity Level ─────────────────────────────────── */}
       <div style={{ marginTop: 16 }}>
-        <SectionLabel>Activity Level</SectionLabel>
+        <SectionLabel>{isBn ? 'দৈনিক শারীরিক সক্রিয়তা' : 'Activity Level'}</SectionLabel>
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -867,7 +920,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
               onClick={() => setActivityLevel(act.key)}
               ariaLabel={`Select ${act.label} activity level`}
             >
-              {act.label}
+              {isBn ? act.labelBn : act.label}
             </Pill>
           ))}
         </motion.div>
@@ -875,7 +928,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
 
       {/* ── 6. Primary Goal ───────────────────────────────────── */}
       <div style={{ marginTop: 16 }}>
-        <SectionLabel>Primary Goal</SectionLabel>
+        <SectionLabel>{isBn ? 'প্রধান স্বাস্থ্য লক্ষ্য' : 'Primary Goal'}</SectionLabel>
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -890,7 +943,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
               onClick={() => setGoal(g.key)}
               ariaLabel={`Select ${g.label}`}
             >
-              {g.label}
+              {isBn ? g.labelBn : g.label}
             </Pill>
           ))}
         </motion.div>
@@ -898,7 +951,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         {goal !== 'maintain' && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: T.inkSoft, marginBottom: 6 }}>
-              Target rate (kg/wk)
+              {isBn ? 'সাপ্তাহিক পরিবর্তনের হার (কেজি/সপ্তাহ)' : 'Target rate (kg/wk)'}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {TARGET_RATES.map((rate) => (
@@ -918,7 +971,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                     cursor: 'pointer',
                   }}
                 >
-                  {rate.label}
+                  {isBn ? rate.labelBn : rate.label}
                 </button>
               ))}
             </div>
@@ -943,10 +996,10 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <span style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 700, color: T.accentAmber }}>
-            Metabolic Estimate (Mifflin-St Jeor)
+            {isBn ? 'বিপাকীয় হিসাব (মিফলিন-সেন্ট জিওর)' : 'Metabolic Estimate (Mifflin-St Jeor)'}
           </span>
           <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: T.inkSoft }}>
-            TDEE = BMR × Activity
+            {isBn ? 'টিডিইই = বিএমআর × সক্রিয়তা' : 'TDEE = BMR × Activity'}
           </span>
         </div>
 
@@ -956,7 +1009,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
               {breakdown.bmr}
             </div>
             <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
-              Resting burn (BMR)
+              {isBn ? 'বিশ্রামরত ব্যয় (BMR)' : 'Resting burn (BMR)'}
             </div>
           </div>
           <div style={{ flex: 1, textAlign: 'center', padding: '10px 6px', borderRadius: 12, background: 'rgba(249, 242, 228, 0.7)' }}>
@@ -964,7 +1017,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
               {breakdown.tdee}
             </div>
             <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
-              Daily burn (TDEE)
+              {isBn ? 'দৈনিক মোট ব্যয় (TDEE)' : 'Daily burn (TDEE)'}
             </div>
           </div>
           <div style={{ flex: 1, textAlign: 'center', padding: '10px 6px', borderRadius: 12, background: 'rgba(249, 242, 228, 0.7)' }}>
@@ -972,7 +1025,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
               {breakdown.recommendedKcal}
             </div>
             <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
-              Safe Target
+              {isBn ? 'নিরাপদ দৈনিক লক্ষ্য' : 'Safe Target'}
             </div>
           </div>
         </div>
@@ -985,7 +1038,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           type="button"
           onClick={() => {
             setDailyKcalTarget(breakdown.recommendedKcal);
-            triggerToast(`Daily target updated to ${breakdown.recommendedKcal} kcal`);
+            triggerToast(isBn ? `দৈনিক লক্ষ্য ${breakdown.recommendedKcal} কিলোক্যালরি নির্ধারণ করা হয়েছে` : `Daily target updated to ${breakdown.recommendedKcal} kcal`);
           }}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
@@ -1008,12 +1061,14 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           }}
         >
           <Zap size={13} fill="#FFFFFF" />
-          Apply calculated target ({breakdown.recommendedKcal} kcal)
+          {isBn
+            ? `⚡ হিসাবকৃত লক্ষ্য প্রয়োগ করুন (${breakdown.recommendedKcal} কিলোক্যালরি)`
+            : `⚡ Apply calculated target (${breakdown.recommendedKcal} kcal)`}
         </motion.button>
       </motion.div>
 
       {/* ── 8. Medical Conditions ─────────────────────────────── */}
-      <SectionLabel>Medical Conditions</SectionLabel>
+      <SectionLabel>{isBn ? 'চিকিৎসাগত অবস্থা ও স্বাস্থ্য সতর্কতা' : 'Medical Conditions'}</SectionLabel>
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1025,7 +1080,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           return (
             <Chip
               key={cond.key}
-              label={cond.label}
+              label={isBn ? cond.labelBn : cond.label}
               active={isActive}
               onClick={() => toggleCondition(cond.key)}
             />
@@ -1034,7 +1089,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
       </motion.div>
 
       {/* ── 9. Diet Type ──────────────────────────────────────── */}
-      <SectionLabel>Diet Type</SectionLabel>
+      <SectionLabel>{isBn ? 'খাদ্যের ধরন' : 'Diet Type'}</SectionLabel>
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1049,25 +1104,25 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
             onClick={() => setDietType(d.key)}
             ariaLabel={`Select ${d.label} diet`}
           >
-            {d.label}
+            {isBn ? d.labelBn : d.label}
           </Pill>
         ))}
       </motion.div>
 
       {/* ── 10. Meals per day ─────────────────────────────────── */}
-      <SectionLabel>Meals per day</SectionLabel>
+      <SectionLabel>{isBn ? 'দৈনিক খাবারের সংখ্যা' : 'Meals per day'}</SectionLabel>
       <StepperRow
-        valueLabel={`${mealsPerDay} meals`}
+        valueLabel={`${mealsPerDay} ${isBn ? 'বেলা' : 'meals'}`}
         onDec={() => setMealsPerDay((m) => Math.max(1, m - 1))}
         onInc={() => setMealsPerDay((m) => Math.min(6, m + 1))}
-        decLabel="Decrease meals per day"
-        incLabel="Increase meals per day"
-        hint="Divides daily calorie and glycemic budget across your meals"
+        decLabel={isBn ? 'দৈনিক খাবারের সংখ্যা কমান' : 'Decrease meals per day'}
+        incLabel={isBn ? 'দৈনিক খাবারের সংখ্যা বাড়ান' : 'Increase meals per day'}
+        hint={isBn ? 'প্রতি বেলার খাবারে দৈনিক ক্যালরি ও গ্লাইসেমিক বাজেট বণ্টন করে' : 'Divides daily calorie and glycemic budget across your meals'}
       />
 
       {/* ── 11. Health Goals ──────────────────────────────────── */}
       <div style={{ marginTop: 20 }}>
-        <SectionLabel>Health goals</SectionLabel>
+        <SectionLabel>{isBn ? 'স্বাস্থ্য লক্ষ্য' : 'Health goals'}</SectionLabel>
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1083,14 +1138,14 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
               tone={g.tone}
               ariaLabel={`Toggle ${g.label} goal`}
             >
-              {g.label}
+              {isBn ? g.labelBn : g.label}
             </Pill>
           ))}
         </motion.div>
       </div>
 
       {/* ── 12. Dietary Preferences ───────────────────────────── */}
-      <SectionLabel>Dietary preferences</SectionLabel>
+      <SectionLabel>{isBn ? 'খাদ্যাভ্যাসের পছন্দ' : 'Dietary preferences'}</SectionLabel>
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1099,16 +1154,16 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
       >
         {PREFS.map((p) => (
           <Chip
-            key={p}
-            label={p}
-            active={!!prefs[p]}
-            onClick={() => toggleIn(setPrefs)(p)}
+            key={p.key}
+            label={isBn ? p.labelBn : p.label}
+            active={!!prefs[p.key]}
+            onClick={() => toggleIn(setPrefs)(p.key)}
           />
         ))}
       </motion.div>
 
       {/* ── 13. Allergens to Avoid ────────────────────────────── */}
-      <SectionLabel>Allergens to avoid</SectionLabel>
+      <SectionLabel>{isBn ? 'যেসব অ্যালার্জি এড়াবেন' : 'Allergens to avoid'}</SectionLabel>
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1117,48 +1172,48 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
       >
         {ALLERGENS.map((a) => (
           <Chip
-            key={a}
-            label={a}
-            active={!!allergens[a]}
-            onClick={() => toggleIn(setAllergens)(a)}
+            key={a.key}
+            label={isBn ? a.labelBn : a.label}
+            active={!!allergens[a.key]}
+            onClick={() => toggleIn(setAllergens)(a.key)}
           />
         ))}
       </motion.div>
 
       {/* ── 14. Daily kcal target ─────────────────────────────── */}
-      <SectionLabel>Daily kcal target</SectionLabel>
+      <SectionLabel>{isBn ? 'দৈনিক ক্যালরি লক্ষ্য' : 'Daily kcal target'}</SectionLabel>
       <StepperRow
-        valueLabel={`${dailyKcalTarget} kcal`}
+        valueLabel={`${dailyKcalTarget} ${isBn ? 'কিলোক্যালরি' : 'kcal'}`}
         onDec={() => adjustDailyKcal(-50)}
         onInc={() => adjustDailyKcal(50)}
-        decLabel="Decrease daily kcal target by 50"
-        incLabel="Increase daily kcal target by 50"
-        hint="Powers the Home progress bar — can be set manually or via the calculator above"
+        decLabel={isBn ? 'দৈনিক ক্যালরির লক্ষ্য ৫০ কমান' : 'Decrease daily kcal target by 50'}
+        incLabel={isBn ? 'দৈনিক ক্যালরির লক্ষ্য ৫০ বাড়ান' : 'Increase daily kcal target by 50'}
+        hint={isBn ? 'হোমের অগ্রগতি বার চালায়—নিজে অথবা উপরের ক্যালকুলেটর দিয়ে নির্ধারণ করুন' : 'Powers the Home progress bar — can be set manually or via the calculator above'}
       />
 
       {/* ── 15. Daily grocery budget ──────────────────────────── */}
       <div style={{ marginTop: 16 }}>
-        <SectionLabel>Daily grocery budget</SectionLabel>
+        <SectionLabel>{isBn ? 'দৈনিক বাজারের বাজেট' : 'Daily grocery budget'}</SectionLabel>
         <StepperRow
           valueLabel={`৳${budget}`}
           onDec={() => adjustBudget(-50)}
           onInc={() => adjustBudget(50)}
-          decLabel="Decrease budget by 50 taka"
-          incLabel="Increase budget by 50 taka"
-          hint={`per day — the Grocery screen applies this as a weekly cap of ৳${budget * 7} (×7 days)`}
+          decLabel={isBn ? 'বাজেট ৫০ টাকা কমান' : 'Decrease budget by 50 taka'}
+          incLabel={isBn ? 'বাজেট ৫০ টাকা বাড়ান' : 'Increase budget by 50 taka'}
+          hint={isBn ? `প্রতিদিন—বাজারের পর্দায় এটি সাপ্তাহিক সীমা হিসেবে প্রয়োগ হয়: ৳${budget * 7} (×৭ দিন)` : `per day — the Grocery screen applies this as a weekly cap of ৳${budget * 7} (×7 days)`}
         />
       </div>
 
       {/* ── 16. Servings on this plate ────────────────────────── */}
       <div style={{ marginTop: 16 }}>
-        <SectionLabel>Servings on this plate</SectionLabel>
+        <SectionLabel>{isBn ? 'এই প্লেটের পরিবেশনের সংখ্যা' : 'Servings on this plate'}</SectionLabel>
         <StepperRow
           valueLabel={`${serving}×`}
           onDec={() => adjustServing(-1)}
           onInc={() => adjustServing(1)}
-          decLabel="Decrease servings"
-          incLabel="Increase servings"
-          hint="used to scale macro values across Nutrients"
+          decLabel={isBn ? 'পরিবেশন সংখ্যা কমান' : 'Decrease servings'}
+          incLabel={isBn ? 'পরিবেশন সংখ্যা বাড়ান' : 'Increase servings'}
+          hint={isBn ? 'পুষ্টি বিভাগে ম্যাক্রোর মান সমন্বয়ে ব্যবহৃত হয়' : 'used to scale macro values across Nutrients'}
         />
       </div>
 

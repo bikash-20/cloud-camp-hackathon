@@ -81,7 +81,8 @@ export default function ExpandableRow({
   glycemic,
 }: ExpandableRowProps) {
   const reduceMotion = useReducedMotion();
-  const { foodName } = useLanguage();
+  const { foodName, language } = useLanguage();
+  const isBn = language === 'bn';
   const displayName = foodName(item.name, item.name_bn);
   const [expanded, setExpanded] = useState(false);
   const [sliderOpen, setSliderOpen] = useState(false);
@@ -292,7 +293,7 @@ export default function ExpandableRow({
               color: T.inkSoft,
             }}
           >
-            <span className="tnum">~{item.grams}g</span>
+            <span className="tnum">~{item.grams} {isBn ? 'গ্রাম' : 'g'}</span>
             {glycemic !== undefined && (glycemic > 0.5 || glycemic < 0.1) && (
               <span
                 className="gi-chip"
@@ -313,20 +314,20 @@ export default function ExpandableRow({
                   flexShrink: 0,
                 }}
                 title={glycemic > 0.5
-                  ? 'High glycemic impact'
-                  : 'Low glycemic impact'}
+                  ? (isBn ? 'উচ্চ গ্লাইসেমিক প্রভাব' : 'High glycemic impact')
+                  : (isBn ? 'কম গ্লাইসেমিক প্রভাব' : 'Low glycemic impact')}
               >
-                {glycemic > 0.5 ? '↑ high-GI' : '↓ low-GI'}
+                {glycemic > 0.5 ? (isBn ? '↑ উচ্চ গ্লাইসেমিক' : '↑ high-GI') : (isBn ? '↓ কম গ্লাইসেমিক' : '↓ low-GI')}
               </span>
             )}
             {badge.tier === 'low' && (
               <span style={{ color: T.accentWarn, fontWeight: 600 }}>
-                Tap to confirm
+                {isBn ? 'নিশ্চিত করতে চাপুন' : 'Tap to confirm'}
               </span>
             )}
             {isConfirmed && (
               <span style={{ color: T.accentGood, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                <Check size={11} strokeWidth={3} /> Confirmed
+                <Check size={11} strokeWidth={3} /> {isBn ? 'নিশ্চিত করা হয়েছে' : 'Confirmed'}
               </span>
             )}
           </div>
@@ -404,19 +405,19 @@ export default function ExpandableRow({
                       fontWeight: 600,
                     }}
                   >
-                    <span>Macros</span>
-                    <span className="tnum">{Math.round(meta.kcal)} kcal</span>
+                    <span>{isBn ? 'প্রধান পুষ্টি' : 'Macros'}</span>
+                    <span className="tnum">{Math.round(meta.kcal)} {isBn ? 'কিলোক্যালরি' : 'kcal'}</span>
                   </div>
                   {[
-                    { label: 'Protein', value: meta.protein, color: T.primary, max: 50 },
-                    { label: 'Carbs',   value: meta.carbs,   color: T.accentAmber, max: 80 },
-                    { label: 'Fat',     value: meta.fat,     color: T.accentGood, max: 65 },
+                    { label: isBn ? 'প্রোটিন' : 'Protein', value: meta.protein, color: T.primary, max: 50 },
+                    { label: isBn ? 'কার্বোহাইড্রেট' : 'Carbs',   value: meta.carbs,   color: T.accentAmber, max: 80 },
+                    { label: isBn ? 'চর্বি' : 'Fat',     value: meta.fat,     color: T.accentGood, max: 65 },
                   ].map((m) => (
                     <div
                       key={m.label}
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '60px 1fr 50px',
+                        gridTemplateColumns: isBn ? '75px 1fr 54px' : '60px 1fr 50px',
                         gap: 8,
                         alignItems: 'center',
                         marginBottom: 4,
@@ -461,7 +462,7 @@ export default function ExpandableRow({
                           textAlign: 'right',
                         }}
                       >
-                        {Math.round(m.value)}g
+                        {Math.round(m.value)} {isBn ? 'গ্রাম' : 'g'}
                       </span>
                     </div>
                   ))}
@@ -486,7 +487,7 @@ export default function ExpandableRow({
                     letterSpacing: '0.06em',
                   }}
                 >
-                  Portion
+                  {isBn ? 'পরিমাণ' : 'Portion'}
                 </span>
 
                 <motion.button
@@ -495,7 +496,7 @@ export default function ExpandableRow({
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.88 }}
                   transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                  aria-label={`Decrease ${displayName} by 25g`}
+                  aria-label={isBn ? `${displayName} ২৫ গ্রাম কমান` : `Decrease ${displayName} by 25g`}
                   style={{
                     width: 36,
                     height: 36,
@@ -526,7 +527,7 @@ export default function ExpandableRow({
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.88 }}
                   transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                  aria-label={`Increase ${displayName} by 25g. Long-press for slider editor.`}
+                  aria-label={isBn ? `${displayName} ২৫ গ্রাম বাড়ান` : `Increase ${displayName} by 25g. Long-press for slider editor.`}
                   style={{
                     width: 36,
                     height: 36,
@@ -556,7 +557,7 @@ export default function ExpandableRow({
                     textAlign: 'right',
                   }}
                 >
-                  {item.grams}g
+                  {item.grams} {isBn ? 'গ্রাম' : 'g'}
                 </span>
               </div>
 
@@ -586,11 +587,11 @@ export default function ExpandableRow({
                         marginBottom: 6,
                       }}
                     >
-                      <span>Portion editor</span>
+                      <span>{isBn ? 'পরিমাণ সমন্বয়' : 'Portion editor'}</span>
                       <button
                         type="button"
                         onClick={() => setSliderOpen(false)}
-                        aria-label="Close portion editor"
+                        aria-label={isBn ? 'সম্পন্ন করুন' : 'Close portion editor'}
                         style={{
                           background: 'none',
                           border: 'none',
@@ -600,7 +601,7 @@ export default function ExpandableRow({
                           cursor: 'pointer',
                         }}
                       >
-                        Done
+                        {isBn ? 'সম্পন্ন' : 'Done'}
                       </button>
                     </div>
                     <input
@@ -630,7 +631,7 @@ export default function ExpandableRow({
                       letterSpacing: '0.06em',
                     }}
                   >
-                    Did you mean?
+                    {isBn ? 'আপনি কি এটি বোঝাতে চেয়েছেন?' : 'Did you mean?'}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {(meta.alternatives ?? []).map((alt, idx) => {
@@ -640,7 +641,7 @@ export default function ExpandableRow({
                       return (
                         <Chip
                           key={alt}
-                          label={`${altMeta.emoji} ${alt} · ${altConf}%`}
+                          label={`${altMeta.emoji} ${foodName(alt)} · ${altConf}%`}
                           size="sm"
                           onClick={() => onReplace?.(item.name, alt)}
                         />
@@ -663,13 +664,13 @@ export default function ExpandableRow({
                       letterSpacing: '0.06em',
                     }}
                   >
-                    You usually eat this with…
+                    {isBn ? 'এর সাথে সাধারণত যা খাওয়া হয়…' : 'You usually eat this with…'}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {(meta.pairings ?? []).map((p) => (
                       <Chip
                         key={p}
-                        label={`+ ${p}`}
+                        label={`+ ${foodName(p)}`}
                         size="sm"
                         onClick={() => onAddPairing?.(item.name, p)}
                       />
@@ -691,7 +692,7 @@ export default function ExpandableRow({
                   whileHover={{ x: 1, scale: 1.02 }}
                   whileTap={{ scale: 0.96 }}
                   transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                  aria-label={`Remove ${displayName}`}
+                  aria-label={isBn ? `${displayName} মুছে ফেলুন` : `Remove ${displayName}`}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -708,7 +709,7 @@ export default function ExpandableRow({
                     minHeight: 32,
                   }}
                 >
-                  <Trash2 size={11} /> Remove
+                  <Trash2 size={11} /> {isBn ? 'মুছে ফেলুন' : 'Remove'}
                 </motion.button>
 
                 {badge.tier === 'low' && !isConfirmed && (
@@ -718,7 +719,7 @@ export default function ExpandableRow({
                     whileHover={{ scale: 1.04 }}
                     whileTap={{ scale: 0.96 }}
                     transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                    aria-label={`Confirm ${displayName}`}
+                    aria-label={isBn ? `${displayName} নিশ্চিত করুন` : `Confirm ${displayName}`}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -736,7 +737,7 @@ export default function ExpandableRow({
                       boxShadow: `0 4px 10px -3px ${T.accentGood}66`,
                     }}
                   >
-                    <Check size={11} strokeWidth={3} /> Confirm
+                    <Check size={11} strokeWidth={3} /> {isBn ? 'নিশ্চিত করুন' : 'Confirm'}
                   </motion.button>
                 )}
 
@@ -750,7 +751,7 @@ export default function ExpandableRow({
                     whileHover={{ scale: 1.04 }}
                     whileTap={{ scale: 0.96 }}
                     transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                    aria-label={`Rename ${displayName}`}
+                    aria-label={isBn ? `${displayName}-এর নাম পরিবর্তন করুন` : `Rename ${displayName}`}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -767,7 +768,7 @@ export default function ExpandableRow({
                       minHeight: 32,
                     }}
                   >
-                    <Edit3 size={11} /> Rename
+                    <Edit3 size={11} /> {isBn ? 'নাম পরিবর্তন' : 'Rename'}
                   </motion.button>
                 )}
               </div>

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Flame } from 'lucide-react';
 import { T } from '../data';
 import useCountUp from './useCountUp';
-import { LocalizedContent } from '../i18n/LanguageContext';
+import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
 interface Totals {
   kcal: number;
@@ -22,15 +22,17 @@ interface SummaryCardProps {
  */
 export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
   const [open, setOpen] = useState(true);
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   const kcal = useCountUp(Math.round(totals.kcal));
   const protein = useCountUp(Math.round(totals.protein));
   const carbs = useCountUp(Math.round(totals.carbs));
   const fat = useCountUp(Math.round(totals.fat));
 
   const macros = [
-    { label: 'Protein', value: Math.round(protein), color: T.primary, pct: Math.min(100, Math.round((totals.protein / 50) * 100)) },
-    { label: 'Carbs',   value: Math.round(carbs),   color: T.accentAmber, pct: Math.min(100, Math.round((totals.carbs / 80) * 100)) },
-    { label: 'Fat',     value: Math.round(fat),     color: T.accentGood, pct: Math.min(100, Math.round((totals.fat / 65) * 100)) },
+    { label: isBn ? 'প্রোটিন' : 'Protein', value: Math.round(protein), color: T.primary, pct: Math.min(100, Math.round((totals.protein / 50) * 100)) },
+    { label: isBn ? 'কার্বোহাইড্রেট' : 'Carbs',   value: Math.round(carbs),   color: T.accentAmber, pct: Math.min(100, Math.round((totals.carbs / 80) * 100)) },
+    { label: isBn ? 'চর্বি' : 'Fat',     value: Math.round(fat),     color: T.accentGood, pct: Math.min(100, Math.round((totals.fat / 65) * 100)) },
   ];
 
   return (
@@ -61,14 +63,14 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
               whiteSpace: 'nowrap',
             }}
           >
-            🍽️ {itemCount} {itemCount === 1 ? 'item' : 'items'}
+            🍽️ {itemCount} {isBn ? 'টি খাবার' : itemCount === 1 ? 'item' : 'items'}
           </div>
           <span style={{ color: T.inkMuted, fontSize: 12 }}>·</span>
           <span
             className="kcal-chip"
             style={{ fontSize: 12, padding: '3px 8px' }}
           >
-            <Flame size={11} /> {Math.round(kcal)} kcal
+            <Flame size={11} /> {Math.round(kcal)} {isBn ? 'কিলোক্যালরি' : 'kcal'}
           </span>
         </div>
         <motion.button
@@ -76,7 +78,7 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
           onClick={() => setOpen((v) => !v)}
           whileTap={{ scale: 0.92 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-          aria-label={open ? 'Collapse summary' : 'Expand summary'}
+          aria-label={open ? (isBn ? 'সারসংক্ষেপ গুটিয়ে নিন' : 'Collapse summary') : (isBn ? 'সারসংক্ষেপ প্রসারিত করুন' : 'Expand summary')}
           aria-expanded={open}
           style={{
             width: 28,
@@ -117,7 +119,7 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
                   key={m.label}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '60px 1fr 44px',
+                    gridTemplateColumns: isBn ? '75px 1fr 54px' : '60px 1fr 44px',
                     alignItems: 'center',
                     gap: 8,
                   }}
@@ -161,7 +163,7 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
                       textAlign: 'right',
                     }}
                   >
-                    {m.value}g
+                    {m.value} {isBn ? 'গ্রাম' : 'g'}
                   </div>
                 </div>
               ))}
