@@ -7,8 +7,101 @@
  * `app/api/personalize.py`.
  */
 
-import type { MacroTargets, NutritionFacts, NutrientContribution, UserProfile } from '../types/schemas';
+import type {
+  ActivityLevel,
+  GoalType,
+  MacroTargets,
+  NutritionFacts,
+  NutrientContribution,
+  Sex,
+  UserProfile,
+} from '../types/schemas';
 import { MOCK_TARGETS, MOCK_NUTRITION_DB } from '../mocks/fixtures';
+
+export interface BiometricsBreakdown {
+  bmr: number;
+  tdee: number;
+  recommendedKcal: number;
+  deficitOrSurplus: number;
+  safetyFloor: number;
+  isFloored: boolean;
+  explanation: string;
+}
+
+/**
+ * Calculates BMR (Mifflin-St Jeor), TDEE, and safe daily calorie recommendation.
+ * Mirrors `app/services/targets.py` on the client.
+ */
+export function calculateBiometricsBreakdown(profile?: {
+  age?: number | null;
+  sex?: Sex | null;
+  heightCm?: number | null;
+  weightKg?: number | null;
+  activityLevel?: ActivityLevel | null;
+  goal?: GoalType | null;
+  targetRateKgPerWeek?: number | null;
+} | null): BiometricsBreakdown {
+  const age = Math.max(1, profile?.age ?? 28);
+  const sex = profile?.sex ?? 'male';
+  const weight = Math.max(10, profile?.weightKg ?? 70);
+  const height = Math.max(50, profile?.heightCm ?? 172);
+  const activity = profile?.activityLevel ?? 'moderate';
+  const goal = profile?.goal ?? 'maintain';
+  const rate = Math.max(0, Math.min(1.0, profile?.targetRateKgPerWeek ?? 0.5));
+
+  // Mifflin-St Jeor equation: (10 × W) + (6.25 × H) - (5 × A) + s
+  let offset = -78;
+  if (sex === 'male') offset = 5;
+  else if (sex === 'female') offset = -161;
+
+  const bmr = Math.max(600, Math.round(10 * weight + 6.25 * height - 5 * age + offset));
+
+  const activityMultipliers: Record<string, number> = {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    active: 1.725,
+    very_active: 1.9,
+  };
+  const mult = activityMultipliers[activity] ?? 1.55;
+  const tdee = Math.round(bmr * mult);
+
+  let delta = 0;
+  if (goal === 'lose') {
+    const weeklyCal = (rate > 0 ? rate : 0.5) * 7700;
+    delta = -Math.min(1000, Math.round(weeklyCal / 7));
+  } else if (goal === 'gain') {
+    const weeklyCal = (rate > 0 ? rate : 0.5) * 7700;
+    delta = Math.min(750, Math.round(weeklyCal / 7));
+  }
+
+  let recommended = tdee + delta;
+  const floor = age < 12 ? 1000 : sex === 'female' ? 1200 : 1500;
+  const isFloored = recommended < floor;
+  if (isFloored) {
+    recommended = floor;
+  }
+
+  let explanation = `BMR ${bmr} kcal (Mifflin-St Jeor) × ${mult} (${activity}) = TDEE ${tdee} kcal.`;
+  if (goal === 'lose') {
+    explanation += ` Loss deficit: ${Math.abs(delta)} kcal/day.`;
+  } else if (goal === 'gain') {
+    explanation += ` Surplus: +${delta} kcal/day.`;
+  }
+  if (isFloored) {
+    explanation += ` Safety floor enforced: min ${floor} kcal/day.`;
+  }
+
+  return {
+    bmr,
+    tdee,
+    recommendedKcal: Math.round(recommended),
+    deficitOrSurplus: delta,
+    safetyFloor: floor,
+    isFloored,
+    explanation,
+  };
+}
 
 // ── Dynamic Target Engine (Client mirror) ──────────────────────────────
 

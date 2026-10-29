@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildContributions, mealTotals, getEffectiveNutrition } from './personalize';
+import { buildContributions, mealTotals, getEffectiveNutrition, calculateBiometricsBreakdown } from './personalize';
 import { MOCK_NUTRITION_DB, MOCK_TARGETS } from '../mocks/fixtures';
 import type { ResolvedItem, UserProfile } from '../types/schemas';
 
@@ -160,3 +160,40 @@ describe('getEffectiveNutrition', () => {
     expect(dal.fiber).toBeGreaterThan(3);
   });
 });
+
+describe('calculateBiometricsBreakdown', () => {
+  it('calculates male BMR and TDEE correctly via Mifflin-St Jeor', () => {
+    // Male: 70kg, 172cm, 28y -> BMR = 10(70) + 6.25(172) - 5(28) + 5 = 700 + 1075 - 140 + 5 = 1640 kcal
+    // Activity moderate (1.55) -> TDEE = 1640 * 1.55 = 2542 kcal
+    const b = calculateBiometricsBreakdown({
+      sex: 'male',
+      weightKg: 70,
+      heightCm: 172,
+      age: 28,
+      activityLevel: 'moderate',
+      goal: 'maintain',
+    });
+    expect(b.bmr).toBe(1640);
+    expect(b.tdee).toBe(2542);
+    expect(b.recommendedKcal).toBe(2542);
+  });
+
+  it('calculates female BMR with -161 offset and enforces safety floor', () => {
+    // Female: 45kg, 150cm, 35y
+    // BMR = 10(45) + 6.25(150) - 5(35) - 161 = 450 + 937.5 - 175 - 161 = 1051.5 -> 1052
+    // Sedentary (1.2) -> TDEE = 1052 * 1.2 = 1262
+    // Lose goal -> 1262 - 550 = 712 kcal -> Clinical floor of 1200 kcal enforced!
+    const b = calculateBiometricsBreakdown({
+      sex: 'female',
+      weightKg: 45,
+      heightCm: 150,
+      age: 35,
+      activityLevel: 'sedentary',
+      goal: 'lose',
+      targetRateKgPerWeek: 0.5,
+    });
+    expect(b.isFloored).toBe(true);
+    expect(b.recommendedKcal).toBe(1200);
+  });
+});
+

@@ -81,11 +81,24 @@ export const MOCK_TARGETS = {
 
 export const MOCK_PROFILE: UserProfile = {
   name: 'Rafi',
+  age: 28,
+  sex: 'male',
+  heightCm: 172,
+  weightKg: 70,
+  heightUnit: 'cm',
+  weightUnit: 'kg',
+  activityLevel: 'moderate',
+  goal: 'maintain',
+  targetRateKgPerWeek: 0,
+  dietType: 'halal',
+  medicalConditions: ['prediabetes'],
+  mealsPerDay: 3,
   goals: { diabetic: true, protein: false, budget: true, mediter: false },
   preferences: [],
   allergens: ['Peanuts'],
   budget: 500,
   serving: 1,
+  dailyKcalTarget: 2000,
 };
 
 // ── Grocery list ────────────────────────────────────────────────────────

@@ -1,19 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Edit3, LogOut, Minus, Plus, RotateCcw } from 'lucide-react';
+import { Edit3, LogOut, Minus, Plus, RotateCcw, Zap } from 'lucide-react';
 import { T } from '../../data';
 import type {
+  ActivityLevel,
   Allergen,
   AuthSession,
+  DietType,
   DietaryPreference,
+  GoalType,
   HealthGoals,
+  HeightUnit,
+  MedicalCondition,
+  Sex,
   UserProfile,
   UserStats,
+  WeightUnit,
 } from '../../types/schemas';
 import { DAILY_KCAL_TARGET_DEFAULT } from '../../types/schemas';
 import { DEFAULT_PROFILE, updateProfile, getUserStats } from '../../lib/api';
 import { logout } from '../../lib/auth';
 import { LocalizedContent } from '../../i18n/LanguageContext';
+import { cmToFtIn, ftInToCm, kgToLb, lbToKg } from '../../lib/units';
+import { calculateBiometricsBreakdown } from '../../lib/personalize';
 import Pill from '../Pill';
 import Chip from '../Chip';
 import SectionLabel from '../SectionLabel';
@@ -40,21 +49,80 @@ const ALLERGENS: Allergen[] = [
   'Peanuts', 'Tree nuts', 'Shellfish', 'Soy', 'Eggs', 'Dairy', 'Gluten', 'Sesame',
 ];
 
+const SEX_OPTIONS: Array<{ key: Sex; label: string }> = [
+  { key: 'male', label: 'Male' },
+  { key: 'female', label: 'Female' },
+  { key: 'other', label: 'Other' },
+];
+
+const ACTIVITY_LEVELS: Array<{ key: ActivityLevel; label: string; desc: string }> = [
+  { key: 'sedentary', label: 'Sedentary', desc: '1.2×' },
+  { key: 'light', label: 'Light', desc: '1.375×' },
+  { key: 'moderate', label: 'Moderate', desc: '1.55×' },
+  { key: 'active', label: 'Active', desc: '1.725×' },
+  { key: 'very_active', label: 'Very active', desc: '1.9×' },
+];
+
+const PRIMARY_GOALS: Array<{ key: GoalType; label: string }> = [
+  { key: 'maintain', label: 'Maintain weight' },
+  { key: 'lose', label: 'Lose weight' },
+  { key: 'gain', label: 'Gain weight' },
+];
+
+const TARGET_RATES = [
+  { value: 0.25, label: '0.25 kg/wk' },
+  { value: 0.5, label: '0.5 kg/wk' },
+  { value: 0.75, label: '0.75 kg/wk' },
+  { value: 1.0, label: '1.0 kg/wk' },
+];
+
+const MEDICAL_CONDITIONS: Array<{ key: MedicalCondition; label: string }> = [
+  { key: 'none', label: 'None' },
+  { key: 'prediabetes', label: 'Prediabetes' },
+  { key: 'diabetes_t2', label: 'Type 2 Diabetes' },
+  { key: 'diabetes_t1', label: 'Type 1 Diabetes' },
+  { key: 'hypertension', label: 'Hypertension' },
+  { key: 'high_cholesterol', label: 'High Cholesterol' },
+  { key: 'kidney', label: 'Kidney' },
+];
+
+const DIET_TYPES: Array<{ key: DietType; label: string }> = [
+  { key: 'halal', label: 'Halal' },
+  { key: 'omnivore', label: 'Omnivore' },
+  { key: 'vegetarian', label: 'Vegetarian' },
+  { key: 'vegan', label: 'Vegan' },
+  { key: 'pescatarian', label: 'Pescatarian' },
+  { key: 'kosher', label: 'Kosher' },
+];
+
 const toggleIn = (setState: React.Dispatch<React.SetStateAction<Record<string, boolean>>>) =>
   (k: string) => setState((s) => ({ ...s, [k]: !s[k] }));
 
 interface ProfileScreenProps {
   profile: UserProfile;
   onProfileChange?: (p: UserProfile) => void;
-  /** Currently signed-in user — drives the "Signed in as …" chip and the
-   *  sign-out action in the header. */
   session?: AuthSession;
-  /** Called after a successful sign-out. App-level gate routes back to
-   *  the LoginScreen on this callback. */
   onSignOut?: () => void;
 }
 
 export default function ProfileScreen({ profile, onProfileChange, session, onSignOut }: ProfileScreenProps) {
+  // Biometrics & demographics state
+  const [sex, setSex] = useState<Sex>(profile.sex ?? 'male');
+  const [age, setAge] = useState<number>(profile.age ?? 28);
+  const [heightCm, setHeightCm] = useState<number>(profile.heightCm ?? 172);
+  const [weightKg, setWeightKg] = useState<number>(profile.weightKg ?? 70);
+  const [heightUnit, setHeightUnit] = useState<HeightUnit>(profile.heightUnit ?? 'cm');
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>(profile.weightUnit ?? 'kg');
+  const [activityLevel, setActivityLevel] = useState<ActivityLevel>(profile.activityLevel ?? 'moderate');
+  const [goal, setGoal] = useState<GoalType>(profile.goal ?? 'maintain');
+  const [targetRate, setTargetRate] = useState<number>(profile.targetRateKgPerWeek ?? 0.5);
+  const [dietType, setDietType] = useState<DietType>(profile.dietType ?? 'halal');
+  const [medicalConditions, setMedicalConditions] = useState<MedicalCondition[]>(
+    profile.medicalConditions && profile.medicalConditions.length > 0 ? profile.medicalConditions : ['none'],
+  );
+  const [mealsPerDay, setMealsPerDay] = useState<number>(profile.mealsPerDay ?? 3);
+
+  // Health goals & preferences
   const [goals, setGoals] = useState<HealthGoals>(profile.goals);
   const [prefs, setPrefs] = useState<Record<string, boolean>>(
     Object.fromEntries(profile.preferences.map((p) => [p, true])),
@@ -69,9 +137,6 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
   );
   const [budget, setBudget] = useState(profile.budget);
   const [serving, setServing] = useState(profile.serving);
-  // Fall back to the universal default if the stored profile predates the
-  // field — see `resolveDailyKcalTarget` in schemas.ts for the read-side
-  // shim that handles this on the API layer too.
   const [dailyKcalTarget, setDailyKcalTarget] = useState<number>(
     typeof profile.dailyKcalTarget === 'number' && profile.dailyKcalTarget > 0
       ? profile.dailyKcalTarget
@@ -83,20 +148,40 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
   const [stats, setStats] = useState<UserStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const statsLoadedRef = useRef(false);
-  // Track the previous values so we can re-sync only when the *parent's*
-  // profile diverges from our local state — not on every local edit.
+
   const prevRef = useRef({
     goals: profile.goals,
     budget: profile.budget,
     serving: profile.serving,
     name: profile.name,
     dailyKcalTarget,
+    sex: profile.sex,
+    age: profile.age,
+    heightCm: profile.heightCm,
+    weightKg: profile.weightKg,
+    heightUnit: profile.heightUnit,
+    weightUnit: profile.weightUnit,
+    activityLevel: profile.activityLevel,
+    goal: profile.goal,
+    targetRate: profile.targetRateKgPerWeek,
+    dietType: profile.dietType,
+    medicalConditions: profile.medicalConditions,
+    mealsPerDay: profile.mealsPerDay,
   });
 
-  // When the parent's profile changes (external reset, API load, etc.),
-  // re-sync the local state for any field that diverged. Local edits
-  // never trigger this path because `profile` only changes when the
-  // parent commits a new profile via `onProfileChange`.
+  // Dynamic BMR, TDEE, and safe recommendation breakdown
+  const breakdown = useMemo(() => {
+    return calculateBiometricsBreakdown({
+      age,
+      sex,
+      heightCm,
+      weightKg,
+      activityLevel,
+      goal,
+      targetRateKgPerWeek: targetRate,
+    });
+  }, [age, sex, heightCm, weightKg, activityLevel, goal, targetRate]);
+
   useEffect(() => {
     const prev = prevRef.current;
     if (profile.goals !== prev.goals) {
@@ -115,21 +200,66 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
       setName(profile.name);
       prev.name = profile.name;
     }
+    if (profile.sex && profile.sex !== prev.sex) {
+      setSex(profile.sex);
+      prev.sex = profile.sex;
+    }
+    if (typeof profile.age === 'number' && profile.age !== prev.age) {
+      setAge(profile.age);
+      prev.age = profile.age;
+    }
+    if (typeof profile.heightCm === 'number' && profile.heightCm !== prev.heightCm) {
+      setHeightCm(profile.heightCm);
+      prev.heightCm = profile.heightCm;
+    }
+    if (typeof profile.weightKg === 'number' && profile.weightKg !== prev.weightKg) {
+      setWeightKg(profile.weightKg);
+      prev.weightKg = profile.weightKg;
+    }
+    if (profile.heightUnit && profile.heightUnit !== prev.heightUnit) {
+      setHeightUnit(profile.heightUnit);
+      prev.heightUnit = profile.heightUnit;
+    }
+    if (profile.weightUnit && profile.weightUnit !== prev.weightUnit) {
+      setWeightUnit(profile.weightUnit);
+      prev.weightUnit = profile.weightUnit;
+    }
+    if (profile.activityLevel && profile.activityLevel !== prev.activityLevel) {
+      setActivityLevel(profile.activityLevel);
+      prev.activityLevel = profile.activityLevel;
+    }
+    if (profile.goal && profile.goal !== prev.goal) {
+      setGoal(profile.goal);
+      prev.goal = profile.goal;
+    }
+    if (typeof profile.targetRateKgPerWeek === 'number' && profile.targetRateKgPerWeek !== prev.targetRate) {
+      setTargetRate(profile.targetRateKgPerWeek);
+      prev.targetRate = profile.targetRateKgPerWeek;
+    }
+    if (profile.dietType && profile.dietType !== prev.dietType) {
+      setDietType(profile.dietType);
+      prev.dietType = profile.dietType;
+    }
+    if (profile.medicalConditions && profile.medicalConditions !== prev.medicalConditions) {
+      setMedicalConditions(profile.medicalConditions);
+      prev.medicalConditions = profile.medicalConditions;
+    }
+    if (typeof profile.mealsPerDay === 'number' && profile.mealsPerDay !== prev.mealsPerDay) {
+      setMealsPerDay(profile.mealsPerDay);
+      prev.mealsPerDay = profile.mealsPerDay;
+    }
     if (profile.dailyKcalTarget !== prev.dailyKcalTarget) {
       setDailyKcalTarget(
         typeof profile.dailyKcalTarget === 'number' && profile.dailyKcalTarget > 0
           ? profile.dailyKcalTarget
           : DAILY_KCAL_TARGET_DEFAULT,
       );
-      // Store the normalized form so the next compare doesn't false-positive
-      // on the first sync from a profile that predates the field.
       prev.dailyKcalTarget = typeof profile.dailyKcalTarget === 'number' && profile.dailyKcalTarget > 0
         ? profile.dailyKcalTarget
         : DAILY_KCAL_TARGET_DEFAULT;
     }
   }, [profile]);
 
-  // Load user stats on mount
   useEffect(() => {
     if (statsLoadedRef.current) return;
     statsLoadedRef.current = true;
@@ -145,7 +275,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
 
   const triggerToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 1800);
+    setTimeout(() => setToast(null), 2000);
   };
 
   const adjustBudget = (delta: number) => {
@@ -156,17 +286,24 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
     setServing((s) => Math.min(8, Math.max(1, s + delta)));
   };
 
-  // Daily kcal target: 1200 (intentional loss floor) → 4000 (active adult).
-  // Stepped in 50 kcal increments so the Home progress bar moves noticeably
-  // on each tap, matching the budget stepper's behavior.
   const adjustDailyKcal = (delta: number) => {
-    setDailyKcalTarget((v) => Math.min(4000, Math.max(1200, v + delta)));
+    setDailyKcalTarget((v) => Math.min(4000, Math.max(1000, v + delta)));
+  };
+
+  const toggleCondition = (cond: MedicalCondition) => {
+    if (cond === 'none') {
+      setMedicalConditions(['none']);
+      return;
+    }
+    setMedicalConditions((current) => {
+      const withoutNone = current.filter((c) => c !== 'none');
+      const exists = withoutNone.includes(cond);
+      const updated = exists ? withoutNone.filter((c) => c !== cond) : [...withoutNone, cond];
+      return updated.length === 0 ? ['none'] : updated;
+    });
   };
 
   const resetAll = async () => {
-    // Use the canonical DEFAULT_PROFILE — not getProfile() — so Reset
-    // always reverts to factory-fresh state, not whatever the in-memory
-    // session happens to be.
     const fresh = structuredClone(DEFAULT_PROFILE);
     setGoals(fresh.goals);
     setBudget(fresh.budget);
@@ -175,15 +312,39 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
     setDailyKcalTarget(DAILY_KCAL_TARGET_DEFAULT);
     setPrefs({});
     setAllergens({ Peanuts: true });
+    setSex(fresh.sex ?? 'male');
+    setAge(fresh.age ?? 28);
+    setHeightCm(fresh.heightCm ?? 172);
+    setWeightKg(fresh.weightKg ?? 70);
+    setHeightUnit(fresh.heightUnit ?? 'cm');
+    setWeightUnit(fresh.weightUnit ?? 'kg');
+    setActivityLevel(fresh.activityLevel ?? 'moderate');
+    setGoal(fresh.goal ?? 'maintain');
+    setTargetRate(fresh.targetRateKgPerWeek ?? 0.5);
+    setDietType(fresh.dietType ?? 'halal');
+    setMedicalConditions(fresh.medicalConditions ?? ['none']);
+    setMealsPerDay(fresh.mealsPerDay ?? 3);
     await updateProfile(fresh);
     onProfileChange?.(fresh);
     triggerToast('Profile reset to defaults');
   };
 
-  // Persist any meaningful change to the (mock) backend
+  // Persist all fields to storage/API
   useEffect(() => {
     const next: UserProfile = {
       name,
+      age,
+      sex,
+      heightCm,
+      weightKg,
+      heightUnit,
+      weightUnit,
+      activityLevel,
+      goal,
+      targetRateKgPerWeek: targetRate,
+      dietType,
+      medicalConditions,
+      mealsPerDay,
       goals,
       preferences: PREFS.filter((p) => prefs[p]),
       allergens: ALLERGENS.filter((a) => allergens[a]),
@@ -193,7 +354,27 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
     };
     updateProfile(next).then((saved) => onProfileChange?.(saved));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goals, prefs, allergens, budget, serving, name, dailyKcalTarget]);
+  }, [
+    name,
+    age,
+    sex,
+    heightCm,
+    weightKg,
+    heightUnit,
+    weightUnit,
+    activityLevel,
+    goal,
+    targetRate,
+    dietType,
+    medicalConditions,
+    mealsPerDay,
+    goals,
+    prefs,
+    allergens,
+    budget,
+    serving,
+    dailyKcalTarget,
+  ]);
 
   const commitName = () => {
     setEditingName(false);
@@ -203,19 +384,43 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
   };
 
   const handleSignOut = () => {
-    // Mirror AdminLayout's logout flow — clear the persisted session,
-    // then notify the App-level gate so it routes back to LoginScreen
-    // without a full page reload.
     logout();
     onSignOut?.();
   };
 
+  // Height display & step helpers
+  const { feet: heightFeet, inches: heightInches } = cmToFtIn(heightCm);
+  const heightDisplay = heightUnit === 'cm'
+    ? `${heightCm} cm`
+    : `${heightFeet} ft ${heightInches} in`;
+
+  const adjustHeight = (delta: number) => {
+    if (heightUnit === 'cm') {
+      setHeightCm((h) => Math.min(250, Math.max(50, h + delta)));
+    } else {
+      const nextCm = ftInToCm(heightFeet, heightInches + delta);
+      setHeightCm(Math.min(250, Math.max(50, nextCm)));
+    }
+  };
+
+  // Weight display & step helpers
+  const weightDisplay = weightUnit === 'kg'
+    ? `${weightKg.toFixed(1)} kg`
+    : `${kgToLb(weightKg).toFixed(1)} lb`;
+
+  const adjustWeight = (delta: number) => {
+    if (weightUnit === 'kg') {
+      setWeightKg((w) => Math.min(300, Math.max(15, Math.round((w + delta * 0.5) * 10) / 10)));
+    } else {
+      const curLb = kgToLb(weightKg);
+      const nextKg = lbToKg(curLb + delta);
+      setWeightKg(Math.min(300, Math.max(15, nextKg)));
+    }
+  };
+
   return (
     <LocalizedContent>
-    <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
-      {/* Signed-in chip — only renders when a session is present so the
-          Profile screen still works for callers (tests, demos) that don't
-          pass one through. */}
+    <div style={{ padding: '20px var(--screen-gutter, 24px) 40px' }}>
       {session && (
         <motion.div
           initial={{ opacity: 0, y: 4 }}
@@ -247,6 +452,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           Signed in as {session.email}
         </motion.div>
       )}
+
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -327,6 +533,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           )}
         </div>
       </motion.div>
+
       <p
         style={{
           fontFamily: 'Inter',
@@ -339,6 +546,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         Hi {name} — these shape every flag and swap you see.
       </p>
 
+      {/* Profile Header Card */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -461,34 +669,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         </div>
       </motion.div>
 
-      {/* ── User Statistics Skeleton ──────────────────────────── */}
-      {statsLoading && (
-        <>
-          <SectionLabel>Your Stats</SectionLabel>
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.08 }}
-            className="glass-card"
-            style={{
-              borderRadius: 18,
-              padding: '14px 16px',
-              marginBottom: 22,
-              display: 'flex',
-              gap: 16,
-            }}
-          >
-            {[0, 1, 2].map((i) => (
-              <div key={i} style={{ flex: 1, textAlign: 'center' }}>
-                <div className="skeleton" style={{ width: 40, height: 22, margin: '0 auto 6px' }} />
-                <div className="skeleton" style={{ width: 60, height: 10, margin: '0 auto' }} />
-              </div>
-            ))}
-          </motion.div>
-        </>
-      )}
-
-      {/* ── User Statistics ─────────────────────────────────────── */}
+      {/* User Stats Card */}
       {!statsLoading && stats && stats.totalMeals > 0 && (
         <>
           <SectionLabel>Your Stats</SectionLabel>
@@ -535,32 +716,385 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         </>
       )}
 
-      <SectionLabel>Health goals</SectionLabel>
+      {/* ── 1. Biological Sex ─────────────────────────────────── */}
+      <SectionLabel>Biological Sex</SectionLabel>
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-        style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}
+        transition={{ duration: 0.35, delay: 0.08 }}
+        style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}
       >
-        {GOALS.map((g) => (
+        {SEX_OPTIONS.map((opt) => (
           <Pill
-            key={g.key}
-            layoutId={`goal-${g.key}`}
-            active={!!goals[g.key]}
-            onClick={() => setGoals((s) => ({ ...s, [g.key]: !s[g.key] }))}
-            tone={g.tone}
-            ariaLabel={`Toggle ${g.label} goal`}
+            key={opt.key}
+            layoutId={`sex-${opt.key}`}
+            active={sex === opt.key}
+            onClick={() => setSex(opt.key)}
+            ariaLabel={`Select ${opt.label}`}
           >
-            {g.label}
+            {opt.label}
           </Pill>
         ))}
       </motion.div>
 
+      {/* ── 2. Age ────────────────────────────────────────────── */}
+      <SectionLabel>Age</SectionLabel>
+      <StepperRow
+        valueLabel={`${age} years`}
+        onDec={() => setAge((a) => Math.max(1, a - 1))}
+        onInc={() => setAge((a) => Math.min(100, a + 1))}
+        decLabel="Decrease age by 1 year"
+        incLabel="Increase age by 1 year"
+        hint="Used for Mifflin-St Jeor BMR calculation and pediatric safety rules"
+      />
+
+      {/* ── 3. Height (with cm / ft-in toggle) ─────────────────── */}
+      <div style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <SectionLabel>Height</SectionLabel>
+          <div style={{ display: 'inline-flex', gap: 4 }}>
+            <button
+              type="button"
+              onClick={() => setHeightUnit('cm')}
+              style={{
+                fontSize: 11,
+                fontFamily: 'Inter',
+                fontWeight: 700,
+                padding: '3px 8px',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                background: heightUnit === 'cm' ? T.primary : 'rgba(74, 58, 52, 0.08)',
+                color: heightUnit === 'cm' ? '#FFFFFF' : T.inkSoft,
+              }}
+            >
+              cm
+            </button>
+            <button
+              type="button"
+              onClick={() => setHeightUnit('ft_in')}
+              style={{
+                fontSize: 11,
+                fontFamily: 'Inter',
+                fontWeight: 700,
+                padding: '3px 8px',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                background: heightUnit === 'ft_in' ? T.primary : 'rgba(74, 58, 52, 0.08)',
+                color: heightUnit === 'ft_in' ? '#FFFFFF' : T.inkSoft,
+              }}
+            >
+              ft · in
+            </button>
+          </div>
+        </div>
+        <StepperRow
+          valueLabel={heightDisplay}
+          onDec={() => adjustHeight(-1)}
+          onInc={() => adjustHeight(1)}
+          decLabel="Decrease height"
+          incLabel="Increase height"
+          hint={`Normalized: ${heightCm} cm — used to calculate BMR`}
+        />
+      </div>
+
+      {/* ── 4. Weight (with kg / lb toggle) ───────────────────── */}
+      <div style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <SectionLabel>Weight</SectionLabel>
+          <div style={{ display: 'inline-flex', gap: 4 }}>
+            <button
+              type="button"
+              onClick={() => setWeightUnit('kg')}
+              style={{
+                fontSize: 11,
+                fontFamily: 'Inter',
+                fontWeight: 700,
+                padding: '3px 8px',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                background: weightUnit === 'kg' ? T.primary : 'rgba(74, 58, 52, 0.08)',
+                color: weightUnit === 'kg' ? '#FFFFFF' : T.inkSoft,
+              }}
+            >
+              kg
+            </button>
+            <button
+              type="button"
+              onClick={() => setWeightUnit('lb')}
+              style={{
+                fontSize: 11,
+                fontFamily: 'Inter',
+                fontWeight: 700,
+                padding: '3px 8px',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                background: weightUnit === 'lb' ? T.primary : 'rgba(74, 58, 52, 0.08)',
+                color: weightUnit === 'lb' ? '#FFFFFF' : T.inkSoft,
+              }}
+            >
+              lb
+            </button>
+          </div>
+        </div>
+        <StepperRow
+          valueLabel={weightDisplay}
+          onDec={() => adjustWeight(-1)}
+          onInc={() => adjustWeight(1)}
+          decLabel="Decrease weight"
+          incLabel="Increase weight"
+          hint={`Normalized: ${weightKg.toFixed(1)} kg — used for daily caloric expenditure`}
+        />
+      </div>
+
+      {/* ── 5. Activity Level ─────────────────────────────────── */}
+      <div style={{ marginTop: 16 }}>
+        <SectionLabel>Activity Level</SectionLabel>
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.12 }}
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}
+        >
+          {ACTIVITY_LEVELS.map((act) => (
+            <Pill
+              key={act.key}
+              layoutId={`act-${act.key}`}
+              active={activityLevel === act.key}
+              onClick={() => setActivityLevel(act.key)}
+              ariaLabel={`Select ${act.label} activity level`}
+            >
+              {act.label}
+            </Pill>
+          ))}
+        </motion.div>
+      </div>
+
+      {/* ── 6. Primary Goal ───────────────────────────────────── */}
+      <div style={{ marginTop: 16 }}>
+        <SectionLabel>Primary Goal</SectionLabel>
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.14 }}
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}
+        >
+          {PRIMARY_GOALS.map((g) => (
+            <Pill
+              key={g.key}
+              layoutId={`primary-goal-${g.key}`}
+              active={goal === g.key}
+              onClick={() => setGoal(g.key)}
+              ariaLabel={`Select ${g.label}`}
+            >
+              {g.label}
+            </Pill>
+          ))}
+        </motion.div>
+
+        {goal !== 'maintain' && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: T.inkSoft, marginBottom: 6 }}>
+              Target rate (kg/wk)
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {TARGET_RATES.map((rate) => (
+                <button
+                  key={rate.value}
+                  type="button"
+                  onClick={() => setTargetRate(rate.value)}
+                  style={{
+                    fontSize: 11,
+                    fontFamily: 'Inter',
+                    fontWeight: 700,
+                    padding: '5px 10px',
+                    borderRadius: 8,
+                    border: targetRate === rate.value ? `1px solid ${T.primary}` : '1px solid rgba(74, 58, 52, 0.15)',
+                    background: targetRate === rate.value ? T.primary : 'rgba(249, 242, 228, 0.7)',
+                    color: targetRate === rate.value ? '#FFFFFF' : T.ink,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {rate.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 7. Dynamic Metabolic Estimate Card ────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.16 }}
+        className="glass-card"
+        style={{
+          borderRadius: 18,
+          padding: '16px',
+          marginTop: 18,
+          marginBottom: 24,
+          background: 'rgba(201, 98, 45, 0.05)',
+          border: '1px solid rgba(201, 98, 45, 0.2)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <span style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 700, color: T.accentAmber }}>
+            Metabolic Estimate (Mifflin-St Jeor)
+          </span>
+          <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: T.inkSoft }}>
+            TDEE = BMR × Activity
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+          <div style={{ flex: 1, textAlign: 'center', padding: '10px 6px', borderRadius: 12, background: 'rgba(249, 242, 228, 0.7)' }}>
+            <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.ink }}>
+              {breakdown.bmr}
+            </div>
+            <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
+              Resting burn (BMR)
+            </div>
+          </div>
+          <div style={{ flex: 1, textAlign: 'center', padding: '10px 6px', borderRadius: 12, background: 'rgba(249, 242, 228, 0.7)' }}>
+            <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.accentAmber }}>
+              {breakdown.tdee}
+            </div>
+            <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
+              Daily burn (TDEE)
+            </div>
+          </div>
+          <div style={{ flex: 1, textAlign: 'center', padding: '10px 6px', borderRadius: 12, background: 'rgba(249, 242, 228, 0.7)' }}>
+            <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.primary }}>
+              {breakdown.recommendedKcal}
+            </div>
+            <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
+              Safe Target
+            </div>
+          </div>
+        </div>
+
+        <div style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft, marginBottom: 12, lineHeight: 1.45 }}>
+          {breakdown.explanation}
+        </div>
+
+        <motion.button
+          type="button"
+          onClick={() => {
+            setDailyKcalTarget(breakdown.recommendedKcal);
+            triggerToast(`Daily target updated to ${breakdown.recommendedKcal} kcal`);
+          }}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          style={{
+            width: '100%',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '9px 14px',
+            borderRadius: 12,
+            background: T.primary,
+            color: '#FFFFFF',
+            fontFamily: 'Inter',
+            fontSize: 12,
+            fontWeight: 700,
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px -2px rgba(46, 37, 34, 0.25)',
+          }}
+        >
+          <Zap size={13} fill="#FFFFFF" />
+          Apply calculated target ({breakdown.recommendedKcal} kcal)
+        </motion.button>
+      </motion.div>
+
+      {/* ── 8. Medical Conditions ─────────────────────────────── */}
+      <SectionLabel>Medical Conditions</SectionLabel>
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.18 }}
+        style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}
+      >
+        {MEDICAL_CONDITIONS.map((cond) => {
+          const isActive = medicalConditions.includes(cond.key);
+          return (
+            <Chip
+              key={cond.key}
+              label={cond.label}
+              active={isActive}
+              onClick={() => toggleCondition(cond.key)}
+            />
+          );
+        })}
+      </motion.div>
+
+      {/* ── 9. Diet Type ──────────────────────────────────────── */}
+      <SectionLabel>Diet Type</SectionLabel>
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.2 }}
+        style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}
+      >
+        {DIET_TYPES.map((d) => (
+          <Pill
+            key={d.key}
+            layoutId={`diet-${d.key}`}
+            active={dietType === d.key}
+            onClick={() => setDietType(d.key)}
+            ariaLabel={`Select ${d.label} diet`}
+          >
+            {d.label}
+          </Pill>
+        ))}
+      </motion.div>
+
+      {/* ── 10. Meals per day ─────────────────────────────────── */}
+      <SectionLabel>Meals per day</SectionLabel>
+      <StepperRow
+        valueLabel={`${mealsPerDay} meals`}
+        onDec={() => setMealsPerDay((m) => Math.max(1, m - 1))}
+        onInc={() => setMealsPerDay((m) => Math.min(6, m + 1))}
+        decLabel="Decrease meals per day"
+        incLabel="Increase meals per day"
+        hint="Divides daily calorie and glycemic budget across your meals"
+      />
+
+      {/* ── 11. Health Goals ──────────────────────────────────── */}
+      <div style={{ marginTop: 20 }}>
+        <SectionLabel>Health goals</SectionLabel>
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.22 }}
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}
+        >
+          {GOALS.map((g) => (
+            <Pill
+              key={g.key}
+              layoutId={`goal-${g.key}`}
+              active={!!goals[g.key]}
+              onClick={() => setGoals((s) => ({ ...s, [g.key]: !s[g.key] }))}
+              tone={g.tone}
+              ariaLabel={`Toggle ${g.label} goal`}
+            >
+              {g.label}
+            </Pill>
+          ))}
+        </motion.div>
+      </div>
+
+      {/* ── 12. Dietary Preferences ───────────────────────────── */}
       <SectionLabel>Dietary preferences</SectionLabel>
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.16 }}
+        transition={{ duration: 0.4, delay: 0.24 }}
         style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}
       >
         {PREFS.map((p) => (
@@ -573,11 +1107,12 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         ))}
       </motion.div>
 
+      {/* ── 13. Allergens to Avoid ────────────────────────────── */}
       <SectionLabel>Allergens to avoid</SectionLabel>
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.22 }}
+        transition={{ duration: 0.4, delay: 0.26 }}
         style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}
       >
         {ALLERGENS.map((a) => (
@@ -590,6 +1125,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         ))}
       </motion.div>
 
+      {/* ── 14. Daily kcal target ─────────────────────────────── */}
       <SectionLabel>Daily kcal target</SectionLabel>
       <StepperRow
         valueLabel={`${dailyKcalTarget} kcal`}
@@ -597,9 +1133,10 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         onInc={() => adjustDailyKcal(50)}
         decLabel="Decrease daily kcal target by 50"
         incLabel="Increase daily kcal target by 50"
-        hint="powers the Home progress bar — defaults to 2000 kcal/day"
+        hint="Powers the Home progress bar — can be set manually or via the calculator above"
       />
 
+      {/* ── 15. Daily grocery budget ──────────────────────────── */}
       <div style={{ marginTop: 16 }}>
         <SectionLabel>Daily grocery budget</SectionLabel>
         <StepperRow
@@ -612,6 +1149,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         />
       </div>
 
+      {/* ── 16. Servings on this plate ────────────────────────── */}
       <div style={{ marginTop: 16 }}>
         <SectionLabel>Servings on this plate</SectionLabel>
         <StepperRow
@@ -634,7 +1172,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
             role="status"
             aria-live="polite"
             style={{
-              position: 'absolute',
+              position: 'fixed',
               left: 24,
               right: 24,
               bottom: 110,
@@ -647,7 +1185,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
               fontWeight: 600,
               textAlign: 'center',
               boxShadow: '0 8px 24px rgba(46, 37, 34, 0.25)',
-              zIndex: 5,
+              zIndex: 99,
             }}
           >
             {toast}
@@ -676,7 +1214,7 @@ function StepperRow({ valueLabel, onDec, onInc, decLabel, incLabel, hint }: Step
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.28 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
           className="glass-card"
           style={{
             display: 'flex',
