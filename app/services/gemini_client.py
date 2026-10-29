@@ -91,7 +91,8 @@ Return ONLY a strict JSON object matching this exact schema:
 
 Guidelines:
 1. NON-FOOD SAFETY GATE:
-   - If the image contains NO food, produce, drinks, edible ingredients, or restaurant menus (e.g. shoes, laptop, car, pets, furniture, documents, people without food), set "is_food": false, "overall_confidence": 0.95, "detected": [], "rejection_reason_en": "No food detected in this photo. Please take a photo of food or ingredients.", "rejection_reason_bn": "এই ছবিতে কোনো খাবার বা উপাদান শনাক্ত করা যায়নি। অনুগ্রহ করে কোনো খাবার বা রান্নার উপাদানের ছবি তুলুন।"
+   - Set "is_food": false ONLY if the image unambiguously contains NO food, edible ingredients, produce, drinks, cooked meals, or restaurant menus (e.g. shoes, laptop, car, pets, furniture, documents, people without food). In that case, set "overall_confidence": 0.95, "detected": [], "rejection_reason_en": "No food detected in this photo. Please take a photo of food or ingredients.", "rejection_reason_bn": "এই ছবিতে কোনো খাবার বা উপাদান শনাক্ত করা যায়নি। অনুগ্রহ করে কোনো খাবার বা রান্নার উপাদানের ছবি তুলুন।"
+   - CRITICAL FOOD BIAS: If there is ANY edible item, bowl, plate, cup, cooked meal, rice, curry, lentil/dal, vegetable, fruit, fish, meat, bread/roti, snack, beverage, or grocery item present anywhere in the photo, you MUST set "is_food": true. Pay special attention to South Asian and Bangladeshi home dishes (such as steamed rice, biryani, khichuri, chicken/beef curry, fish jhol, dal, bhaji, bhorta, shak, paratha). Never reject food due to home plating or dim lighting.
 2. 3-WAY VISION MODES:
    - If cooked food / plated meal: set "input_mode": "cooked_meal", "is_food": true, detect every item in "detected", and infer cooking media (e.g., "Mustard oil", "Soybean oil", "Ghee", "Salt", "Sugar") in "inferred_hidden_ingredients". Detect dishes like khichuri / খিচুড়ি, biryani, dal, curry, meat, fish, vegetables, or rice.
    - If raw ingredients / groceries (raw chicken, vegetables, lentils, spices): set "input_mode": "raw_ingredients", "is_food": true, detect items in "detected", and provide 2 healthy South Asian / Bangladeshi recipes in "recipe_suggestions" with missing ingredients to buy.
@@ -133,21 +134,15 @@ class GeminiClient:
         """True iff a key is set — the route uses this to select a provider."""
         return bool(self.api_key)
 
-    def detect_vision(self, image_ref: str) -> VisionDetectionResult:
+    def detect_vision(self, image_ref: str) -> VisionDetectionResult | None:
         """Run multimodal vision analysis returning rich 3-way mode results."""
         if not self.is_configured():
-            return VisionDetectionResult(is_food=False, overall_confidence=0.0, detected=[])
+            return None
         try:
             image_b64, mime = _read_image(image_ref)
         except (OSError, ValueError) as exc:
             log.warning("Gemini: cannot read image (%s)", type(exc).__name__)
-            return VisionDetectionResult(
-                is_food=False,
-                overall_confidence=0.0,
-                rejection_reason_en="Cannot read image file",
-                rejection_reason_bn="ছবির ফাইলটি পড়া যায়নি",
-                detected=[],
-            )
+            return None
 
         body = {
             "contents": [
@@ -186,16 +181,17 @@ class GeminiClient:
             payload = resp.json()
         except (httpx.HTTPError, ValueError) as exc:
             log_http_failure("Gemini", exc, image_ref=image_ref)
-            return VisionDetectionResult(is_food=False, overall_confidence=0.0, detected=[])
+            return None
 
         text = _extract_text(payload)
         if not text:
-            return VisionDetectionResult(is_food=False, overall_confidence=0.0, detected=[])
+            return None
         return _parse_vision_result(text)
 
     def detect(self, image_ref: str) -> list[DetectedItem]:
         """Backward-compatible helper returning detected items list."""
-        return self.detect_vision(image_ref).detected
+        res = self.detect_vision(image_ref)
+        return res.detected if res is not None else []
 
 
 def _read_image(image_ref: str) -> tuple[str, str]:

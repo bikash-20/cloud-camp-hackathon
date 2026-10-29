@@ -302,6 +302,14 @@ export default function ResultsScreen({
   };
 
   const isNonFoodRejection = analysisResult?.is_food === false;
+  const rejectionReason = (analysisResult?.rejection_reason_en || '').toLowerCase();
+  const isServiceUnavailable =
+    isNonFoodRejection &&
+    (rejectionReason.includes('unavailable') ||
+      rejectionReason.includes('busy') ||
+      rejectionReason.includes('connection') ||
+      rejectionReason.includes('service') ||
+      (analysisResult?.overall_confidence === 0 && (!analysisResult?.detected || analysisResult.detected.length === 0)));
 
   const visibleItems = step === 1
     ? sorted.filter((it) => it.confidence < 80)
@@ -367,7 +375,9 @@ export default function ResultsScreen({
               margin: '0 0 8px',
             }}
           >
-            {isBn ? 'খাবার হিসেবে শনাক্ত করা যায়নি' : 'Non-Food Item Detected'}
+            {isServiceUnavailable
+              ? (isBn ? 'ভিশন সার্ভিস সংযোগ সমস্যা' : 'Vision Service Temporarily Unavailable')
+              : (isBn ? 'খাবার হিসেবে শনাক্ত করা যায়নি' : 'Non-Food Item Detected')}
           </h3>
           <p
             style={{
@@ -402,7 +412,9 @@ export default function ResultsScreen({
                 boxShadow: '0 4px 14px rgba(201, 98, 45, 0.35)',
               }}
             >
-              {isBn ? 'পুনরায় ছবি তুলুন' : 'Retake Photo'}
+              {isServiceUnavailable
+                ? (isBn ? 'আবার চেষ্টা করুন' : 'Retry Analysis')
+                : (isBn ? 'পুনরায় ছবি তুলুন' : 'Retake Photo')}
             </motion.button>
           )}
         </motion.div>

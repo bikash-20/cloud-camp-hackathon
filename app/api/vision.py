@@ -34,6 +34,7 @@ from app.services import reconcile as reconcile_svc
 from app.services.gemini_client import GeminiClient
 from app.services.groq_client import GroqClient
 from app.services.hf_client import HFClient
+from app.services.openrouter_client import OpenRouterVisionClient
 from app.services.trace import make_trace
 
 
@@ -49,6 +50,7 @@ _MAX_REQUEST_BYTES = 8 * 1024 * 1024
 # vision route can avoid pulling httpx + chromadb at import time.
 _gemini: GeminiClient | None = None
 _groq: GroqClient | None = None
+_openrouter: OpenRouterVisionClient | None = None
 _hf: HFClient | None = None
 _vector_cache: VectorCache | None = None
 _sqlite_cache: TTLCache | None = None
@@ -66,6 +68,13 @@ def _get_groq() -> GroqClient:
     if _groq is None:
         _groq = GroqClient()
     return _groq
+
+
+def _get_openrouter() -> OpenRouterVisionClient:
+    global _openrouter
+    if _openrouter is None:
+        _openrouter = OpenRouterVisionClient()
+    return _openrouter
 
 
 def _get_hf() -> HFClient:
@@ -93,14 +102,16 @@ def _get_sqlite_cache() -> TTLCache:
 def _reset_for_tests() -> None:
     """Drop the cached clients so the next call recreates them with
     whatever env vars are in scope. Test-only — do not call from prod."""
-    global _gemini, _groq, _hf, _vector_cache, _sqlite_cache
+    global _gemini, _groq, _openrouter, _hf, _vector_cache, _sqlite_cache
     if _gemini is not None:
         _gemini.close()
     if _groq is not None:
         _groq.close()
+    if _openrouter is not None:
+        _openrouter.close()
     if _hf is not None:
         _hf.close()
-    _gemini = _groq = _hf = None
+    _gemini = _groq = _openrouter = _hf = None
     _vector_cache = None
     _sqlite_cache = None
 
@@ -153,11 +164,17 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
     cache_key = _cache_key(body.image_ref)
     gemini = _get_gemini()
     groq = _get_groq()
+    openrouter = _get_openrouter()
     hf = _get_hf()
-    if not gemini.is_configured() and not groq.is_configured() and not hf.is_configured():
+    if (
+        not gemini.is_configured()
+        and not groq.is_configured()
+        and not openrouter.is_configured()
+        and not hf.is_configured()
+    ):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="No vision provider is configured. Set GEMINI_API_KEY, GROQ_API_KEY, or HF_API_TOKEN.",
+            detail="No vision provider is configured. Set GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY.",
         )
 
     # 1. Vector cache (ChromaDB) — fast path, with SQLite TTL fallback
@@ -186,53 +203,91 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
         return AnalyzeResult(detected=cached, pipeline=pipeline)
     pipeline[0].status = "done"
 
-    # 2. Live cascade pipeline: Gemini -> Groq fallback -> HF validation.
+    # 2. Multi-Provider Cascade Pipeline: Gemini -> Groq -> OpenRouter -> HF validation.
     detected_items: list[DetectedItem] = []
     primary_stage_label = "Vision ID (Gemini)"
     vision_meta: VisionDetectionResult | None = None
+    explicit_rejection: VisionDetectionResult | None = None
 
+    def _eval_provider_result(
+        res: VisionDetectionResult | None,
+        label: str,
+    ) -> bool:
+        nonlocal vision_meta, detected_items, explicit_rejection, primary_stage_label
+        if res is None:
+            return False
+
+        # Check explicit rejection (either non-food or blurry low-confidence photo)
+        if (res.is_food is False and res.overall_confidence >= 0.60) or (
+            res.overall_confidence < 0.45 and bool(res.rejection_reason_en)
+        ):
+            explicit_rejection = explicit_rejection or res
+            return False
+
+        # Check positive success (either detected food items or restaurant menu items)
+        if res.is_food and res.overall_confidence >= 0.45:
+            if res.detected or (res.input_mode == "restaurant_menu" and res.menu_analysis):
+                vision_meta = res
+                detected_items = res.detected
+                explicit_rejection = None
+                primary_stage_label = label
+                return True
+
+        return False
+
+    # Stage A: Google Gemini (Primary)
     if gemini.is_configured():
-        if hasattr(gemini, "detect_vision"):
-            vision_meta = gemini.detect_vision(body.image_ref)
-            detected_items = vision_meta.detected
-        else:
-            detected_items = gemini.detect(body.image_ref)
-            if detected_items:
-                conf = max([it.confidence / 100.0 for it in detected_items], default=0.85)
-                vision_meta = VisionDetectionResult(
-                    detected=detected_items,
-                    is_food=True,
-                    overall_confidence=conf,
-                )
-        if detected_items:
-            primary_stage_label = "Vision ID (Gemini)"
+        try:
+            if hasattr(gemini, "detect_vision"):
+                res = gemini.detect_vision(body.image_ref)
+                _eval_provider_result(res, "Vision ID (Gemini)")
+            elif hasattr(gemini, "detect"):
+                items = gemini.detect(body.image_ref)
+                if items:
+                    detected_items = items
+                    vision_meta = VisionDetectionResult(detected=items, is_food=True, overall_confidence=0.85)
+                    primary_stage_label = "Vision ID (Gemini)"
+        except Exception as exc:
+            log.warning("Gemini vision stage failed: %s; cascading...", exc)
 
-    # Cascade to Groq if Gemini was not configured or returned no items (and did not explicitly reject)
-    gemini_explicitly_not_food = vision_meta is not None and not vision_meta.is_food
-    if (not detected_items and not gemini_explicitly_not_food) and groq.is_configured():
-        if hasattr(groq, "detect_vision"):
-            groq_meta = groq.detect_vision(body.image_ref)
-            if groq_meta.detected or not groq_meta.is_food:
-                vision_meta = groq_meta
-                detected_items = groq_meta.detected
-                primary_stage_label = "Vision ID (Groq cascaded)"
-        else:
-            groq_items = groq.detect(body.image_ref)
-            if groq_items:
-                detected_items = groq_items
-                conf = max([it.confidence / 100.0 for it in groq_items], default=0.85)
-                vision_meta = VisionDetectionResult(
-                    detected=groq_items,
-                    is_food=True,
-                    overall_confidence=conf,
-                )
-                primary_stage_label = "Vision ID (Groq cascaded)"
+    # Stage B: Groq Vision (cascade if Gemini didn't return detected items)
+    has_success = bool(detected_items or (vision_meta and vision_meta.input_mode == "restaurant_menu"))
+    if not has_success and groq.is_configured():
+        try:
+            if hasattr(groq, "detect_vision"):
+                res = groq.detect_vision(body.image_ref)
+                _eval_provider_result(res, "Vision ID (Groq cascaded)")
+            elif hasattr(groq, "detect"):
+                items = groq.detect(body.image_ref)
+                if items:
+                    detected_items = items
+                    vision_meta = VisionDetectionResult(detected=items, is_food=True, overall_confidence=0.85)
+                    explicit_rejection = None
+                    primary_stage_label = "Vision ID (Groq cascaded)"
+        except Exception as exc:
+            log.warning("Groq vision stage failed: %s; cascading...", exc)
 
-    # 3. Non-Food Safety Gate (Pre-Cache Filter)
-    is_non_food = vision_meta is not None and not vision_meta.is_food
-    is_low_conf = vision_meta is not None and vision_meta.overall_confidence < 0.45
-    if is_non_food or is_low_conf:
-        # Pre-cache filter: BYPASS writing to ChromaDB / SQLite cache
+    # Stage C: OpenRouter Vision (cascade if Gemini and Groq didn't return detected items)
+    has_success = bool(detected_items or (vision_meta and vision_meta.input_mode == "restaurant_menu"))
+    if not has_success and openrouter.is_configured():
+        try:
+            if hasattr(openrouter, "detect_vision"):
+                res = openrouter.detect_vision(body.image_ref)
+                _eval_provider_result(res, "Vision ID (OpenRouter cascaded)")
+            elif hasattr(openrouter, "detect"):
+                items = openrouter.detect(body.image_ref)
+                if items:
+                    detected_items = items
+                    vision_meta = VisionDetectionResult(detected=items, is_food=True, overall_confidence=0.85)
+                    explicit_rejection = None
+                    primary_stage_label = "Vision ID (OpenRouter cascaded)"
+        except Exception as exc:
+            log.warning("OpenRouter vision stage failed: %s; cascading...", exc)
+
+    # 3. Explicit Non-Food / Blurry Safety Gate (Pre-Cache Filter)
+    has_success = bool(detected_items or (vision_meta and vision_meta.input_mode == "restaurant_menu"))
+    if not has_success and explicit_rejection is not None:
+        is_non_food = not explicit_rejection.is_food
         pipeline.extend(
             [
                 make_trace(
@@ -248,23 +303,17 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
             detected=[],
             pipeline=pipeline,
             is_food=False,
-            input_mode=vision_meta.input_mode if vision_meta else "cooked_meal",
-            overall_confidence=vision_meta.overall_confidence if vision_meta else 0.0,
-            rejection_reason_en=(
-                vision_meta.rejection_reason_en
-                if (vision_meta and vision_meta.rejection_reason_en)
-                else "No food detected in this photo. Please retake photo with food or ingredients."
-            ),
-            rejection_reason_bn=(
-                vision_meta.rejection_reason_bn
-                if (vision_meta and vision_meta.rejection_reason_bn)
-                else "এই ছবিতে কোনো খাবার বা উপাদান শনাক্ত করা যায়নি। অনুগ্রহ করে কোনো খাবারের ছবি তুলুন।"
-            ),
+            input_mode=explicit_rejection.input_mode,
+            overall_confidence=explicit_rejection.overall_confidence,
+            rejection_reason_en=explicit_rejection.rejection_reason_en
+            or "No food detected in this photo. Please retake photo with food or ingredients.",
+            rejection_reason_bn=explicit_rejection.rejection_reason_bn
+            or "এই ছবিতে কোনো খাবার বা উপাদান শনাক্ত করা যায়নি। অনুগ্রহ করে কোনো খাবারের ছবি তুলুন।",
         )
 
     hf_labels = hf.classify(body.image_ref) if hf.is_configured() else []
 
-    if detected_items or hf_labels:
+    if detected_items or hf_labels or (vision_meta and vision_meta.input_mode == "restaurant_menu" and vision_meta.menu_analysis):
         merged = reconcile_svc.merge(detected_items, hf_labels)
         detected = [portion_svc.estimate(it) for it in merged]
         pipeline.extend(
@@ -272,7 +321,7 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
                 make_trace(
                     "vision-id",
                     primary_stage_label,
-                    "done" if detected_items else "fallback",
+                    "done" if (detected_items or (vision_meta and vision_meta.menu_analysis)) else "fallback",
                 ),
                 make_trace(
                     "hf-validate",
@@ -287,13 +336,22 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
             ]
         )
     else:
-        detected = []
+        # All providers failed or were unavailable (network error / API quota issue)
         pipeline.extend(
             [
-                make_trace("vision-id", "Vision ID (no detections)", "fallback"),
-                make_trace("hf-validate", "HF validator (no detections)", "fallback"),
-                make_trace("reconcile", "Reconcile (no detections)", "fallback"),
+                make_trace("vision-id", "Vision ID (Provider failure)", "fallback"),
+                make_trace("hf-validate", "HF validator (bypassed)", "fallback"),
+                make_trace("reconcile", "Reconcile (bypassed)", "fallback"),
             ]
+        )
+        return AnalyzeResult(
+            detected=[],
+            pipeline=pipeline,
+            is_food=False,
+            input_mode="cooked_meal",
+            overall_confidence=0.0,
+            rejection_reason_en="Vision analysis service is temporarily busy or connection failed. Please check your network and try again.",
+            rejection_reason_bn="ভিশন এআই সার্ভিস এই মুহূর্তে ব্যস্ত বা সংযোগ বিচ্ছিন্ন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।",
         )
 
     detected = [d.model_copy(deep=True) for d in detected]
@@ -328,4 +386,4 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
 
 
 # Re-exported for test fixtures.
-__all__ = ["router", "AnalyzeRequest", "AnalyzeResult", "_reset_for_tests", "_get_gemini", "_get_groq", "_get_hf"]
+__all__ = ["router", "AnalyzeRequest", "AnalyzeResult", "_reset_for_tests", "_get_gemini", "_get_groq", "_get_openrouter", "_get_hf"]

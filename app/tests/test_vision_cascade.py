@@ -133,3 +133,31 @@ def test_neither_gemini_nor_groq_nor_hf_returns_503(test_client: TestClient, mon
     resp = test_client.post("/api/vision/analyze", json={"image_ref": "fresh-cascade-test-4.jpg"})
     assert resp.status_code == 503
     assert "GROQ_API_KEY" in resp.json()["detail"]
+
+
+def test_gemini_and_groq_failure_cascades_to_openrouter(test_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When both Gemini and Groq fail, pipeline cascades to OpenRouter Vision."""
+    or_item = DetectedItem(name="Begun bhaji", name_bn="বেগুন ভাজি", confidence=93, grams=120)
+    gemini = _MockVisionProvider(configured=True, return_items=[])
+    groq = _MockVisionProvider(configured=True, return_items=[])
+    openrouter = _MockVisionProvider(configured=True, return_items=[or_item])
+    hf = _MockHFClassifier(configured=False)
+
+    monkeypatch.setattr(vision_mod, "_get_gemini", lambda: gemini)
+    monkeypatch.setattr(vision_mod, "_get_groq", lambda: groq)
+    monkeypatch.setattr(vision_mod, "_get_openrouter", lambda: openrouter)
+    monkeypatch.setattr(vision_mod, "_get_hf", lambda: hf)
+
+    resp = test_client.post("/api/vision/analyze", json={"image_ref": "fresh-cascade-test-5.jpg"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["detected"]) == 1
+    assert body["detected"][0]["name"] == "Begun bhaji"
+    assert body["detected"][0]["name_bn"] == "বেগুন ভাজি"
+    assert gemini.call_count == 1
+    assert groq.call_count == 1
+    assert openrouter.call_count == 1
+    trace = {t["stage"]: t for t in body["pipeline"]}
+    assert trace["vision-id"]["status"] == "done"
+    assert "OpenRouter" in trace["vision-id"]["label"]
+
