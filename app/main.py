@@ -26,6 +26,34 @@ from app.api import grocery, meals, nutrition, profile, vision
 from app.services.state import init_state
 
 
+def _load_env() -> None:
+    """Best-effort loader for local .env files (app/.env or root .env)."""
+    cwd = Path.cwd().resolve()
+    candidates = [
+        cwd / "app" / ".env",
+        cwd / ".env",
+        Path(__file__).resolve().parent / ".env",
+        Path(__file__).resolve().parent.parent / ".env",
+    ]
+    for p in candidates:
+        if p.is_file():
+            try:
+                for line in p.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, _, v = line.partition("=")
+                    k = k.strip()
+                    v = v.strip().strip("'\"")
+                    if k and k not in os.environ:
+                        os.environ[k] = v
+            except Exception:
+                pass
+
+
+_load_env()
+
+
 def _state_path() -> Path:
     """Resolve the JSON-file path backing the in-memory state store.
 

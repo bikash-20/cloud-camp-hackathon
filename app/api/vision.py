@@ -32,6 +32,7 @@ from app.models.schemas import AnalyzeResult, DetectedItem, PipelineTrace
 from app.services import portion as portion_svc
 from app.services import reconcile as reconcile_svc
 from app.services.gemini_client import GeminiClient
+from app.services.groq_client import GroqClient
 from app.services.hf_client import HFClient
 from app.services.trace import make_trace
 
@@ -47,6 +48,7 @@ _MAX_REQUEST_BYTES = 8 * 1024 * 1024
 # Process-wide clients. Lazy-instantiated so tests that never call the
 # vision route can avoid pulling httpx + chromadb at import time.
 _gemini: GeminiClient | None = None
+_groq: GroqClient | None = None
 _hf: HFClient | None = None
 _vector_cache: VectorCache | None = None
 _sqlite_cache: TTLCache | None = None
@@ -57,6 +59,13 @@ def _get_gemini() -> GeminiClient:
     if _gemini is None:
         _gemini = GeminiClient()
     return _gemini
+
+
+def _get_groq() -> GroqClient:
+    global _groq
+    if _groq is None:
+        _groq = GroqClient()
+    return _groq
 
 
 def _get_hf() -> HFClient:
@@ -84,12 +93,14 @@ def _get_sqlite_cache() -> TTLCache:
 def _reset_for_tests() -> None:
     """Drop the cached clients so the next call recreates them with
     whatever env vars are in scope. Test-only — do not call from prod."""
-    global _gemini, _hf, _vector_cache, _sqlite_cache
+    global _gemini, _groq, _hf, _vector_cache, _sqlite_cache
     if _gemini is not None:
         _gemini.close()
+    if _groq is not None:
+        _groq.close()
     if _hf is not None:
         _hf.close()
-    _gemini = _hf = None
+    _gemini = _groq = _hf = None
     _vector_cache = None
     _sqlite_cache = None
 
@@ -141,11 +152,12 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
     ]
     cache_key = _cache_key(body.image_ref)
     gemini = _get_gemini()
+    groq = _get_groq()
     hf = _get_hf()
-    if not gemini.is_configured() and not hf.is_configured():
+    if not gemini.is_configured() and not groq.is_configured() and not hf.is_configured():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="No vision provider is configured. Set GEMINI_API_KEY or HF_API_TOKEN.",
+            detail="No vision provider is configured. Set GEMINI_API_KEY, GROQ_API_KEY, or HF_API_TOKEN.",
         )
 
     # 1. Vector cache (ChromaDB) — fast path. Falls through silently
@@ -165,19 +177,33 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
             return AnalyzeResult(detected=cached, pipeline=pipeline)
     pipeline[0].status = "done"
 
-    # 2. Live pipeline: Gemini (if key) || HF (if key).
-    gemini_items = gemini.detect(body.image_ref) if gemini.is_configured() else []
+    # 2. Live cascade pipeline: Gemini -> Groq fallback -> HF validation.
+    detected_items: list[DetectedItem] = []
+    primary_stage_label = "Vision ID (Gemini)"
+
+    if gemini.is_configured():
+        detected_items = gemini.detect(body.image_ref)
+        if detected_items:
+            primary_stage_label = "Vision ID (Gemini)"
+
+    # Cascade to Groq if Gemini was not configured or returned no items (e.g. error, rate limit, or miss)
+    if not detected_items and groq.is_configured():
+        groq_items = groq.detect(body.image_ref)
+        if groq_items:
+            detected_items = groq_items
+            primary_stage_label = "Vision ID (Groq cascaded)"
+
     hf_labels = hf.classify(body.image_ref) if hf.is_configured() else []
 
-    if gemini_items or hf_labels:
-        merged = reconcile_svc.merge(gemini_items, hf_labels)
+    if detected_items or hf_labels:
+        merged = reconcile_svc.merge(detected_items, hf_labels)
         detected = [portion_svc.estimate(it) for it in merged]
         pipeline.extend(
             [
                 make_trace(
                     "vision-id",
-                    "Vision ID (Gemini)",
-                    "done" if gemini_items else "fallback",
+                    primary_stage_label,
+                    "done" if detected_items else "fallback",
                 ),
                 make_trace(
                     "hf-validate",
@@ -187,7 +213,7 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
                 make_trace(
                     "reconcile",
                     "Confidence-weighted reconcile",
-                    "done" if gemini_items and hf_labels else "fallback",
+                    "done" if detected_items and hf_labels else "fallback",
                 ),
             ]
         )
@@ -222,4 +248,4 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
 
 
 # Re-exported for test fixtures.
-__all__ = ["router", "AnalyzeRequest", "AnalyzeResult", "_reset_for_tests"]
+__all__ = ["router", "AnalyzeRequest", "AnalyzeResult", "_reset_for_tests", "_get_gemini", "_get_groq", "_get_hf"]

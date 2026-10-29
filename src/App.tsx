@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { T, TABS } from './data';
-import { getProfile, saveMeal, analyzeMeal } from './lib/api';
-import { NUTRITION_DB } from './data';
+import { getProfile, saveMeal, analyzeMeal, resolveNutrition } from './lib/api';
+import { getEffectiveNutrition } from './lib/personalize';
 import { getSession } from './lib/auth';
 import { ThemeProvider } from './theme/ThemeContext';
 import type { AuthSession, DetectedItem, PipelineTrace, UserProfile } from './types/schemas';
@@ -139,10 +139,23 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
     setDetected(next);
     setPipeline(trace);
 
+    let resolvedFactsMap: Record<string, import('./types/schemas').NutritionFacts> = {};
+    if (next.length > 0) {
+      try {
+        const res = await resolveNutrition(next, profile ?? undefined);
+        for (const item of res.resolved) {
+          if (item.nutrition) {
+            resolvedFactsMap[item.name.toLowerCase().trim()] = item.nutrition;
+          }
+        }
+      } catch {
+        // Fall back to local estimation
+      }
+    }
+
     const totals = next.reduce(
       (acc, it) => {
-        const n = NUTRITION_DB[it.name];
-        if (!n) return acc;
+        const n = getEffectiveNutrition(it.name, resolvedFactsMap[it.name.toLowerCase().trim()]);
         const factor = it.grams / 100;
         return {
           kcal: acc.kcal + n.kcal * factor,

@@ -3,9 +3,9 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles } from 'lucide-react';
 import { T, NUTRITION_DB } from '../../data';
 import { resolveNutrition } from '../../lib/api';
-import { focusedNutrients, unitForNutrient } from '../../lib/personalize';
+import { focusedNutrients, unitForNutrient, getEffectiveNutrition } from '../../lib/personalize';
 import { MOCK_TARGETS } from '../../mocks/fixtures';
-import type { DetectedItem, NutrientContribution, UserProfile } from '../../types/schemas';
+import type { DetectedItem, NutrientContribution, NutritionFacts, UserProfile } from '../../types/schemas';
 import Bar from '../Bar';
 import useCountUp from '../useCountUp';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
@@ -639,14 +639,16 @@ interface NutrientsScreenProps {
  */
 export default function NutrientsScreen({ detected = [], profile, onBack }: NutrientsScreenProps) {
   const { foodName, language } = useLanguage();
-  // Synchronously derive totals so count-up animations feel responsive.
-  // Glycemic is a grams-weighted average (not a sum) — a small portion of
-  // a high-glycemic item shouldn't dominate the meal's glycemic reading.
+  const [resolvedNutritionMap, setResolvedNutritionMap] = useState<Record<string, NutritionFacts>>({});
+  const [contributions, setContributions] = useState<NutrientContribution[]>([]);
+
+  // Synchronously derive totals so count-up animations feel responsive,
+  // enhanced by live resolved nutrition when available.
   const totals = useMemo(() => {
     const sums = { protein: 0, carbs: 0, fat: 0, fiber: 0, sodium: 0, sugar: 0, glycemicNum: 0, weight: 0 };
     for (const it of detected) {
-      const n = NUTRITION_DB[it.name];
-      if (!n) continue;
+      const key = it.name.toLowerCase().trim();
+      const n = getEffectiveNutrition(it.name, resolvedNutritionMap[key]);
       const factor = it.grams / 100;
       sums.protein += n.protein * factor;
       sums.carbs   += n.carbs   * factor;
@@ -654,7 +656,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
       sums.fiber   += n.fiber   * factor;
       sums.sodium  += n.sodium  * factor;
       sums.sugar   += n.sugar   * factor;
-      sums.glycemicNum += n.glycemic * factor;
+      sums.glycemicNum += (n.glycemic ?? 0.3) * factor;
       sums.weight += factor;
     }
     return {
@@ -662,16 +664,23 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
       fiber: sums.fiber, sodium: sums.sodium, sugar: sums.sugar,
       glycemic: sums.weight > 0 ? sums.glycemicNum / sums.weight : 0,
     };
-  }, [detected]);
+  }, [detected, resolvedNutritionMap]);
 
-  // Async nutrition resolution drives the explainability panel.
-  // Resolved in parallel with rendering — appears once the API "settles".
-  const [contributions, setContributions] = useState<NutrientContribution[]>([]);
+  // Async nutrition resolution drives the explainability panel and enriches totals.
   useEffect(() => {
     let cancelled = false;
     resolveNutrition(detected, profile)
       .then((res) => {
-        if (!cancelled) setContributions(res.contributions);
+        if (!cancelled) {
+          setContributions(res.contributions);
+          const map: Record<string, NutritionFacts> = {};
+          for (const r of res.resolved) {
+            if (r.nutrition) {
+              map[r.name.toLowerCase().trim()] = r.nutrition;
+            }
+          }
+          setResolvedNutritionMap(map);
+        }
       })
       .catch((err) => {
         // eslint-disable-next-line no-console

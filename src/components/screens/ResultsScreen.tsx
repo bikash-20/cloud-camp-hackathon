@@ -4,6 +4,7 @@ import { Edit3, Plus, Share2 } from 'lucide-react';
 import {
   T, NUTRITION_DB, HISTORY_SUGGESTIONS,
 } from '../../data';
+import { getEffectiveNutrition } from '../../lib/personalize';
 import type { DetectedItem, UserProfile } from '../../types/schemas';
 import PhotoThumb from '../PhotoThumb';
 import StepIndicator from '../StepIndicator';
@@ -28,8 +29,7 @@ interface Totals {
 function totalsFor(detected: DetectedItem[]): Totals {
   return detected.reduce(
     (acc, it) => {
-      const n = NUTRITION_DB[it.name];
-      if (!n) return acc;
+      const n = getEffectiveNutrition(it.name);
       const factor = it.grams / 100;
       return {
         protein: acc.protein + n.protein * factor,
@@ -109,8 +109,8 @@ export default function ResultsScreen({
       if (sortKey === 'name') return a.name.localeCompare(b.name);
       if (sortKey === 'grams') return b.grams - a.grams;
       if (sortKey === 'kcal') {
-        const ka = (NUTRITION_DB[a.name]?.kcal ?? 0) * a.grams;
-        const kb = (NUTRITION_DB[b.name]?.kcal ?? 0) * b.grams;
+        const ka = getEffectiveNutrition(a.name).kcal * (a.grams / 100);
+        const kb = getEffectiveNutrition(b.name).kcal * (b.grams / 100);
         return kb - ka;
       }
       return b.confidence - a.confidence;

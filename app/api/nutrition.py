@@ -143,8 +143,15 @@ def resolve_with_cascade(
     tests can stub each layer). The live clients are passed in by the
     route handler via `_get_*()` accessors.
     """
-    # 1. Seeded cache (matches frontend's MOCK_NUTRITION_DB).
-    if (descriptor := NUTRITION_DB.get(item.name)) is not None:
+    # 1. Seeded cache (matches frontend's MOCK_NUTRITION_DB, case-insensitive).
+    descriptor = NUTRITION_DB.get(item.name)
+    if descriptor is None:
+        item_lower = item.name.lower().strip()
+        for k, v in NUTRITION_DB.items():
+            if k.lower().strip() == item_lower:
+                descriptor = v
+                break
+    if descriptor is not None:
         return ResolvedItem(
             **item.model_dump(),
             nutrition=descriptor,

@@ -63,6 +63,7 @@ def merge(
             out.append(
                 DetectedItem(
                     name=_normalize_label(hf_label),
+                    name_bn=g.name_bn,
                     confidence=hf_conf,
                     grams=g.grams,
                     note=g.note,

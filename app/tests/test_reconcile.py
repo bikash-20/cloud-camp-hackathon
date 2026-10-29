@@ -77,3 +77,12 @@ def test_unused_hf_label_is_kept() -> None:
     assert len(out) == 2
     names_l = [x.name.lower() for x in out]
     assert any("chicken" in n for n in names_l)
+
+
+def test_hf_higher_confidence_preserves_name_bn() -> None:
+    gemini = [DetectedItem(name="chicken biryani", name_bn="চিকেন বিরিয়ানি", confidence=70, grams=250)]
+    hf = [("chicken_biryani", 0.90)]
+    out = merge(gemini, hf)
+    assert len(out) == 1
+    assert out[0].name_bn == "চিকেন বিরিয়ানি"
+

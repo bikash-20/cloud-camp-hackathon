@@ -239,11 +239,48 @@ export default function CaptureScreen({
 
       const reader = new FileReader();
       reader.onload = () => {
-        const dataUrl = reader.result as string;
-        stopCamera();
-        setPhase('captured');
-        setAnalyzing(true);
-        onCapture(dataUrl);
+        const rawDataUrl = reader.result as string;
+        // Optimize and downscale large camera photos client-side to ensure
+        // fast transmission and stay safely within the 8 MB API cap.
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1440;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const optimized = canvas.toDataURL('image/jpeg', 0.88);
+            stopCamera();
+            setPhase('captured');
+            setAnalyzing(true);
+            onCapture(optimized);
+          } else {
+            stopCamera();
+            setPhase('captured');
+            setAnalyzing(true);
+            onCapture(rawDataUrl);
+          }
+        };
+        img.onerror = () => {
+          stopCamera();
+          setPhase('captured');
+          setAnalyzing(true);
+          onCapture(rawDataUrl);
+        };
+        img.src = rawDataUrl;
       };
       reader.readAsDataURL(file);
       // Reset input so the same file can be re-selected
@@ -290,7 +327,6 @@ export default function CaptureScreen({
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         onChange={handleFileChange}
         style={{ display: 'none' }}
         aria-hidden="true"

@@ -4,7 +4,8 @@ import {
   Check, Flame, Minus, Plus, Trash2, Edit3, ChevronDown,
 } from 'lucide-react';
 import { T, NUTRITION_DB, CATEGORY_TILES } from '../data';
-import type { DetectedItem, FoodDescriptor } from '../types/schemas';
+import { getEffectiveNutrition } from '../lib/personalize';
+import type { DetectedItem } from '../types/schemas';
 import Chip from './Chip';
 import AddCustomModal from './AddCustomModal';
 import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
@@ -17,9 +18,9 @@ interface ItemMeta {
 }
 
 function itemNutrition(item: DetectedItem): ItemMeta | null {
-  const n: FoodDescriptor | undefined = NUTRITION_DB[item.name];
-  if (!n) return null;
+  const n = getEffectiveNutrition(item.name);
   const factor = item.grams / 100;
+  const desc = NUTRITION_DB[item.name];
   return {
     protein: n.protein * factor,
     carbs: n.carbs * factor,
@@ -28,11 +29,11 @@ function itemNutrition(item: DetectedItem): ItemMeta | null {
     fiber: n.fiber * factor,
     sodium: n.sodium * factor,
     sugar: n.sugar * factor,
-    glycemic: n.glycemic,
-    emoji: n.emoji,
-    category: n.category,
-    alternatives: n.alternatives,
-    pairings: n.pairings,
+    glycemic: n.glycemic ?? 0.3,
+    emoji: desc?.emoji ?? '🍽️',
+    category: desc?.category ?? 'other',
+    alternatives: desc?.alternatives ?? [],
+    pairings: desc?.pairings ?? [],
   };
 }
 

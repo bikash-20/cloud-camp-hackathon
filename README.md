@@ -167,12 +167,12 @@ src/
 The image-analysis and nutrition-resolution flows call the FastAPI service:
 
 - **FastAPI** (Python 3.11)
-- **Gemini 2.0 Flash** (primary vision) + optional **Hugging Face** classifier (validator)
+- **Vision cascade**: **Gemini 2.0 Flash** (primary vision) → **Groq Vision** (fast multimodal cascade fallback via `llama-3.2-11b-vision-preview` or `qwen/qwen3.8-27b`) + optional **Hugging Face** classifier (validator)
 - **Nutrition cascade**: Open Food Facts → USDA → Fruityvice
 - **Cache**: ChromaDB lookup plus SQLite TTL writes (SQLite is not yet read by the vision route)
 
 Set `VITE_API_BASE` to the backend URL in the Vercel project settings. Set
-`GEMINI_API_KEY` on the backend host (Render); `HF_API_TOKEN` is optional.
+`GEMINI_API_KEY` and/or `GROQ_API_KEY` on the backend host (Render); `HF_API_TOKEN` is optional.
 The image-analysis route returns an error when no vision provider is
 configured and never substitutes sample detections for an uploaded photo.
 

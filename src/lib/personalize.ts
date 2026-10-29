@@ -8,7 +8,7 @@
  */
 
 import type { NutritionFacts, NutrientContribution, UserProfile } from '../types/schemas';
-import { MOCK_TARGETS } from '../mocks/fixtures';
+import { MOCK_TARGETS, MOCK_NUTRITION_DB } from '../mocks/fixtures';
 
 // ── Nutrient focus per profile ──────────────────────────────────────────
 // Diabetic profiles care about sugar + fiber; everyone else sodium + fiber.
@@ -100,6 +100,93 @@ export function itemAmount(
   grams: number,
 ): number {
   return (nutrition as unknown as Record<string, number>)[nutrient] * (grams / 100);
+}
+
+/**
+ * Resolve effective nutrition facts for any food item.
+ * Falls back gracefully to case-insensitive dictionary lookups,
+ * domain culinary heuristics, and category estimates when an item
+ * is not found in the primary databases.
+ */
+export function getEffectiveNutrition(
+  name: string,
+  nutrition?: NutritionFacts | null,
+): NutritionFacts {
+  if (nutrition && (nutrition.kcal > 0 || nutrition.protein > 0 || nutrition.carbs > 0)) {
+    return nutrition;
+  }
+  const lower = name.toLowerCase().trim();
+  for (const [k, v] of Object.entries(MOCK_NUTRITION_DB)) {
+    if (k.toLowerCase().trim() === lower) {
+      return v;
+    }
+  }
+  if (
+    lower.includes('rice') ||
+    lower.includes('grain') ||
+    lower.includes('khichuri') ||
+    lower.includes('biryani') ||
+    lower.includes('roti') ||
+    lower.includes('bread') ||
+    lower.includes('paratha')
+  ) {
+    return { protein: 3.5, carbs: 26.0, fat: 2.5, kcal: 145, fiber: 1.2, sodium: 180, sugar: 0.5, glycemic: 0.65 };
+  }
+  if (
+    lower.includes('dal') ||
+    lower.includes('lentil') ||
+    lower.includes('soup') ||
+    lower.includes('bean')
+  ) {
+    return { protein: 9.0, carbs: 18.0, fat: 1.5, kcal: 120, fiber: 6.5, sodium: 240, sugar: 1.5, glycemic: 0.25 };
+  }
+  if (
+    lower.includes('chicken') ||
+    lower.includes('beef') ||
+    lower.includes('meat') ||
+    lower.includes('curry') ||
+    lower.includes('mutton') ||
+    lower.includes('kebab')
+  ) {
+    return { protein: 22.0, carbs: 4.0, fat: 7.0, kcal: 170, fiber: 0.5, sodium: 340, sugar: 0.8, glycemic: 0.20 };
+  }
+  if (
+    lower.includes('fish') ||
+    lower.includes('salmon') ||
+    lower.includes('shrimp') ||
+    lower.includes('seafood') ||
+    lower.includes('macher')
+  ) {
+    return { protein: 20.0, carbs: 1.5, fat: 4.5, kcal: 130, fiber: 0.2, sodium: 210, sugar: 0.2, glycemic: 0.05 };
+  }
+  if (
+    lower.includes('egg') ||
+    lower.includes('dim') ||
+    lower.includes('omelet')
+  ) {
+    return { protein: 12.5, carbs: 1.0, fat: 9.5, kcal: 143, fiber: 0.0, sodium: 140, sugar: 0.5, glycemic: 0.00 };
+  }
+  if (
+    lower.includes('salad') ||
+    lower.includes('vegetable') ||
+    lower.includes('veggie') ||
+    lower.includes('bhorta') ||
+    lower.includes('bhaji') ||
+    lower.includes('cucumber') ||
+    lower.includes('raita')
+  ) {
+    return { protein: 2.0, carbs: 5.5, fat: 1.0, kcal: 40, fiber: 2.2, sodium: 60, sugar: 2.5, glycemic: 0.10 };
+  }
+  if (
+    lower.includes('fruit') ||
+    lower.includes('apple') ||
+    lower.includes('banana') ||
+    lower.includes('mango') ||
+    lower.includes('berry')
+  ) {
+    return { protein: 0.8, carbs: 18.0, fat: 0.3, kcal: 75, fiber: 2.5, sodium: 2, sugar: 14.0, glycemic: 0.35 };
+  }
+  return { protein: 5.0, carbs: 15.0, fat: 3.5, kcal: 110, fiber: 1.5, sodium: 150, sugar: 1.5, glycemic: 0.30 };
 }
 
 /** Display unit for a given nutrient, read from the rule table. Mirrors the

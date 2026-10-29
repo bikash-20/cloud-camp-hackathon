@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildContributions, mealTotals } from './personalize';
+import { buildContributions, mealTotals, getEffectiveNutrition } from './personalize';
 import { MOCK_NUTRITION_DB, MOCK_TARGETS } from '../mocks/fixtures';
 import type { ResolvedItem, UserProfile } from '../types/schemas';
 
@@ -133,5 +133,30 @@ describe('buildContributions', () => {
     // Both items should not appear simultaneously for the same nutrient.
     const raitas = out.filter((c) => c.itemName === 'Cucumber raita');
     expect(raitas.length).toBe(0);
+  });
+});
+
+describe('getEffectiveNutrition', () => {
+  it('returns valid nutrition when provided', () => {
+    const facts = { protein: 20, carbs: 10, fat: 5, kcal: 165, fiber: 2, sodium: 100, sugar: 1, glycemic: 0.2 };
+    expect(getEffectiveNutrition('Any Food', facts)).toEqual(facts);
+  });
+
+  it('resolves case-insensitively from mock database', () => {
+    const facts = getEffectiveNutrition('chicken biryani');
+    expect(facts.kcal).toBe(165);
+    expect(facts.protein).toBe(6.0);
+  });
+
+  it('estimates nutrition from culinary keywords for unseen items', () => {
+    const rice = getEffectiveNutrition('Steamed Basmati Rice');
+    expect(rice.kcal).toBeGreaterThan(0);
+    expect(rice.carbs).toBeGreaterThan(15);
+
+    const chicken = getEffectiveNutrition('Chicken Korma');
+    expect(chicken.protein).toBeGreaterThan(15);
+
+    const dal = getEffectiveNutrition('Red Lentil Dal');
+    expect(dal.fiber).toBeGreaterThan(3);
   });
 });
