@@ -115,7 +115,11 @@ class CoachService:
     ) -> None:
         self.gemini_key = gemini_api_key or os.environ.get("GEMINI_API_KEY", "").strip()
         self.openrouter_key = openrouter_api_key or os.environ.get("OPENROUTER_API_KEY", "").strip()
-        self.openrouter_model = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001").strip()
+        self.openrouter_model = (
+            os.environ.get("OPENROUTER_FALLBACK_MODEL")
+            or os.environ.get("OPENROUTER_MODEL")
+            or "openrouter/auto"
+        ).strip()
         self.groq_key = groq_api_key or os.environ.get("GROQ_API_KEY", "").strip()
 
     def chat(self, req: CoachChatRequest) -> CoachChatResponse:
@@ -152,7 +156,13 @@ class CoachService:
         reply_text = self._call_gemini(system_prompt, messages)
 
         if not reply_text and self.openrouter_key:
-            log.info("Gemini failed/rate-limited. Cascading to OpenRouter (%s)...", self.openrouter_model)
+            active_model = (
+                os.environ.get("OPENROUTER_FALLBACK_MODEL")
+                or os.environ.get("OPENROUTER_MODEL")
+                or self.openrouter_model
+                or "openrouter/auto"
+            ).strip()
+            log.info("Gemini failed/rate-limited. Cascading to OpenRouter (%s)...", active_model)
             reply_text = self._call_openrouter(system_prompt, messages)
 
         if not reply_text and self.groq_key:
@@ -313,9 +323,18 @@ class CoachService:
         return None
 
     def _call_openrouter(self, system_prompt: str, messages: list[CoachMessage]) -> str | None:
-        """Call OpenRouter API as resilient fallback."""
+        """Call OpenRouter API as resilient fallback with dynamic model selection."""
         if not self.openrouter_key:
             return None
+
+        model = (
+            os.environ.get("OPENROUTER_FALLBACK_MODEL")
+            or os.environ.get("OPENROUTER_MODEL")
+            or self.openrouter_model
+            or "openrouter/auto"
+        ).strip()
+        if not model:
+            model = "openrouter/auto"
 
         headers = {
             "Content-Type": "application/json",
@@ -341,7 +360,7 @@ class CoachService:
             openrouter_messages.append({"role": role, "content": content})
 
         body = {
-            "model": self.openrouter_model,
+            "model": model,
             "messages": openrouter_messages,
             "temperature": 0.4,
             "max_tokens": 800,

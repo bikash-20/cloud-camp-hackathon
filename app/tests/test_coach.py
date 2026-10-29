@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
@@ -129,5 +130,46 @@ def test_coach_openrouter_fallback(monkeypatch: pytest.MonkeyPatch, client: Test
     data = res.json()
     assert called_openrouter is True
     assert "OpenRouter" in data["reply"]
+
+
+def test_coach_openrouter_dynamic_model_selection(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify OpenRouter uses OPENROUTER_FALLBACK_MODEL or defaults to 'openrouter/auto'."""
+    import httpx
+    from app.services.coach_service import CoachService
+
+    captured_payloads: list[dict] = []
+
+    def mock_post(self: httpx.Client, url: str, **kwargs: Any) -> Any:
+        captured_payloads.append(kwargs.get("json", {}))
+
+        class MockResponse:
+            status_code = 200
+
+            def json(self) -> dict:
+                return {"choices": [{"message": {"content": "Dynamic model test reply."}}]}
+
+            @property
+            def text(self) -> str:
+                return ""
+
+        return MockResponse()
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post)
+
+    # Case A: OPENROUTER_FALLBACK_MODEL is unset -> defaults to 'openrouter/auto'
+    monkeypatch.delenv("OPENROUTER_FALLBACK_MODEL", raising=False)
+    monkeypatch.delenv("OPENROUTER_MODEL", raising=False)
+    service_a = CoachService(openrouter_api_key="test-key")
+    reply_a = service_a._call_openrouter("sys prompt", [CoachMessage(role="user", content="Test")])
+    assert reply_a == "Dynamic model test reply."
+    assert captured_payloads[-1]["model"] == "openrouter/auto"
+
+    # Case B: OPENROUTER_FALLBACK_MODEL is configured via env
+    monkeypatch.setenv("OPENROUTER_FALLBACK_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+    service_b = CoachService(openrouter_api_key="test-key")
+    reply_b = service_b._call_openrouter("sys prompt", [CoachMessage(role="user", content="Test")])
+    assert reply_b == "Dynamic model test reply."
+    assert captured_payloads[-1]["model"] == "meta-llama/llama-3.3-70b-instruct:free"
+
 
 
