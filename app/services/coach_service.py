@@ -507,3 +507,4 @@ def get_coach_service() -> CoachService:
     if _coach_service is None:
         _coach_service = CoachService()
     return _coach_service
+

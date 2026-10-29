@@ -17,6 +17,7 @@ import SectionLabel from '../SectionLabel';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 import { toBengaliDigits } from '../../lib/format';
 import { resolveMarketPrice } from '../../lib/marketPrices';
+import { fetchLivePrice } from '../../lib/priceScraper';
 
 const container = {
   hidden: {},
@@ -48,8 +49,38 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
   const [loading, setLoading] = useState(true);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [mealCount, setMealCount] = useState<number | null>(null);
+  const [livePriceMap, setLivePriceMap] = useState<Record<string, boolean>>({});
   const nextIdRef = useRef(100);
   const initialLoadRef = useRef(false);
+
+  // Probe live market prices asynchronously with 3s timeout
+  useEffect(() => {
+    let isCurrent = true;
+    const probeLive = async () => {
+      const statusMap: Record<string, boolean> = {};
+      for (const g of groups) {
+        for (const it of g.items) {
+          try {
+            const res = await fetchLivePrice(it.name);
+            if (res.is_live_price) {
+              statusMap[it.id] = true;
+            }
+          } catch {
+            // graceful fallback
+          }
+        }
+      }
+      if (isCurrent && Object.keys(statusMap).length > 0) {
+        setLivePriceMap(statusMap);
+      }
+    };
+    if (groups.length > 0) {
+      probeLive();
+    }
+    return () => {
+      isCurrent = false;
+    };
+  }, [groups]);
 
   // Load once on mount only. Subsequent profile updates (goals, prefs, etc.)
   // intentionally do NOT wipe the user's locally-added grocery items.
@@ -619,9 +650,39 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                             fontWeight: 600,
                             cursor: 'pointer',
                             minHeight: 28,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
                           }}
                         >
-                          ৳{item.price}
+                          <span>৳{item.price}</span>
+                          {livePriceMap[item.id] && (
+                            <span
+                              title={isBn ? 'লাইভ বাজারদর (Chaldal)' : 'Live Market Price (Chaldal)'}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
+                                fontSize: 9,
+                                fontWeight: 700,
+                                color: '#15803D',
+                                background: 'rgba(34, 197, 94, 0.12)',
+                                padding: '1px 5px',
+                                borderRadius: 6,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 4,
+                                  height: 4,
+                                  borderRadius: '50%',
+                                  background: '#22C55E',
+                                  display: 'inline-block',
+                                }}
+                              />
+                              ⚡ {isBn ? 'লাইভ' : 'Live'}
+                            </span>
+                          )}
                         </motion.button>
                       )}
 

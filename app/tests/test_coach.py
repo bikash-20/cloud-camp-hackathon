@@ -71,3 +71,4 @@ def test_coach_chat_behavioral_persona(client: TestClient) -> None:
     assert data["agent_type"] == "behavioral"
     assert len(data["reply"]) > 50
     assert any("দাওয়াত" in p or "মিষ্টি" in p or "অভ্যাস" in p for p in data["suggested_prompts"])
+

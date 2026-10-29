@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateDietaryPivots } from './pivotEngine';
+import { generateDietaryPivots, generateDietaryPivotsAsync } from './pivotEngine';
 import type { DetectedItem, UserProfile } from '../types/schemas';
 
 const BASE_PROFILE: UserProfile = {
@@ -64,5 +64,17 @@ describe('Dietary Pivot Engine', () => {
     expect(sodiumPivot).toBeDefined();
     expect(sodiumPivot?.delta.sodium).toBeLessThan(0); // Reduces sodium
     expect(sodiumPivot?.grocery_items_to_add.some((g) => g.name.includes('Cucumber'))).toBe(true);
+    expect(typeof sodiumPivot?.is_live_price).toBe('boolean');
+  });
+
+  it('asynchronously enriches pivots with live price status', async () => {
+    const detected: DetectedItem[] = [
+      { name: 'White Rice', name_bn: 'সাদা ভাত', confidence: 95, grams: 260 },
+    ];
+    const pivots = await generateDietaryPivotsAsync(detected, BASE_PROFILE, undefined, { forceLive: true });
+    expect(pivots.length).toBeGreaterThan(0);
+    expect(pivots[0].is_live_price).toBe(true);
+    expect(pivots[0].price_source).toContain('Chaldal Live');
   });
 });
+

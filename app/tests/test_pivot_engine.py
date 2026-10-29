@@ -36,3 +36,4 @@ def test_evaluate_dietary_pivots_suggests_brown_rice_swap():
     assert pivots[0]["delta"]["carbs_g"] < 0
     assert pivots[0]["delta"]["fiber_g"] > 0
     assert pivots[0]["glycemic_reduction_pct"] > 30
+

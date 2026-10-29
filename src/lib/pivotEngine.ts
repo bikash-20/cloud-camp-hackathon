@@ -10,6 +10,7 @@
 import type { DetectedItem, NutritionFacts, UserProfile } from '../types/schemas';
 import { getEffectiveNutrition } from './personalize';
 import { resolveMarketPrice } from './marketPrices';
+import { fetchLivePrice } from './priceScraper';
 
 export interface PivotItem {
   name: string;
@@ -42,6 +43,8 @@ export interface DietaryPivot {
   delta: NutrientDelta;
   glycemic_reduction_pct: number;
   grocery_items_to_add: Array<{ name: string; name_bn: string; price_bdt: number; category: string }>;
+  is_live_price: boolean;
+  price_source?: string;
 }
 
 export function generateDietaryPivots(
@@ -145,6 +148,8 @@ export function generateDietaryPivots(
         { name: 'Palong shak (Spinach)', name_bn: 'পালং শাক', price_bdt: 25, category: 'Produce' },
         { name: 'Green papaya (Kacha pepe)', name_bn: 'কাঁচা পেঁপে', price_bdt: 40, category: 'Produce' },
       ],
+      is_live_price: false,
+      price_source: 'TCB/DAM Benchmark',
     });
   }
 
@@ -206,6 +211,8 @@ export function generateDietaryPivots(
         { name: 'Cucumber (Shosha)', name_bn: 'শসা', price_bdt: 50, category: 'Produce' },
         { name: 'Lemon (Kagoji lebu)', name_bn: 'কাগজি লেবু', price_bdt: 25, category: 'Produce' },
       ],
+      is_live_price: false,
+      price_source: 'TCB/DAM Benchmark',
     });
   }
 
@@ -259,8 +266,58 @@ export function generateDietaryPivots(
         { name: 'Eggs (Farm, brown)', name_bn: 'ফার্মের লাল ডিম', price_bdt: 140, category: 'Protein' },
         { name: 'Masoor dal (fine)', name_bn: 'চিকন মসুর ডাল', price_bdt: 150, category: 'Grains & staples' },
       ],
+      is_live_price: false,
+      price_source: 'TCB/DAM Benchmark',
     });
   }
 
   return pivots;
+}
+
+/**
+ * Asynchronously enriches dietary pivots with live scraped prices from Chaldal
+ * wrapped in a strict 3000ms timeout with automatic benchmark fallback.
+ */
+export async function generateDietaryPivotsAsync(
+  detected: DetectedItem[],
+  profile?: UserProfile | null,
+  resolvedFactsMap?: Record<string, NutritionFacts>,
+  options?: { forceLive?: boolean }
+): Promise<DietaryPivot[]> {
+  const syncPivots = generateDietaryPivots(detected, profile, resolvedFactsMap);
+  if (syncPivots.length === 0) return [];
+
+  const updatedPivots = await Promise.all(
+    syncPivots.map(async (pivot) => {
+      let hasLive = false;
+      let primarySource = 'TCB/DAM Benchmark';
+
+      const updatedGroceryItems = await Promise.all(
+        pivot.grocery_items_to_add.map(async (gItem) => {
+          try {
+            const liveRes = await fetchLivePrice(gItem.name, gItem.name_bn, options);
+            if (liveRes.is_live_price) {
+              hasLive = true;
+              primarySource = liveRes.source;
+            }
+            return {
+              ...gItem,
+              price_bdt: liveRes.price_bdt > 0 ? liveRes.price_bdt : gItem.price_bdt,
+            };
+          } catch {
+            return gItem;
+          }
+        })
+      );
+
+      return {
+        ...pivot,
+        grocery_items_to_add: updatedGroceryItems,
+        is_live_price: hasLive,
+        price_source: primarySource,
+      };
+    })
+  );
+
+  return updatedPivots;
 }

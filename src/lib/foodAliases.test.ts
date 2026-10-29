@@ -45,3 +45,4 @@ describe('foodAliases resolver', () => {
     expect(biryaniNames.some((n) => n.includes('Borhani') || n.includes('Salad') || n.includes('Kebab') || n.includes('Raita'))).toBe(true);
   });
 });
+

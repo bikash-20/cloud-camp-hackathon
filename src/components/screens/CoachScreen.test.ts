@@ -30,3 +30,4 @@ describe('sendCoachChat', () => {
     expect(res.suggested_prompts.some((p) => p.includes('দাওয়াতে') || p.includes('মিষ্টি'))).toBe(true);
   });
 });
+

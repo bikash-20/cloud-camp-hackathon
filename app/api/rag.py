@@ -35,3 +35,4 @@ def query_rag(request: RAGQueryRequest) -> RAGQueryResponse:
         collection=request.collection_name,
         results=chunks,
     )
+

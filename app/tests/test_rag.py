@@ -69,3 +69,4 @@ def test_rag_query_seasonal_produce_returns_winter_market_prices(rag_client: Tes
     data = resp.json()
     assert len(data["results"]) > 0
     assert any("cauliflower" in r["document"].lower() or "phulkopi" in r["document"].lower() for r in data["results"])
+

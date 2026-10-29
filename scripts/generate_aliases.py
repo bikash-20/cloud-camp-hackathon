@@ -3206,3 +3206,4 @@ with open(out_path, "w", encoding="utf-8") as f:
     json.dump(FOOD_ITEMS, f, ensure_ascii=False, indent=2)
 
 print(f"Successfully generated {len(FOOD_ITEMS)} canonical food aliases at {out_path}")
+

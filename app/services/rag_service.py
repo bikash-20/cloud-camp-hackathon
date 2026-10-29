@@ -150,8 +150,63 @@ COLLECTION_SEEDS: dict[str, list[dict[str, Any]]] = {
                 "citation": "INFS Food Composition Table for Bangladesh",
             },
         },
+        {
+            "id": "infs_bhorta_01",
+            "document": (
+                "Traditional Bangladeshi Alu Bhorta (Mashed Potatoes) contains high glycemic carbohydrates. "
+                "When prepared commercially or in restaurants, it often contains hidden high sodium from added "
+                "salt and saturated fats from excessive mustard oil (approx 200-300mg sodium per 100g serving)."
+            ),
+            "metadata": {
+                "source": "INFS/ICMR",
+                "dish_type": "bhorta",
+                "hidden_risks": "sodium, high_gi",
+                "citation": "INFS/ICMR",
+            },
+        },
+        {
+            "id": "infs_biryani_01",
+            "document": (
+                "Kacchi or Chicken Biryani is a calorie-dense dish. A standard 300g serving contains approx "
+                "600-800 kcal. Hidden risks include high saturated fat from Ghee/Dalda and high sodium from "
+                "commercial spice mixes. Not recommended for daily consumption for diabetic or hypertensive profiles."
+            ),
+            "metadata": {
+                "source": "INFS/ICMR",
+                "dish_type": "biryani",
+                "hidden_risks": "saturated_fat, sodium, high_calorie",
+                "citation": "INFS/ICMR",
+            },
+        },
     ],
     "clinical_nutrition_guidelines": [
+        {
+            "id": "ada_diabetic_01",
+            "document": (
+                "Diabetic patients should aim for 45-60g of net carbohydrates per meal. High Glycemic Index (GI) "
+                "foods like White Rice or Refined Flour (Maida) should be pivoted to Low GI alternatives like "
+                "Red Rice (Lal Chal), Oats, or Whole Wheat (Atta) to prevent blood sugar spikes."
+            ),
+            "metadata": {
+                "source": "ADA Guidelines",
+                "target_profile": "diabetic",
+                "type": "clinical_rule",
+                "citation": "ADA Guidelines",
+            },
+        },
+        {
+            "id": "who_htn_01",
+            "document": (
+                "To manage hypertension, daily sodium intake must remain under 2000mg. A single meal should not "
+                "exceed 600-700mg of sodium. Avoid hidden sodium in pickles (Achar), tasting salt (MSG), and commercial sauces."
+            ),
+            "metadata": {
+                "source": "WHO Guidelines",
+                "target_profile": "hypertension",
+                "type": "clinical_rule",
+                "citation": "WHO Guidelines",
+            },
+        },
         {
             "id": "guideline-birdem-rice-portion",
             "document": (
@@ -416,3 +471,4 @@ def get_rag_service() -> RAGService:
     if _rag_service is None:
         _rag_service = RAGService()
     return _rag_service
+

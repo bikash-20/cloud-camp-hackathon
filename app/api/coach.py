@@ -30,3 +30,4 @@ def coach_chat(req: CoachChatRequest) -> CoachChatResponse:
     except Exception as exc:
         log.error("AI Coach chat encountered error: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"AI Coach error: {exc}") from exc
+

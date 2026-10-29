@@ -607,3 +607,4 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
     </LocalizedContent>
   );
 }
+

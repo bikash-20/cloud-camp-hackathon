@@ -101,8 +101,11 @@ def evaluate_dietary_pivots(
                         {"name": "Brown rice (Lal chal)", "name_bn": "লাল চাল", "price_bdt": 90.0},
                         {"name": "Palong shak (Spinach)", "name_bn": "পালং শাক", "price_bdt": 25.0},
                     ],
+                    "is_live_price": False,
+                    "price_source": "TCB/DAM Benchmark",
                 }
             )
             break
 
     return pivots
+

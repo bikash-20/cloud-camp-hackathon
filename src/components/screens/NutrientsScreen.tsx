@@ -5,7 +5,7 @@ import { T, NUTRITION_DB } from '../../data';
 import { resolveNutrition, addGroceryItem } from '../../lib/api';
 import { focusedNutrients, unitForNutrient, getEffectiveNutrition, getDynamicTargets } from '../../lib/personalize';
 import { checkDietConflicts, CLINICAL_DISCLAIMER_BN, CLINICAL_DISCLAIMER_EN } from '../../lib/dietConflict';
-import { generateDietaryPivots, type DietaryPivot } from '../../lib/pivotEngine';
+import { generateDietaryPivots, generateDietaryPivotsAsync, type DietaryPivot } from '../../lib/pivotEngine';
 import { MOCK_TARGETS } from '../../mocks/fixtures';
 import type { DetectedItem, MacroTargets, NutrientContribution, NutritionFacts, UserProfile } from '../../types/schemas';
 import Bar from '../Bar';
@@ -725,9 +725,29 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
     return checkDietConflicts(detected, profile, resolvedNutritionMap);
   }, [detected, profile, resolvedNutritionMap]);
 
-  const dietaryPivots = useMemo(() => {
-    if (detected.length === 0) return [];
-    return generateDietaryPivots(detected, profile, resolvedNutritionMap);
+  const [dietaryPivots, setDietaryPivots] = useState<DietaryPivot[]>(() =>
+    generateDietaryPivots(detected, profile, resolvedNutritionMap)
+  );
+
+  useEffect(() => {
+    if (detected.length === 0) {
+      setDietaryPivots([]);
+      return;
+    }
+    // Instant sync preview
+    setDietaryPivots(generateDietaryPivots(detected, profile, resolvedNutritionMap));
+
+    // Asynchronously resolve live prices with 3000ms timeout
+    let isCurrent = true;
+    generateDietaryPivotsAsync(detected, profile, resolvedNutritionMap).then((res) => {
+      if (isCurrent && res.length > 0) {
+        setDietaryPivots(res);
+      }
+    });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [detected, profile, resolvedNutritionMap]);
 
   const handleAddPivotToGrocery = async (pivot: DietaryPivot) => {
@@ -1306,18 +1326,47 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
                     <span style={{ fontSize: 13.5, fontWeight: 700, color: T.primaryDeep }}>
                       {language === 'bn' ? pivot.title_bn : pivot.title_en}
                     </span>
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 700,
-                        padding: '2px 8px',
-                        borderRadius: 999,
-                        background: '#DCFCE7',
-                        color: '#166534',
-                      }}
-                    >
-                      {language === 'bn' ? `গ্লাইসেমিক লোড -${pivot.glycemic_reduction_pct}%` : `-${pivot.glycemic_reduction_pct}% Glycemic`}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {pivot.is_live_price && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            background: 'rgba(34, 197, 94, 0.15)',
+                            color: '#15803D',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: '50%',
+                              background: '#22C55E',
+                              display: 'inline-block',
+                              boxShadow: '0 0 0 2px rgba(34, 197, 94, 0.25)',
+                            }}
+                          />
+                          {language === 'bn' ? '⚡ লাইভ বাজারদর (Chaldal)' : '⚡ Live Market Price'}
+                        </span>
+                      )}
+                      <span
+                        style={{
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          background: '#DCFCE7',
+                          color: '#166534',
+                        }}
+                      >
+                        {language === 'bn' ? `গ্লাইসেমিক লোড -${pivot.glycemic_reduction_pct}%` : `-${pivot.glycemic_reduction_pct}% Glycemic`}
+                      </span>
+                    </div>
                   </div>
 
                   <p style={{ margin: '0 0 10px', fontSize: 12, color: T.ink, lineHeight: 1.45 }}>
@@ -1384,10 +1433,14 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
                         fontWeight: 700,
                         padding: '4px 8px',
                         borderRadius: 8,
-                        background: 'rgba(74, 58, 52, 0.08)',
-                        color: T.ink,
+                        background: pivot.is_live_price ? 'rgba(34, 197, 94, 0.15)' : 'rgba(74, 58, 52, 0.08)',
+                        color: pivot.is_live_price ? '#15803D' : T.ink,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
                       }}
                     >
+                      {pivot.is_live_price && <span style={{ fontSize: 9 }}>⚡</span>}
                       Δ ৳{pivot.delta.cost_bdt > 0 ? '+' : ''}{pivot.delta.cost_bdt} {language === 'bn' ? 'খরচ' : 'cost'}
                     </span>
                   </div>
