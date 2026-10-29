@@ -20,6 +20,7 @@ import base64
 import logging
 import os
 import re
+import time
 from typing import Any
 
 import httpx
@@ -39,7 +40,71 @@ log = logging.getLogger(__name__)
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# Global in-memory cache for live active OpenRouter models (30-minute TTL)
+_OPENROUTER_MODELS_CACHE: dict[str, Any] = {
+    "timestamp": 0.0,
+    "all_models": [],
+    "vision_models": [],
+    "recent_models": [],
+}
+
+
+def fetch_active_openrouter_models(timeout: float = 3.5) -> dict[str, list[str]]:
+    """Scrape and cache live active models from OpenRouter API with a 30-min TTL."""
+    global _OPENROUTER_MODELS_CACHE
+    now = time.time()
+    if now - _OPENROUTER_MODELS_CACHE["timestamp"] < 1800 and _OPENROUTER_MODELS_CACHE["all_models"]:
+        return {
+            "all_models": list(_OPENROUTER_MODELS_CACHE["all_models"]),
+            "vision_models": list(_OPENROUTER_MODELS_CACHE["vision_models"]),
+            "recent_models": list(_OPENROUTER_MODELS_CACHE["recent_models"]),
+        }
+
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            res = client.get(
+                OPENROUTER_MODELS_URL,
+                headers={"User-Agent": "NutriVision-AI/1.0", "HTTP-Referer": "https://nutrivision.ai"},
+            )
+            if res.status_code == 200:
+                raw_data = res.json().get("data", [])
+                all_ids: list[str] = []
+                vision_ids: list[str] = []
+
+                # Sort by created timestamp descending to prioritize latest active models
+                sorted_by_recent = sorted(raw_data, key=lambda m: m.get("created", 0), reverse=True)
+                recent_ids: list[str] = []
+                for item in sorted_by_recent:
+                    mid = str(item.get("id", "")).strip()
+                    if not mid:
+                        continue
+                    all_ids.append(mid)
+                    arch = item.get("architecture") or {}
+                    modalities = arch.get("input_modalities") or []
+                    modality_str = str(arch.get("modality", "")).lower()
+                    if "image" in modalities or "image" in modality_str:
+                        vision_ids.append(mid)
+                    if len(recent_ids) < 10 and not mid.endswith(":batch"):
+                        recent_ids.append(mid)
+
+                _OPENROUTER_MODELS_CACHE = {
+                    "timestamp": now,
+                    "all_models": all_ids,
+                    "vision_models": vision_ids,
+                    "recent_models": recent_ids,
+                }
+                log.info("Discovered %d active OpenRouter models (%d vision).", len(all_ids), len(vision_ids))
+    except Exception as exc:
+        log.info("OpenRouter active models query skipped: %s. Using baseline models.", exc)
+
+    return {
+        "all_models": list(_OPENROUTER_MODELS_CACHE.get("all_models", [])),
+        "vision_models": list(_OPENROUTER_MODELS_CACHE.get("vision_models", [])),
+        "recent_models": list(_OPENROUTER_MODELS_CACHE.get("recent_models", [])),
+    }
 
 
 # ── System Prompts ─────────────────────────────────────────────────────────
@@ -327,19 +392,71 @@ class CoachService:
 
         return None
 
-    def _call_openrouter(self, system_prompt: str, messages: list[CoachMessage]) -> str | None:
-        """Call OpenRouter API as resilient fallback with dynamic model selection."""
-        if not self.openrouter_key:
-            return None
+    def _resolve_openrouter_model_cascade(self, has_image: bool = False) -> list[str]:
+        """Construct an ordered cascade list of active OpenRouter models.
 
-        model = (
+        Cascade Priority:
+        1. User's explicitly configured model (via OPENROUTER_FALLBACK_MODEL or init).
+        2. openrouter/auto (OpenRouter's intelligent meta-router).
+        3. High-performance, active provider models:
+           - google/gemini-2.0-flash-001 (or latest active flash)
+           - deepseek/deepseek-chat
+           - meta-llama/llama-3.3-70b-instruct
+           - qwen/qwen-2.5-72b-instruct
+        4. Dynamically scraped active models from OpenRouter live catalog.
+        5. openrouter/free (cost-free safety net).
+        """
+        user_configured = (
             os.environ.get("OPENROUTER_FALLBACK_MODEL")
             or os.environ.get("OPENROUTER_MODEL")
             or self.openrouter_model
             or "openrouter/auto"
         ).strip()
-        if not model:
-            model = "openrouter/auto"
+        if not user_configured:
+            user_configured = "openrouter/auto"
+
+        discovered = fetch_active_openrouter_models()
+        candidates: list[str] = [user_configured]
+
+        if has_image:
+            # Multimodal vision cascade
+            preferred_vision = [
+                "openrouter/auto",
+                "google/gemini-2.0-flash-001",
+                "meta-llama/llama-3.2-11b-vision-instruct",
+            ]
+            candidates.extend(preferred_vision)
+            # Add top active vision models dynamically discovered
+            for vm in discovered.get("vision_models", [])[:5]:
+                candidates.append(vm)
+        else:
+            # Text chat cascade
+            preferred_text = [
+                "openrouter/auto",
+                "google/gemini-2.0-flash-001",
+                "deepseek/deepseek-chat",
+                "meta-llama/llama-3.3-70b-instruct",
+                "qwen/qwen-2.5-72b-instruct",
+                "openrouter/free",
+            ]
+            candidates.extend(preferred_text)
+            # Add top active recent models discovered dynamically
+            for rm in discovered.get("recent_models", [])[:5]:
+                candidates.append(rm)
+
+        # Deduplicate while preserving order
+        deduped: list[str] = []
+        for c in candidates:
+            c = c.strip()
+            if c and c not in deduped:
+                deduped.append(c)
+
+        return deduped
+
+    def _call_openrouter(self, system_prompt: str, messages: list[CoachMessage]) -> str | None:
+        """Call OpenRouter API as resilient fallback with dynamic model selection and multi-model cascade."""
+        if not self.openrouter_key:
+            return None
 
         headers = {
             "Content-Type": "application/json",
@@ -347,6 +464,9 @@ class CoachService:
             "HTTP-Referer": "https://nutrivision.ai",
             "X-Title": "NutriVision AI",
         }
+
+        has_image = any(bool(m.image_ref) for m in messages)
+        cascade_models = self._resolve_openrouter_model_cascade(has_image=has_image)
 
         openrouter_messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
         for m in messages:
@@ -364,25 +484,35 @@ class CoachService:
                 content = m.content
             openrouter_messages.append({"role": role, "content": content})
 
-        body = {
-            "model": model,
-            "messages": openrouter_messages,
-            "temperature": 0.4,
-            "max_tokens": 800,
-        }
+        for candidate_model in cascade_models:
+            body = {
+                "model": candidate_model,
+                "messages": openrouter_messages,
+                "temperature": 0.4,
+                "max_tokens": 800,
+            }
 
-        try:
-            with httpx.Client(timeout=12.0) as client:
-                res = client.post(OPENROUTER_API_URL, headers=headers, json=body)
-                if res.status_code == 200:
-                    data = res.json()
-                    choices = data.get("choices", [])
-                    if choices:
-                        return choices[0].get("message", {}).get("content", "").strip()
-                log.warning("OpenRouter coach chat failed: %s %s", res.status_code, res.text[:200])
-        except Exception as exc:
-            log.warning("OpenRouter coach request exception: %s", exc)
+            try:
+                with httpx.Client(timeout=12.0) as client:
+                    res = client.post(OPENROUTER_API_URL, headers=headers, json=body)
+                    if res.status_code == 200:
+                        data = res.json()
+                        choices = data.get("choices", [])
+                        if choices:
+                            reply = choices[0].get("message", {}).get("content", "").strip()
+                            if reply:
+                                log.info("OpenRouter model %s succeeded.", candidate_model)
+                                return reply
+                    log.warning(
+                        "OpenRouter model %s returned HTTP %s: %s; cascading to next...",
+                        candidate_model,
+                        res.status_code,
+                        res.text[:120],
+                    )
+            except Exception as exc:
+                log.warning("OpenRouter model %s request exception: %s; cascading to next...", candidate_model, exc)
 
+        log.warning("All OpenRouter cascade models exhausted; falling back to next provider.")
         return None
 
     def _call_groq(self, system_prompt: str, messages: list[CoachMessage]) -> str | None:

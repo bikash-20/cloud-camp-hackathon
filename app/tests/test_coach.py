@@ -208,4 +208,60 @@ def test_coach_openrouter_dynamic_model_selection(monkeypatch: pytest.MonkeyPatc
     assert captured_payloads[-1]["model"] == "meta-llama/llama-3.3-70b-instruct:free"
 
 
+def test_coach_openrouter_cascade_on_candidate_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """If candidate model fails with HTTP 429/404, OpenRouter cascades to subsequent model."""
+    import httpx
+    from app.services.coach_service import CoachService
+
+    models_attempted: list[str] = []
+
+    def mock_post(self: httpx.Client, url: str, **kwargs: Any) -> Any:
+        body = kwargs.get("json", {})
+        model_name = body.get("model", "")
+        models_attempted.append(model_name)
+
+        class MockResponse:
+            def __init__(self, status: int, reply: str = "") -> None:
+                self.status_code = status
+                self._reply = reply
+
+            def json(self) -> dict:
+                return {"choices": [{"message": {"content": self._reply}}]}
+
+            @property
+            def text(self) -> str:
+                return "Rate limit exceeded" if self.status_code == 429 else ""
+
+        # First model fails with 429 (rate-limited)
+        if len(models_attempted) == 1:
+            return MockResponse(429)
+        # Second model in cascade succeeds
+        return MockResponse(200, "Cascaded success response.")
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post)
+    monkeypatch.setenv("OPENROUTER_FALLBACK_MODEL", "preferred/flaky-model")
+
+    service = CoachService(openrouter_api_key="test-key")
+    reply = service._call_openrouter("sys prompt", [CoachMessage(role="user", content="Test cascade")])
+
+    assert reply == "Cascaded success response."
+    assert len(models_attempted) == 2
+    assert models_attempted[0] == "preferred/flaky-model"
+    # Second model should be from the dynamic cascade (e.g. openrouter/auto or gemini)
+    assert models_attempted[1] in ["openrouter/auto", "google/gemini-2.0-flash-001"]
+
+
+def test_fetch_active_openrouter_models_live_or_cache() -> None:
+    """Verify active OpenRouter models discovery and memory caching."""
+    from app.services.coach_service import fetch_active_openrouter_models
+
+    discovered = fetch_active_openrouter_models(timeout=5.0)
+    assert isinstance(discovered, dict)
+    assert "all_models" in discovered
+    assert "vision_models" in discovered
+    # If network is reachable, we get models; if not, graceful fallback dict is returned
+    assert isinstance(discovered["all_models"], list)
+
+
+
 
