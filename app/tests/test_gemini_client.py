@@ -74,3 +74,70 @@ def test_unconfigured_client_does_not_make_a_request() -> None:
 
     assert client.is_configured() is False
     assert client.detect("data:image/jpeg;base64,dGVzdA==") == []
+
+
+def test_parse_single_object_response() -> None:
+    client = GeminiClient(api_key="test-key")
+    client._client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(
+                200,
+                json={
+                    "candidates": [
+                        {
+                            "content": {
+                                "parts": [
+                                    {
+                                        "text": '{"name": "Beef Steak", "name_bn": "গরুর মাংসের স্টেক", "confidence": 92, "grams": 250}'
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+            )
+        )
+    )
+    try:
+        items = client.detect("data:image/jpeg;base64,dGVzdA==")
+    finally:
+        client.close()
+
+    assert len(items) == 1
+    assert items[0].name == "Beef Steak"
+    assert items[0].name_bn == "গরুর মাংসের স্টেক"
+    assert items[0].confidence == 92.0
+    assert items[0].grams == 250.0
+
+
+def test_parse_wrapped_items_object_response() -> None:
+    client = GeminiClient(api_key="test-key")
+    client._client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(
+                200,
+                json={
+                    "candidates": [
+                        {
+                            "content": {
+                                "parts": [
+                                    {
+                                        "text": '{"items": [{"name": "Grilled Meat", "confidence": 88, "grams": 180}]}'
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+            )
+        )
+    )
+    try:
+        items = client.detect("data:image/jpeg;base64,dGVzdA==")
+    finally:
+        client.close()
+
+    assert len(items) == 1
+    assert items[0].name == "Grilled Meat"
+    assert items[0].confidence == 88.0
+

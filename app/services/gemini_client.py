@@ -42,23 +42,19 @@ USER_AGENT = "NutriVisionDemo/0.1 (hackathon demo)"
 # time but occasionally wraps in ```json … ``` fences — `re.DOTALL`
 # below strips them.
 _DETECTION_PROMPT = """\
-You are a vision system for a nutrition app. Look at the photo and
-return ONLY a JSON array (no prose, no code fences) of food items.
+You are an expert food vision and nutrition analysis AI system.
+Look at the photo and detect all food items, meat, cooked dishes, raw ingredients, beverages, or meals present.
 
-Each element must match this shape exactly:
+Return ONLY a JSON array of detected items.
+Each item must match this shape:
   {"name": "<canonical English food name>", "name_bn": "<Bengali food name>", "confidence": <0–100 integer>, "grams": <estimated portion in grams>, "bbox": [x, y, w, h]}
 
-For South Asian and Bangladeshi meals, use a specific local dish name
-in both `name` and `name_bn` when the image supports it (for example:
-rice / ভাত, lentil dal / ডাল, khichuri / খিচুড়ি, biryani / বিরিয়ানি,
-fish curry / মাছের তরকারি, bhorta / ভর্তা, bhaji / ভাজি, roti / রুটি,
-or paratha / পরোটা). Keep `name` in English for nutrition database
-matching. Do not guess ingredients that are not visible; use a broader
-label when uncertain. If the Bengali name is uncertain, set `name_bn`
-to an accurate Bengali transliteration or translation of `name`.
-
-`bbox` is the item's normalized bounding box in [0, 1] image space,
-optional. If you cannot detect any food, return [].
+Guidelines:
+1. Detect any food shown in the image, including any meat (beef, chicken, steak, mutton, lamb, pork, kebab, meat curry, roasted/grilled meat, cuts), fish, rice, lentils/dal, bread, vegetables, salads, or snacks.
+2. Even if there is only a single piece of food or meat, ALWAYS detect it and return it in the JSON array: [{"name": "Grilled Beef Steak", ...}].
+3. For South Asian and Bangladeshi meals, use a specific local dish name in both `name` and `name_bn` when supported (for example: rice / ভাত, lentil dal / ডাল, khichuri / খিচুড়ি, biryani / বিরিয়ানি, fish curry / মাছের তরকারি, beef curry / গরুর মাংস, bhorta / ভর্তা, bhaji / ভাজি, roti / রুটি, or paratha / পরোটা).
+4. Keep `name` in concise English for nutrition database lookups.
+5. ONLY return [] if the image contains no food, ingredients, or drinks whatsoever (e.g. furniture, electronic device, car).
 """
 
 
@@ -124,7 +120,17 @@ class GeminiClient:
                         },
                     ]
                 }
-            ]
+            ],
+            "generationConfig": {
+                "response_mime_type": "application/json",
+                "temperature": 0.1,
+            },
+            "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ],
         }
 
         url = f"{self.base_url}/{self.model}:generateContent"
@@ -172,45 +178,94 @@ _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 
 
 def _parse_gemini_response(payload: dict[str, Any]) -> list[DetectedItem]:
-    """Tolerantly extract the JSON array from a Gemini response.
-
-    Gemini occasionally:
-      - wraps the JSON in ``` fences,
-      - adds a short preamble before the JSON,
-      - returns `{ "text": "..." }` rather than the documented shape.
-    """
+    """Tolerantly extract DetectedItems from a Gemini response."""
     text = _extract_text(payload)
     if not text:
         return []
-    # Strip code fences if present.
+    return _parse_food_json(text)
+
+
+def _parse_food_json(text: str) -> list[DetectedItem]:
+    """Robust parser that accepts arrays, single objects, and dict wrappers."""
+    text = text.strip()
     match = _JSON_FENCE_RE.search(text)
     if match:
-        text = match.group(1)
-    # Find the first '[' and the matching ']' (tolerates trailing prose).
-    start = text.find("[")
-    end = text.rfind("]")
-    if start == -1 or end == -1 or end <= start:
-        return []
+        text = match.group(1).strip()
+
+    parsed = None
     try:
-        items = json.loads(text[start : end + 1])
-    except json.JSONDecodeError:
+        parsed = json.loads(text)
+    except Exception:
+        pass
+
+    if parsed is None:
+        start_arr = text.find("[")
+        end_arr = text.rfind("]")
+        if start_arr != -1 and end_arr != -1 and end_arr > start_arr:
+            try:
+                parsed = json.loads(text[start_arr : end_arr + 1])
+            except Exception:
+                pass
+
+    if parsed is None:
+        start_obj = text.find("{")
+        end_obj = text.rfind("}")
+        if start_obj != -1 and end_obj != -1 and end_obj > start_obj:
+            try:
+                parsed = json.loads(text[start_obj : end_obj + 1])
+            except Exception:
+                pass
+
+    if parsed is None:
         return []
+
+    if isinstance(parsed, dict):
+        for k in ("items", "foods", "food_items", "detected", "result", "dishes"):
+            if k in parsed and isinstance(parsed[k], list):
+                parsed = parsed[k]
+                break
+        else:
+            parsed = [parsed]
+
+    if not isinstance(parsed, list):
+        return []
+
     out: list[DetectedItem] = []
-    for it in items:
+    for it in parsed:
         if not isinstance(it, dict):
             continue
-        name = str(it.get("name", "")).strip()
+        raw_name = (
+            it.get("name")
+            or it.get("food")
+            or it.get("dish")
+            or it.get("item")
+            or it.get("label")
+            or it.get("food_name")
+            or ""
+        )
+        name = str(raw_name).strip()
         if not name:
             continue
-        name_bn = str(it.get("name_bn", "")).strip() or None
+        raw_bn = (
+            it.get("name_bn")
+            or it.get("bengali_name")
+            or it.get("name_bengali")
+            or ""
+        )
+        name_bn = str(raw_bn).strip() or None
         try:
             confidence = float(it.get("confidence", 0))
+            if 0.0 < confidence <= 1.0:
+                confidence *= 100.0
         except (TypeError, ValueError):
-            confidence = 0.0
+            confidence = 85.0
         try:
-            grams = float(it.get("grams", 100))
+            grams = float(it.get("grams", 0))
+            if grams <= 0:
+                grams = 150.0
         except (TypeError, ValueError):
-            grams = 100.0
+            grams = 150.0
+
         bbox: BBox | None = None
         raw_bbox = it.get("bbox")
         if isinstance(raw_bbox, (list, tuple)) and len(raw_bbox) == 4:
@@ -236,12 +291,14 @@ def _parse_gemini_response(payload: dict[str, Any]) -> list[DetectedItem]:
 
 
 def _extract_text(payload: dict[str, Any]) -> str:
-    """Pull the text content out of a Gemini response, tolerating the
-    documented `candidates[0].content.parts[0].text` shape as well as
-    a flat `text` field that some preview models return."""
+    """Pull the text content out of a Gemini response, logging safety blocks if encountered."""
     candidates = payload.get("candidates") or []
     if candidates:
-        content = (candidates[0] or {}).get("content") or {}
+        candidate = candidates[0] or {}
+        finish_reason = candidate.get("finishReason")
+        if finish_reason and finish_reason not in ("STOP", "MAX_TOKENS"):
+            log.warning("Gemini candidate finishReason is %s", finish_reason)
+        content = candidate.get("content") or {}
         parts = content.get("parts") or []
         if parts and isinstance(parts[0], dict):
             text = parts[0].get("text")

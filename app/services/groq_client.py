@@ -24,7 +24,7 @@ import httpx
 
 from app.models.schemas import BBox, DetectedItem
 from app.services._http_logging import log_http_failure
-from app.services.gemini_client import _DETECTION_PROMPT, _read_image
+from app.services.gemini_client import _DETECTION_PROMPT, _read_image, _parse_food_json
 
 
 log = logging.getLogger(__name__)
@@ -32,8 +32,6 @@ log = logging.getLogger(__name__)
 DEFAULT_MODEL = "llama-3.2-11b-vision-preview"
 DEFAULT_BASE_URL = "https://api.groq.com/openai/v1"
 USER_AGENT = "NutriVisionDemo/0.1 (hackathon demo)"
-
-_JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 
 
 class GroqClient:
@@ -94,7 +92,7 @@ class GroqClient:
             return []
 
         data_url = f"data:{mime};base64,{image_b64}"
-        body = {
+        body: dict[str, Any] = {
             "model": self.model,
             "messages": [
                 {
@@ -117,12 +115,36 @@ class GroqClient:
             "User-Agent": USER_AGENT,
             "Authorization": f"Bearer {self.api_key}",
         }
-        try:
-            resp = self._http().post(url, headers=headers, json=body)
-            resp.raise_for_status()
-            payload = resp.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            log_http_failure("Groq", exc, image_ref=image_ref)
+
+        candidate_models = [self.model]
+        if "qwen/qwen3.8-27b" not in candidate_models:
+            candidate_models.append("qwen/qwen3.8-27b")
+        if "llama-3.2-11b-vision-preview" not in candidate_models:
+            candidate_models.append("llama-3.2-11b-vision-preview")
+
+        payload = None
+        for model_name in candidate_models:
+            body["model"] = model_name
+            try:
+                resp = self._http().post(url, headers=headers, json=body)
+                resp.raise_for_status()
+                payload = resp.json()
+                break
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (400, 404) and model_name != candidate_models[-1]:
+                    log.info(
+                        "Groq vision model %s failed (%d); attempting fallback candidate",
+                        model_name,
+                        exc.response.status_code,
+                    )
+                    continue
+                log_http_failure("Groq", exc, image_ref=image_ref)
+                return []
+            except (httpx.HTTPError, ValueError) as exc:
+                log_http_failure("Groq", exc, image_ref=image_ref)
+                return []
+
+        if not payload:
             return []
 
         return _parse_groq_response(payload)
@@ -137,59 +159,4 @@ def _parse_groq_response(payload: dict[str, Any]) -> list[DetectedItem]:
     text = message.get("content") or ""
     if not isinstance(text, str) or not text.strip():
         return []
-
-    # Strip code fences if present.
-    match = _JSON_FENCE_RE.search(text)
-    if match:
-        text = match.group(1)
-
-    start = text.find("[")
-    end = text.rfind("]")
-    if start == -1 or end == -1 or end <= start:
-        return []
-
-    try:
-        items = json.loads(text[start : end + 1])
-    except json.JSONDecodeError:
-        return []
-
-    out: list[DetectedItem] = []
-    for it in items:
-        if not isinstance(it, dict):
-            continue
-        name = str(it.get("name", "")).strip()
-        if not name:
-            continue
-        name_bn = str(it.get("name_bn", "")).strip() or None
-        try:
-            confidence = float(it.get("confidence", 0))
-        except (TypeError, ValueError):
-            confidence = 0.0
-        try:
-            grams = float(it.get("grams", 100))
-        except (TypeError, ValueError):
-            grams = 100.0
-
-        bbox: BBox | None = None
-        raw_bbox = it.get("bbox")
-        if isinstance(raw_bbox, (list, tuple)) and len(raw_bbox) == 4:
-            try:
-                bbox = (
-                    float(raw_bbox[0]),
-                    float(raw_bbox[1]),
-                    float(raw_bbox[2]),
-                    float(raw_bbox[3]),
-                )
-            except (TypeError, ValueError):
-                bbox = None
-
-        out.append(
-            DetectedItem(
-                name=name,
-                name_bn=name_bn,
-                confidence=confidence,
-                grams=grams,
-                bbox=bbox,
-            )
-        )
-    return out
+    return _parse_food_json(text)

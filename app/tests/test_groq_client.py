@@ -127,3 +127,66 @@ def test_detect_handles_http_errors_gracefully() -> None:
         client.close()
 
     assert items == []
+
+
+def test_detect_parses_single_meat_object() -> None:
+    client = GroqClient(api_key="gsk_test_key")
+    raw_response = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": '{"name": "Roast Beef", "name_bn": "রোস্ট বিফ", "confidence": 94, "grams": 250}',
+                }
+            }
+        ]
+    }
+    client._client = httpx.Client(
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json=raw_response))
+    )
+    try:
+        items = client.detect("data:image/jpeg;base64,dGVzdA==")
+    finally:
+        client.close()
+
+    assert len(items) == 1
+    assert items[0].name == "Roast Beef"
+    assert items[0].name_bn == "রোস্ট বিফ"
+    assert items[0].confidence == 94.0
+    assert items[0].grams == 250.0
+
+
+def test_detect_falls_back_when_primary_model_returns_404() -> None:
+    client = GroqClient(api_key="gsk_test_key", model="deprecated-preview-model")
+    attempts = []
+
+    def respond(req: httpx.Request) -> httpx.Response:
+        body = json.loads(req.content)
+        attempts.append(body["model"])
+        if body["model"] == "deprecated-preview-model":
+            return httpx.Response(404, json={"error": "model not found"})
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": '[{"name": "Beef Steak", "confidence": 90, "grams": 200}]',
+                        }
+                    }
+                ]
+            },
+        )
+
+    client._client = httpx.Client(transport=httpx.MockTransport(respond))
+    try:
+        items = client.detect("data:image/jpeg;base64,dGVzdA==")
+    finally:
+        client.close()
+
+    assert len(items) == 1
+    assert items[0].name == "Beef Steak"
+    assert len(attempts) >= 2
+    assert attempts[0] == "deprecated-preview-model"
+
