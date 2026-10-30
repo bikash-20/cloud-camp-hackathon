@@ -31,7 +31,13 @@ export function save<T>(k: string, value: T): void {
 }
 
 export function remove(k: string): void {
-  localStorage.removeItem(key(k));
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(key(k));
+    }
+  } catch {
+    // Storage inaccessible or undefined in non-DOM environment
+  }
 }
 
 /**

@@ -367,6 +367,59 @@ class TodaySummary(BaseModel):
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# Auth & Admin Telemetry
+# ─────────────────────────────────────────────────────────────────────────
+
+Role = Literal["user", "admin"]
+
+
+class AuthSession(BaseModel):
+    email: str
+    role: Role
+    login_at: str = Field(alias="loginAt")
+    name: str | None = None
+    avatar_url: str | None = Field(default=None, alias="avatarUrl")
+    token: str | None = None
+    sub: str | None = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str = Field(alias="idToken")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class GoogleAuthResponse(BaseModel):
+    session: AuthSession
+    token: str
+    profile: UserProfile
+
+
+class AdminUserSummary(BaseModel):
+    email: str
+    name: str | None = None
+    role: Role
+    meals_count: int = Field(alias="mealsCount")
+    joined_date: str = Field(alias="joinedDate")
+    last_active: str = Field(alias="lastActive")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AdminMetrics(BaseModel):
+    total_users: int = Field(alias="totalUsers")
+    meals_today: int = Field(alias="mealsToday")
+    meals_this_week: int = Field(alias="mealsThisWeek")
+    avg_meals_per_user: float = Field(alias="avgMealsPerUser")
+    flagged_percentage: float = Field(alias="flaggedPercentage")
+    users: list[AdminUserSummary] = Field(default_factory=list)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────
 # Targets — daily nutrient ceilings used by the personalize filter.
 # Matches `MOCK_TARGETS` in `src/mocks/fixtures.ts`.
 # ─────────────────────────────────────────────────────────────────────────

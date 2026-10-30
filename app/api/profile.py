@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.models.schemas import UserProfile
+from app.api.auth import get_current_user_optional
+from app.models.schemas import AuthSession, UserProfile
 from app.services.state import State, get_state
 
 
@@ -18,20 +19,23 @@ router = APIRouter(prefix="/api/profile", tags=["profile"])
 
 
 @router.get("", response_model=UserProfile)
-def get_profile(state: State = Depends(get_state)) -> UserProfile:
-    """Return the current profile, default-seeded on first call."""
+def get_profile(
+    current_user: AuthSession | None = Depends(get_current_user_optional),
+    state: State = Depends(get_state),
+) -> UserProfile:
+    """Return the profile for the authenticated user, or default demo profile."""
+    if current_user:
+        return state.get_user_profile(current_user.email)
     return state.get_profile()
 
 
 @router.put("", response_model=UserProfile)
 def update_profile(
     profile: UserProfile,
+    current_user: AuthSession | None = Depends(get_current_user_optional),
     state: State = Depends(get_state),
 ) -> UserProfile:
-    """Replace the current profile with the supplied one.
-
-    The frontend passes the full `UserProfile` shape — there's no
-    PATCH endpoint in the mock client, so PUT semantics are a faithful
-    mirror. Future cuts may add `PATCH` for partial updates.
-    """
+    """Replace the profile for the authenticated user, or default demo profile."""
+    if current_user:
+        return state.set_user_profile(current_user.email, profile)
     return state.set_profile(profile)

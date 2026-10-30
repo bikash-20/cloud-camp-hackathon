@@ -20,6 +20,7 @@
  */
 
 import type {
+  AdminMetrics,
   AnalyzeResult,
   CoachChatRequest,
   CoachChatResponse,
@@ -65,11 +66,17 @@ class ApiError extends Error {
 
 /** POST/GET JSON helper. Throws `ApiError` on non-2xx. */
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const session = storage.load<{ token?: string | null }>('auth');
+  const authHeaders: Record<string, string> = session?.token
+    ? { Authorization: `Bearer ${session.token}` }
+    : {};
+
   const resp = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...authHeaders,
       ...(init?.headers ?? {}),
     },
   });
@@ -633,6 +640,18 @@ export async function deleteMeal(mealId: string): Promise<void> {
 
 export function getMacroTargets() {
   return { ...MOCK_TARGETS };
+}
+
+/** Fetch live telemetry metrics from backend for the admin dashboard. */
+export async function getAdminMetrics(): Promise<AdminMetrics | null> {
+  if (!useLiveBackend) return null;
+  try {
+    return await apiFetch<AdminMetrics>('/api/admin/metrics');
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('Failed to fetch admin metrics:', err);
+    return null;
+  }
 }
 
 // ── Helpers (private) ───────────────────────────────────────────────────

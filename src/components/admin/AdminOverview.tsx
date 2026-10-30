@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Users, UtensilsCrossed, Activity, AlertTriangle, TrendingUp, Sparkles } from 'lucide-react';
+import { Users, UtensilsCrossed, Activity, AlertTriangle, TrendingUp, Sparkles, UserCheck } from 'lucide-react';
 import { SEED_DEMO_USERS } from '../../mocks/fixtures';
-import { getMealHistory } from '../../lib/api';
-import type { AuthSession, MealEntry } from '../../types/schemas';
+import { getAdminMetrics, getMealHistory } from '../../lib/api';
+import type { AdminMetrics, AuthSession, MealEntry } from '../../types/schemas';
 import KpiCard from './KpiCard';
 import Sparkline from './Sparkline';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
@@ -83,11 +83,15 @@ export default function AdminOverview({ session }: AdminOverviewProps) {
   const { language } = useLanguage();
   const isBn = language === 'bn';
   const [realMeals, setRealMeals] = useState<MealEntry[] | null>(null);
+  const [serverMetrics, setServerMetrics] = useState<AdminMetrics | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     getMealHistory().then((h) => {
       if (!cancelled) setRealMeals(h);
+    });
+    getAdminMetrics().then((m) => {
+      if (!cancelled && m) setServerMetrics(m);
     });
     return () => { cancelled = true; };
   }, []);
@@ -95,6 +99,18 @@ export default function AdminOverview({ session }: AdminOverviewProps) {
   // ── Aggregate ──────────────────────────────────────────────────────────
 
   const stats = useMemo(() => {
+    if (serverMetrics) {
+      return {
+        totalUsers: Math.max(serverMetrics.totalUsers, 1),
+        mealsToday: serverMetrics.mealsToday,
+        mealsThisWeek: serverMetrics.mealsThisWeek,
+        avgPerUser: serverMetrics.avgMealsPerUser,
+        flaggedPct: serverMetrics.flaggedPercentage,
+        flagged: Math.round((serverMetrics.flaggedPercentage / 100) * 10),
+        total: 10,
+      };
+    }
+
     const realUserMeals = realMeals ?? [];
     const demoMeals = SEED_DEMO_USERS.flatMap((u) => u.meals);
     const allMeals = [...demoMeals, ...realUserMeals];
@@ -124,7 +140,7 @@ export default function AdminOverview({ session }: AdminOverviewProps) {
       flagged,
       total,
     };
-  }, [realMeals]);
+  }, [realMeals, serverMetrics]);
 
   // ── Sparkline series ───────────────────────────────────────────────────
 
@@ -313,6 +329,117 @@ export default function AdminOverview({ session }: AdminOverviewProps) {
           icon={<AlertTriangle size={14} strokeWidth={2.2} />}
         />
       </motion.section>
+
+      {/* Live Registered Users (multi-tenant backend persistence) */}
+      {serverMetrics && serverMetrics.users.length > 0 && (
+        <motion.section
+          initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.38, ease: [0.22, 1, 0.36, 1] }}
+          style={{
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 18,
+            padding: '18px',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+          }}
+          aria-label={isBn ? 'নিবন্ধিত ব্যবহারকারী' : 'Registered Users Directory'}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <div
+                style={{
+                  fontFamily: 'Inter',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'rgba(249, 242, 228, 0.55)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                }}
+              >
+                {isBn ? 'লাইভ ব্যবহারকারী তালিকা' : 'Live User Directory'}
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(249, 242, 228, 0.7)', marginTop: 2 }}>
+                {isBn ? 'গুগল অথেন্টিকেশন এবং ব্যাকএন্ড পারসিস্টেন্স' : 'Active accounts via Google Auth & backend state'}
+              </div>
+            </div>
+            <UserCheck size={16} color="rgba(249, 242, 228, 0.35)" />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {serverMetrics.users.map((u) => (
+              <div
+                key={u.email}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 999,
+                      background: u.role === 'admin' ? 'rgba(217, 119, 6, 0.2)' : 'rgba(74, 58, 52, 0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#F9F2E4',
+                      fontWeight: 700,
+                      fontSize: 12,
+                    }}
+                  >
+                    {(u.name || u.email)[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: '#F9F2E4' }}>
+                      {u.name || u.email.split('@')[0]}
+                    </div>
+                    <div style={{ fontFamily: 'IBM Plex Mono', fontSize: 11, color: 'rgba(249, 242, 228, 0.5)' }}>
+                      {u.email}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: '#F9F2E4' }}>
+                      {u.mealsCount} {isBn ? 'খাবার' : 'meals'}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'rgba(249, 242, 228, 0.4)' }}>
+                      {u.lastActive.slice(0, 10)}
+                    </div>
+                  </div>
+                  {u.role === 'admin' && (
+                    <span
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: 999,
+                        background: 'rgba(217, 119, 6, 0.2)',
+                        border: '1px solid rgba(217, 119, 6, 0.4)',
+                        color: '#F59E0B',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                      }}
+                    >
+                      Admin
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.section>
+      )}
     </div>
     </LocalizedContent>
   );

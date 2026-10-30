@@ -264,6 +264,13 @@ MUST_MATCH = {
     "UserStats",
     "TodaySummary",
     "MacroTargets",
+    # Auth & Admin Telemetry
+    "Role",
+    "AuthSession",
+    "GoogleAuthRequest",
+    "GoogleAuthResponse",
+    "AdminUserSummary",
+    "AdminMetrics",
 }
 
 
@@ -302,8 +309,6 @@ def test_no_unexpected_types_in_either_file() -> None:
     allowed_ts_only = {
         "TabId",
         "TabDescriptor",
-        "Role",
-        "AuthSession",
         "DemoUser",
         "ConfidenceBucket",
     }

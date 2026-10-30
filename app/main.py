@@ -22,7 +22,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import coach, grocery, market, meals, nutrition, profile, rag, vision
+from app.api import admin, auth, coach, grocery, market, meals, nutrition, profile, rag, vision
 from app.services.state import init_state
 
 
@@ -128,6 +128,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.include_router(auth.router)
+    app.include_router(admin.router)
     app.include_router(vision.router)
     app.include_router(nutrition.router)
     app.include_router(profile.router)

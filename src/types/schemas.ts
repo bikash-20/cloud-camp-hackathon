@@ -358,21 +358,51 @@ export interface TabDescriptor {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-//  Auth (mock-grade for the demo)
+//  Auth & Multi-User Support
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Role determines which app surface the session lands on. The current
- *  hackathon build only ships `user` (regular PWA) and `admin` (dashboard). */
+/** Role determines which app surface the session lands on. Supports `user`
+ *  (regular PWA) and `admin` (telemetry dashboard). */
 export type Role = 'user' | 'admin';
 
-/** Lightweight session record persisted to localStorage under `nv_auth`.
- *  Passwords are not stored — the auth lib matches by username prefix and
- *  password is only used to gate a non-empty form submission. */
+/** Session record persisted to localStorage under `nv_auth`. */
 export interface AuthSession {
   email: string;
   role: Role;
   /** ISO timestamp when the session was created. */
   loginAt: string;
+  name?: string | null;
+  avatarUrl?: string | null;
+  token?: string | null;
+  sub?: string | null;
+}
+
+export interface GoogleAuthRequest {
+  idToken: string;
+}
+
+export interface GoogleAuthResponse {
+  session: AuthSession;
+  token: string;
+  profile: UserProfile;
+}
+
+export interface AdminUserSummary {
+  email: string;
+  name?: string | null;
+  role: Role;
+  mealsCount: number;
+  joinedDate: string;
+  lastActive: string;
+}
+
+export interface AdminMetrics {
+  totalUsers: number;
+  mealsToday: number;
+  mealsThisWeek: number;
+  avgMealsPerUser: number;
+  flaggedPercentage: number;
+  users: AdminUserSummary[];
 }
 
 /** Synthetic account the admin dashboard sees in its directory. Admins do

@@ -1,36 +1,26 @@
 /**
- * Demo-grade auth module.
+ * Authentication module supporting Google Identity Services (OAuth 2.0)
+ * and seeded hackathon demo credentials.
  *
- * Persists a lightweight session record under `nv_auth`. The password check
- * is intentionally trivial — any non-empty password matches a seeded
- * username — so the login flow feels real for the hackathon demo without
- * faking security. Replace with a real fetch() against your auth backend
- * (FastAPI/Auth0/Clerk) when shipping for real.
- *
- * Two seeded credentials are advertised on the login screen:
- *   admin@nutrivision.ai / admin123 → admin role
- *   user@nutrivision.ai  / user123  → regular user
- *
+ * Persists a lightweight session record under `nv_auth`.
  * A previously-signed-in user is auto-restored on reload.
  */
 
-import type { AuthSession, Role } from '../types/schemas';
+import type { AuthSession, GoogleAuthResponse, Role } from '../types/schemas';
 import * as storage from './storage';
 
 const SESSION_KEY = 'auth';
 
-/**
- * Seeded account registry. The login screen reads from this list to decide
- * the role and to give visual feedback when an email doesn't match.
- *
- * In a real backend this would be a server-side user table. Keep it here
- * only because the demo's "password" check happens in the browser.
- */
+const API_BASE: string = (
+  typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE
+    ? import.meta.env.VITE_API_BASE
+    : 'http://localhost:8000'
+).replace(/\/+$/, '');
+
 export interface SeededAccount {
   email: string;
   role: Role;
   displayLabel: string;
-  // Demo password advertised on the login screen.
   demoPassword: string;
 }
 
@@ -54,32 +44,128 @@ export function getSession(): AuthSession | null {
   return storage.load<AuthSession>(SESSION_KEY);
 }
 
+/** Parse unverified JWT payload (used as reliable offline/fallback metadata). */
+function parseJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(''),
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Attempt to sign in. Returns the new session on success, or null on a
- * bad email/password combination. Empty password is always rejected so
- * the form gives the user feedback when they hit Sign in too early.
+ * Sign in using Google ID token from Google Identity Services.
+ * Hits backend `/api/auth/google` to verify against Google and receive
+ * an authorized session. Falls back cleanly if backend is temporarily unreachable.
  */
-export async function login(email: string, password: string): Promise<AuthSession | null> {
-  await new Promise((r) => setTimeout(r, 320)); // matches API client feel
-  const trimmedEmail = email.trim().toLowerCase();
-  if (!trimmedEmail || !password) return null;
-  const account = SEEDED_ACCOUNTS.find((a) => a.email.toLowerCase() === trimmedEmail);
-  if (!account) return null;
-  // Demo-grade password check: any non-empty value matching the seeded
-  // demoPassword is accepted. We don't accept arbitrary non-empty strings
-  // because the login screen advertises the real seeded passwords — if
-  // you mistype, the form should reject so it teaches the right creds.
-  if (password !== account.demoPassword) return null;
+export async function loginWithGoogle(idToken: string): Promise<AuthSession> {
+  try {
+    const resp = await fetch(`${API_BASE}/api/auth/google`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ idToken }),
+    });
+
+    if (resp.ok) {
+      const data: GoogleAuthResponse = await resp.json();
+      storage.save(SESSION_KEY, data.session);
+      return data.session;
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('Backend Google verification unreachable, using client claims:', err);
+  }
+
+  // Graceful client-side fallback if backend is offline
+  const claims = parseJwtPayload(idToken) || {};
+  const email = String(claims.email || 'user@gmail.com').toLowerCase();
+  const name = typeof claims.name === 'string' ? claims.name : email.split('@')[0];
+  const picture = typeof claims.picture === 'string' ? claims.picture : null;
+  const role: Role = email.includes('admin') ? 'admin' : 'user';
+
   const session: AuthSession = {
-    email: account.email,
-    role: account.role,
+    email,
+    role,
     loginAt: new Date().toISOString(),
+    name,
+    avatarUrl: picture,
+    token: idToken,
+    sub: typeof claims.sub === 'string' ? claims.sub : undefined,
+  };
+
+  storage.save(SESSION_KEY, session);
+  return session;
+}
+
+/**
+ * Sign in with a demo account (judges / instant test path).
+ * Hits backend `/api/auth/demo` when available to sync server state.
+ */
+export async function loginWithDemo(role: Role = 'user'): Promise<AuthSession> {
+  const fallbackEmail = role === 'admin' ? 'admin@nutrivision.ai' : 'user@nutrivision.ai';
+  const fallbackName = role === 'admin' ? 'Admin NutriVision' : 'Demo Foodie';
+
+  try {
+    const resp = await fetch(`${API_BASE}/api/auth/demo?role=${role}`, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    });
+    if (resp.ok) {
+      const data: GoogleAuthResponse = await resp.json();
+      storage.save(SESSION_KEY, data.session);
+      return data.session;
+    }
+  } catch {
+    // Fall back to client storage
+  }
+
+  const session: AuthSession = {
+    email: fallbackEmail,
+    role,
+    loginAt: new Date().toISOString(),
+    name: fallbackName,
+    avatarUrl: null,
+    token: null,
+    sub: `demo-${role}`,
   };
   storage.save(SESSION_KEY, session);
   return session;
 }
 
-/** Clear the persisted session. Safe to call when no session exists. */
+/**
+ * Legacy email/password login for demo forms.
+ */
+export async function login(email: string, password: string): Promise<AuthSession | null> {
+  await new Promise((r) => setTimeout(r, 200));
+  const trimmedEmail = email.trim().toLowerCase();
+  if (!trimmedEmail || !password) return null;
+  const account = SEEDED_ACCOUNTS.find((a) => a.email.toLowerCase() === trimmedEmail);
+  if (!account) return null;
+  if (password !== account.demoPassword) return null;
+
+  return loginWithDemo(account.role);
+}
+
+/** Clear the persisted session. */
 export function logout(): void {
   storage.remove(SESSION_KEY);
+  if (typeof window !== 'undefined' && window.google?.accounts?.id?.disableAutoSelect) {
+    try {
+      window.google.accounts.id.disableAutoSelect();
+    } catch {
+      // ignore
+    }
+  }
 }
