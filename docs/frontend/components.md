@@ -7,14 +7,12 @@ behavior lives.
 ## Screens (`src/components/screens/`)
 
 ### `CaptureScreen.tsx`
-The home tab. Largest file in the project (~1100 lines). Composes:
-- Top: user greeting, today's kcal progress bar
-- Hero card: camera button (rear-camera preferred via `getUserMedia`),
-  file-upload fallback, live preview after capture
+The home tab. Composes:
+- Top: user greeting, today's summary with integrated FinTech revenue spline curve (`RevenueCurveChart`) or macro progress bars.
+- Hero card: camera button (rear-camera preferred via `getUserMedia`), file-upload fallback, live preview after capture, and retake controls.
 - Quick action chips: jump to grocery, history, scan, etc.
-- Recent meals: last 3 logged, with thumbnails (gradient + emoji
-  fallback keyed off `meal.id`)
-- "Today's macros" summary card
+- Recent meals: last logged meals with thumbnails (gradient + emoji fallback keyed off `meal.id`).
+- Real-time reactive updates: listens to the `meal-history-updated` event to refresh today's totals and recent meals without requiring page reloads.
 
 The camera viewfinder uses an in-screen shutter animation.
 After capture, the data URL flows up to `App.tsx` via the
@@ -22,25 +20,34 @@ After capture, the data URL flows up to `App.tsx` via the
 
 ### `ResultsScreen.tsx`
 The detected-items list after analysis. Features:
-- Top: pipeline trace toast (animated, from `pipeline` prop)
+- Top: pipeline trace toast (animated, from `pipeline` prop) and step progression header (`Review` → `Adjust` → `Confirm`).
+- Direct grocery addition: 1-tap `[ 🛒 Add to Grocery / বাজারে যোগ ]` button next to the Share button, allowing one-click synchronization of detected items into the grocery list.
 - Body: sortable, editable list of `DetectedItem`s
   - Sort: confidence, calories, name, portion size
   - Per-item: confidence ring, name, portion +/- (25g), glycemic chip
   - Edit mode: rename, replace with alternatives, delete
-- Bulk action bar (multi-select): confirm all, review low-confidence,
-  add custom
+- Real-time sync: when portions are adjusted, updates the latest entry in `mealHistory` and broadcasts `meal-history-updated`.
+- Bulk action bar (multi-select): confirm all, review low-confidence, add custom
 - "Frequently eaten with" suggestions from `MOCK_NUTRITION_DB`
 - Share detected items to clipboard
 
 ### `NutrientsScreen.tsx`
 The analysis tab after the user confirms items. Features:
-- Top: meal photo thumbnail, date/time, total kcal
-- Macro donut charts (protein, carbs, fat) with animated count-up
-- Linear progress bars for fiber, sodium, sugar
-- "Why these flags?" strip — each `NutrientContribution` rendered
-  as a verdict chip with reason text
-- Share nutrition summary to clipboard
-- "Save meal" button → triggers `saveMeal(meal)` in `api.ts`
+- Top: meal photo thumbnail, date/time, total kcal, and contextual subtitle.
+- **Revenue-Style Intake Curve (`RevenueCurveChart.tsx`):**
+  - Smooth Catmull-Rom spline curve with soft orange gradient fill showing actual meal intake.
+  - Dashed projection forecast curve gently continuing toward the daily target (e.g. 2269 kcal) by evening, labeled as **পূর্বাভাস / Forecast**.
+  - Olive target line (`দৈনিক লক্ষ্য ২২৬৯` / `Target: 2269 kcal`).
+  - Bengali and English X/Y axes ticks (`৮ AM`, `১২ PM`, `৪ PM`, `৮ PM`, `১১ PM`; `০`, `১০০০`, `২০০০`, `২৫০০` kcal) with draw-in animation and high-contrast stat chips.
+  - Accurately reports meal calories and true count of logged meals (`todaySummary.mealsLogged`).
+- **Smart Dietary Pivot & Market Intelligence (`pivotEngine.ts`):**
+  - Tailored meal swap cards with exact macro and BDT market price deltas (e.g. Low-Sodium Gravy Pivot, Pasta & Steamed Veggies Swap, or Antioxidant Salad Booster).
+  - 1-click `[ 🛒 Add pivot items to Grocery List ]` button that syncs recommended swap ingredients directly into the grocery list.
+- Macro donut charts (protein, carbs, fat) with animated count-up and deep ink (`#2E2522`) labels.
+- Modern 10px gradient pill meters (`src/components/Bar.tsx`) with benchmark notches for fiber, sodium, and sugar.
+- SHAP-style explainability strip with 8px pill gauges and bold percentage tags.
+- Share nutrition summary to clipboard.
+- "Save meal" button → triggers `saveMeal(meal)` in `api.ts`.
 
 ### `ProfileScreen.tsx`
 The user-settings tab. Features:
@@ -63,6 +70,15 @@ The grocery-list tab. Features:
   every item in recent meal history
 - Clear all (with confirmation)
 - Share list to clipboard
+
+### `CoachScreen.tsx`
+The AI Coach tab (6th tab in bottom navigation). Features:
+- **Persona:** Dr. Susmit (পুষ্টি বিজ্ঞানী / Nutrition Scientist).
+- **Dual Expertise:** Biochemical & nutritional analysis paired with empathetic habit coaching based on Cognitive Behavioral Therapy (CBT) and WHO/ICMR lifestyle protocols.
+- **Bilingual Conversations:** Seamless English and Bengali dialogue with culturally nuanced guidance (e.g. managing Bengali feasts, dawats, sweets, and evening tea cravings).
+- **Scientific Citations:** Transparent citation tags (INFS/BIRDEM guidelines, CBT habit science, WHO lifestyle protocols).
+- **Proactive Prompts:** Quick action question chips for fast habit check-ins.
+- **Context-Aware:** Analyzes recently uploaded meal photos and profile parameters to answer nutritional questions with personalized context.
 
 ## Admin (`src/components/admin/`)
 
@@ -88,13 +104,31 @@ next cut. See [AGENT_CONTEXT.md](../AGENT_CONTEXT.md#dont-touch-explicit-constra
 
 ## Shared components (`src/components/`)
 
+### `RevenueCurveChart.tsx`
+A modern, FinTech revenue-curve style trajectory chart for daily calorie intake and projections:
+- **Catmull-Rom Centripetal Spline ($\alpha=0.5$):** Generates $C^1$ smooth cubic Bézier curves across irregular meal time intervals without external chart dependencies.
+- **Flowing Area Fill:** Soft terracotta/orange gradient fill under the actual intake line ($0 \rightarrow \text{Current kcal}$, flat after the latest logged meal).
+- **Dashed Projection Forecast:** Extrapolates gently toward the daily target (e.g. 2269 kcal) by evening, marked as **পূর্বাভাস / Forecast**.
+- **Olive Benchmark Target Line:** Clear dashed reference line (`#4F772D`) labeled `দৈনিক লক্ষ্য ২২৬৯` / `Target: 2269 kcal`.
+- **Bilingual Bengali & English Axes:** Localized time stamps on the X-axis (`সকাল ৮টা`, `দুপুর ১২টা`, `বিকাল ৪টা`, `রাত ৮টা`, `রাত ১১টা` or `8 AM`, `12 PM`, `4 PM`, `8 PM`, `11 PM`) and calorie levels on the Y-axis (`০`, `১০০০`, `২০০০`, `২৫০০` kcal) with subtle gridlines.
+- **Draw-In SVG Animation:** Curve smoothly draws itself from left to right on card mount with a pulsing active-marker dot and hover/tap tooltips.
+- **Macro Stat Chips:** High-contrast progress chips for Protein, Carbs, and Fat with deep ink (`#2E2522`) numbers.
+- **Responsive:** Fits phone viewports (320px) to desktop displays cleanly using vector `viewBox="0 0 540 220"`.
+- **Props:** Accepts `currentKcal`, `targetKcal`, `mealsLogged`, `todayKcal`, `mealHistory`, and custom `subtitle`.
+
 ### `Bar.tsx`
-A **labeled** progress bar. Different from `MiniBar`:
-- Has a label row above
-- Has hover effect
-- Has drop-shadow
-- Used in sections that need explanatory labels (e.g. "Sodium:
-  850mg / 2300mg")
+Modern 10px high-contrast gradient pill meter (upgraded from flat plain bars):
+- Rounded pill aesthetics with linear color gradients (`#D96B27` $\rightarrow$ `#E87A38`, `#4F772D` $\rightarrow$ `#689F38`, `#DC2626` $\rightarrow$ `#EF4444`).
+- Subtle glossy top highlight line for elevated tactile polish.
+- Benchmark target notch indicator at 100% position.
+- Over-target badge (e.g. `+140%`) when nutrient exceeds safe daily limit.
+- High-contrast labels and numeric values using deep ink (`#2E2522`).
+
+### `SummaryCard.tsx`
+A reusable summary card with support for dual display modes:
+- Header mode toggle: `[ 📈 গতিপথ / Curve | 📊 ম্যাক্রো / Macros ]`.
+- Embeds the `RevenueCurveChart` inline for quick visual trajectory inspection.
+- Embeds progress pill meters for protein, carb, and fat breakdown.
 
 ### `Meter.tsx` (new)
 The `MiniBar` and `MacroMeter` components, extracted from
@@ -110,7 +144,7 @@ Mobile full-bleed on small screens, desktop phone-mockup frame on
 larger screens. Used as the outermost wrapper of `UserApp`.
 
 ### `BottomNav.tsx`
-The 5-tab dock at the bottom of the phone frame. Highlights the
+The 6-tab dock at the bottom of the phone frame (Capture, Results, Nutrients, Profile, Grocery, AI Coach). Highlights the
 active tab, animates the icon with framer-motion.
 
 ### `ErrorBoundary.tsx`

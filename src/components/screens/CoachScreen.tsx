@@ -232,23 +232,23 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
         role: 'assistant',
         content: isBn
           ? '🔬 **স্বাগতম! আমি ড. সুস্মিত (Dr. Susmit - পুষ্টি বিজ্ঞানী)।**\n\n' +
-            'আপনার খাদ্যের গ্লাইসেমিক সূচক (GI/GL), রান্নার তেলের প্রভাব, পুষ্টি উপাদান এবং বিপি/ডায়াবেটিসের বৈজ্ঞানিক বিশ্লেষণ জানাতে আমি প্রস্তুত। যেকোনো প্রশ্ন নির্বাচন করুন বা সরাসরি জিজ্ঞাসা করুন!'
+          'আপনার খাদ্যের গ্লাইসেমিক সূচক (GI/GL), রান্নার তেলের প্রভাব, পুষ্টি উপাদান এবং বিপি/ডায়াবেটিসের বৈজ্ঞানিক বিশ্লেষণ জানাতে আমি প্রস্তুত। যেকোনো প্রশ্ন নির্বাচন করুন বা সরাসরি জিজ্ঞাসা করুন!'
           : '🔬 **Welcome! I am Dr. Susmit (Nutritional Biochemist).**\n\n' +
-            'I provide evidence-based biochemical analysis of your meals, glycemic load ($GL$), cooking oil absorption, and clinical macronutrient partitioning per BIRDEM/ADA guidelines. Ask any nutrition question!',
+          'I provide evidence-based biochemical analysis of your meals, glycemic load ($GL$), cooking oil absorption, and clinical macronutrient partitioning per BIRDEM/ADA guidelines. Ask any nutrition question!',
       };
       setMessages([welcome]);
       setSuggestedPrompts(
         isBn
           ? [
-              'এই খাবারের গ্লাইসেমিক লোড কীভাবে কমাব?',
-              'রান্নায় তেল শোষণ কমানোর বৈজ্ঞানিক পদ্ধতি কী?',
-              'বাজেট ফ্রেন্ডলি প্রোটিন উৎস কী কী?',
-            ]
+            'এই খাবারের গ্লাইসেমিক লোড কীভাবে কমাব?',
+            'রান্নায় তেল শোষণ কমানোর বৈজ্ঞানিক পদ্ধতি কী?',
+            'বাজেট ফ্রেন্ডলি প্রোটিন উৎস কী কী?',
+          ]
           : [
-              'How do I lower the glycemic load of this meal?',
-              'How to reduce cooking oil absorption?',
-              'What are budget-friendly protein sources?',
-            ]
+            'How do I lower the glycemic load of this meal?',
+            'How to reduce cooking oil absorption?',
+            'What are budget-friendly protein sources?',
+          ]
       );
       setCitations(isBn ? ['BIRDEM ক্লিনিক্যাল গাইডলাইন', 'INFS খাদ্য ডাটাবেজ'] : ['BIRDEM Clinical Protocols', 'INFS Nutrition DB']);
     } else {
@@ -256,23 +256,23 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
         role: 'assistant',
         content: isBn
           ? '🧠 **হ্যালো! আমি ফারহানা আহমেদ (আচরণ ও অভ্যাস কোচ)।**\n\n' +
-            'সুস্থ জীবনযাপন কোনো চাপ বা কড়া ডায়েট নয়, বরং ভালো লাগার অভ্যাস। পারিবারিক দাওয়াত, মিষ্টির ক্রেভিং বা রুটিন ধরে রাখার সহজ মনস্তাত্ত্বিক পরামর্শ পেতে আমাকে জানাতে পারেন। কোনো অপরাধবোধ ছাড়াই আমরা এগিয়ে যাব! 💚'
+          'সুস্থ জীবনযাপন কোনো চাপ বা কড়া ডায়েট নয়, বরং ভালো লাগার অভ্যাস। পারিবারিক দাওয়াত, মিষ্টির ক্রেভিং বা রুটিন ধরে রাখার সহজ মনস্তাত্ত্বিক পরামর্শ পেতে আমাকে জানাতে পারেন। কোনো অপরাধবোধ ছাড়াই আমরা এগিয়ে যাব! 💚'
           : '🧠 **Hello! I am Farhana Ahmed (Behavioral & Habit Coach).**\n\n' +
-            'Healthy living isn\'t about rigid restrictions or guilt—it\'s about building compassionate, lasting habits. Let\'s navigate family feasts, sweet cravings, and daily routines together! 💚',
+          'Healthy living isn\'t about rigid restrictions or guilt—it\'s about building compassionate, lasting habits. Let\'s navigate family feasts, sweet cravings, and daily routines together! 💚',
       };
       setMessages([welcome]);
       setSuggestedPrompts(
         isBn
           ? [
-              'দাওয়াতে অতিরিক্ত খাওয়ার পর কী করব?',
-              'রাতের মিষ্টি বা চায়ের আড্ডার লোভ কীভাবে সামলাব?',
-              'ব্যস্ত দিনে হেলদি ডায়েট ধরে রাখার সহজ রুটিন কী?',
-            ]
+            'দাওয়াতে অতিরিক্ত খাওয়ার পর কী করব?',
+            'রাতের মিষ্টি বা চায়ের আড্ডার লোভ কীভাবে সামলাব?',
+            'ব্যস্ত দিনে হেলদি ডায়েট ধরে রাখার সহজ রুটিন কী?',
+          ]
           : [
-              'How to bounce back after a heavy family feast?',
-              'How to manage evening sweet cravings?',
-              'Easy routines for healthy habits on busy days?',
-            ]
+            'How to bounce back after a heavy family feast?',
+            'How to manage evening sweet cravings?',
+            'Easy routines for healthy habits on busy days?',
+          ]
       );
       setCitations(isBn ? ['CBT আচরণ বিজ্ঞান', 'WHO লাইফস্টাইল গাইডলাইন'] : ['CBT Habit Science', 'WHO Lifestyle Protocols']);
     }
@@ -544,29 +544,29 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                   style={
                     isUser
                       ? {
-                          padding: '10px 16px',
-                          borderRadius: '16px 16px 4px 16px',
-                          backgroundColor: '#3D2E27',
-                          color: '#F9F5F0',
-                          fontSize: '0.9375rem',
-                          lineHeight: 1.5,
-                          minWidth: '48px',
-                          display: 'inline-block',
-                          wordBreak: 'break-word',
-                          maxWidth: '88%',
-                        }
+                        padding: '10px 16px',
+                        borderRadius: '16px 16px 4px 16px',
+                        backgroundColor: '#3D2E27',
+                        color: '#F9F5F0',
+                        fontSize: '0.9375rem',
+                        lineHeight: 1.5,
+                        minWidth: '48px',
+                        display: 'inline-block',
+                        wordBreak: 'break-word',
+                        maxWidth: '88%',
+                      }
                       : {
-                          maxWidth: '88%',
-                          padding: '16px 20px',
-                          borderRadius: '16px 16px 16px 4px',
-                          backgroundColor: '#FFFFFF',
-                          border: '1px solid rgba(92, 64, 51, 0.12)',
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-                          fontSize: '0.9375rem',
-                          lineHeight: 1.65,
-                          color: '#2C221E',
-                          wordBreak: 'break-word',
-                        }
+                        maxWidth: '88%',
+                        padding: '16px 20px',
+                        borderRadius: '16px 16px 16px 4px',
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid rgba(92, 64, 51, 0.12)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                        fontSize: '0.9375rem',
+                        lineHeight: 1.65,
+                        color: '#2C221E',
+                        wordBreak: 'break-word',
+                      }
                   }
                 >
                   {m.image_ref && (
@@ -607,8 +607,8 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                     ? 'বায়োকেমিক্যাল ও পুষ্টি তথ্য বিশ্লেষণ হচ্ছে…'
                     : 'Analyzing biochemical pathways & nutrition data…'
                   : isBn
-                  ? 'সহানুভূতিশীল পরামর্শ সাজানো হচ্ছে…'
-                  : 'Formulating habit guidance…'}
+                    ? 'সহানুভূতিশীল পরামর্শ সাজানো হচ্ছে…'
+                    : 'Formulating habit guidance…'}
               </span>
             </motion.div>
           )}
@@ -786,8 +786,8 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                   ? 'পুষ্টি বা উপাদান সম্পর্কে জিজ্ঞাসা করুন…'
                   : 'Ask about glycemic load, oil, sodium…'
                 : isBn
-                ? 'দাওয়াত বা অভ্যাস সম্পর্কে জিজ্ঞাসা করুন…'
-                : 'Ask about feasts, cravings, habits…'
+                  ? 'দাওয়াত বা অভ্যাস সম্পর্কে জিজ্ঞাসা করুন…'
+                  : 'Ask about feasts, cravings, habits…'
             }
             style={{
               flex: 1,

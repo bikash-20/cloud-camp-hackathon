@@ -14,11 +14,13 @@ It is split into two halves:
 
 - **Frontend** — React 18 + Vite + TypeScript PWA in `src/`. Image
   analysis and nutrition resolution call the FastAPI service when
-  configured; profile, grocery, meal history, and authentication still
-  use browser-local or seeded demo state.
-- **Backend** — FastAPI + Pydantic v2 in `app/`. Wired to Gemini 2.0
-  Flash (primary vision), HuggingFace (validator), and a nutrition
-  cascade (Open Food Facts → USDA → Fruityvice).
+  configured; profile, grocery, meal history, and authentication utilize
+  browser-local state with reactive DOM synchronization (`meal-history-updated`,
+  `grocery-updated`).
+- **Backend** — FastAPI + Pydantic v2 in `app/`. Wired to a multi-tier vision cascade
+  (Groq Vision → Gemini 2.0 Flash → OpenRouter → Gemini 1.5 Fallback → HuggingFace),
+  and a nutrition cascade (Open Food Facts → USDA → Fruityvice) plus local Bangladesh
+  and global canonical food compositions.
 
 ## System diagram
 
@@ -29,10 +31,10 @@ It is split into two halves:
    ┌─────────┐      │  ┌─────────────┐  ┌────────────────────────┐ │      ┌──────────────────┐
    │  User   │─────▶│  │  Capture    │  │ React 18 + framer-     │ │      │ localStorage     │
    │ (phone) │      │  │  Screen     │─▶│ motion app (App.tsx)   │─┼─────▶│  • profile       │
-   └─────────┘      │  │ (camera)    │  │  5 tabs + admin route  │ │      │  • meal_history  │
+   └─────────┘      │  │ (camera)    │  │  6 tabs + admin route  │ │      │  • meal_history  │
                     │  └─────────────┘  │                        │ │      │  • grocery       │
-                    │         │         │  Mock API: src/lib/    │ │      │  • nv_auth       │
-                    │         │ dataURL │  api.ts (swap target)  │ │      └──────────────────┘
+                    │         │         │  API client: src/lib/  │ │      │  • nv_auth       │
+                    │         │ dataURL │  api.ts                │ │      └──────────────────┘
                     │         ▼         └────────────┬───────────┘ │
                     │  ┌─────────────┐               │             │
                     │  │ <img>       │               │             │
@@ -59,7 +61,9 @@ It is split into two halves:
                     │    app/cache/vector_cache.py (ChromaDB)       │
                     │                                               │
                     │  External HTTP:                               │
+                    │    services/groq_client.py     → Groq LPU     │
                     │    services/gemini_client.py   → Gemini 2.0   │
+                    │    services/openrouter_client.py → OpenRouter │
                     │    services/hf_client.py        → HF Inference │
                     │    services/off_client.py       → OpenFF      │
                     │    services/usda_client.py      → USDA FDC    │
@@ -69,23 +73,27 @@ It is split into two halves:
                                  ▼
                     ┌──────────────────────────────────────────────┐
                     │  External services                            │
-                    │  • Google Gemini 2.0 Flash  (vision)          │
-                    │  • HuggingFace Inference  (validator)        │
-                    │  • Open Food Facts  (nutrition, no key)       │
-                    │  • USDA FoodData Central  (nutrition, DEMO_KEY)│
-                    │  • Fruityvice  (fruit, no key)                │
+                    │  • Groq LPU Vision (Tier 1: fast inference)   │
+                    │  • Google Gemini 2.0 Flash (Tier 2: primary)  │
+                    │  • OpenRouter Vision (Tier 3: free cascade)   │
+                    │  • Google Gemini 1.5 (Tier 4: fallback)       │
+                    │  • HuggingFace Inference (Tier 5: validator)  │
+                    │  • Open Food Facts (nutrition, no key)        │
+                    │  • USDA FoodData Central (nutrition, DEMO_KEY)│
+                    │  • Fruityvice (fruit, no key)                 │
                     └──────────────────────────────────────────────┘
 ```
 
 ## Data flow (one sentence per stage)
 
-1. **User opens the app** → `App.tsx` reads `nv_auth` from localStorage, shows the login screen or the appropriate app surface (user PWA / admin dashboard).
+1. **User opens the app** → `App.tsx` reads `nv_auth` from localStorage, shows the login screen or the appropriate app surface (user PWA with 6 tabs / admin dashboard).
 2. **User taps "Capture"** → `CaptureScreen` opens a `getUserMedia` stream (rear camera preferred), the user takes a photo, the photo becomes a JPEG data URL via `canvas.toDataURL('image/jpeg', 0.92)`.
-3. **App calls `analyzeMeal(dataUrl)`** → currently a mock in `src/lib/api.ts`; once swapped, this will `POST /api/vision/analyze` with `{ image_ref: dataUrl }`.
-4. **Backend** runs the vision pipeline (cache → Gemini || HF → reconcile → portion), returns `{ detected: DetectedItem[], pipeline: PipelineTrace[] }`.
-5. **App calls `resolveNutrition(items, profile)`** → mock resolves per-100g nutrition from `MOCK_NUTRITION_DB` and runs the flag rules; real backend hits `/api/nutrition/resolve` which calls OFF → USDA → Fruityvice.
-6. **User edits + confirms** → the app builds a `MealEntry` and calls `saveMeal(meal)` (persists to localStorage; real backend also persists to `app/state.json`).
-7. **User navigates to Grocery** → `GroceryScreen` reads/writes the grocery list, can `generateFromMeals()` to add pairings from the meal history.
+3. **App calls `analyzeMeal(dataUrl)`** → `POST /api/vision/analyze` with `{ image_ref: dataUrl }` triggers the multi-tier cascade (Groq → Gemini → OpenRouter → Gemini Fallback → HF).
+4. **Backend** runs the vision pipeline (cache → cascade → reconcile → portion), returns `{ detected: DetectedItem[], pipeline: PipelineTrace[] }`.
+5. **App calls `resolveNutrition(items, profile)`** → resolves per-100g nutrition from canonical databases, OFF → USDA → Fruityvice cascade, and runs flag rules.
+6. **User edits + confirms on ResultsScreen** → portions can be adjusted (with 1-tap grocery add); `updateLatestMeal()` syncs edits to history and fires `meal-history-updated`.
+7. **NutrientsScreen renders** → renders FinTech Catmull-Rom revenue trajectory curve (`RevenueCurveChart.tsx`), Smart Dietary Pivot & Market Intelligence card with 1-click grocery sync, and 10px gradient pill meters.
+8. **User navigates to Grocery or AI Coach** → `GroceryScreen` groups items by category; `CoachScreen` connects to Dr. Susmit for bilingual biochemical and habit guidance.
 
 See [IMAGE_UPLOAD_FLOW.md](./IMAGE_UPLOAD_FLOW.md) for a frame-by-frame trace.
 

@@ -23,15 +23,13 @@ meal history, and authentication remain browser-local/demo behavior.
 
 `UserApp`:
 1. Reads profile, today summary, and meal history from browser-local state.
-2. Owns the `activeTab` state (`0..4` for the 5 main tabs).
+2. Owns the `activeTab` state (`0..5` for the 6 main tabs).
 3. Renders `<PhoneFrame>` wrapping the active `<Screen>`.
 4. Renders `<BottomNav>` for tab switching.
 5. Renders `<StepDots>` (the animated progress strip).
 6. Renders `<PwaInstallBanner>` for the PWA install prompt.
 
-The `CaptureScreen` is the largest single file (~1100 lines). It
-combines the home screen, the camera viewfinder, the shutter
-animation, and the recent-meals history.
+The `CaptureScreen` is the home screen, combining the camera viewfinder, shutter animation, FinTech revenue-curve trajectory, and recent-meals history.
 
 ## Routing
 
@@ -40,16 +38,17 @@ There is no React Router. Routing is a `useState` ladder:
 ```ts
 const [activeTab, setActiveTab] = useState(0);
 
-const screens = [<CaptureScreen />, <ResultsScreen />, ...];
+const screens = [<CaptureScreen />, <ResultsScreen />, <NutrientsScreen />, <ProfileScreen />, <GroceryScreen />, <CoachScreen />];
 return screens[activeTab];
 ```
 
-The five tabs map to:
-- `0` → `CaptureScreen` (home + camera)
-- `1` → `ResultsScreen` (detected items)
-- `2` → `NutrientsScreen` (donuts + explainability)
+The six tabs map to:
+- `0` → `CaptureScreen` (home + camera + revenue curve)
+- `1` → `ResultsScreen` (detected items + 1-tap grocery add)
+- `2` → `NutrientsScreen` (spline trajectory + smart dietary pivots + donuts)
 - `3` → `ProfileScreen` (goals + prefs + allergens)
-- `4` → `GroceryScreen` (weekly list)
+- `4` → `GroceryScreen` (weekly list with category grouping)
+- `5` → `CoachScreen` (Dr. Susmit AI habit & nutrition scientist)
 
 Cross-tab navigation (e.g. "Open grocery" from the CaptureScreen's
 quick-action chips) uses `TAB_GROCERY` which is derived from
@@ -84,6 +83,7 @@ seed data, or local calculations:
 - `getTodaySummary()` → `TodaySummary`
 - `getMealHistory()` → `MealEntry[]`
 - `saveMeal(meal)` → `MealEntry`
+- `updateLatestMeal(meal)` → updates latest meal in history & fires `meal-history-updated`
 - `deleteMeal(id)` → `void`
 - `getProfile()` → `UserProfile`
 - `updateProfile(profile)` → `UserProfile`
@@ -98,6 +98,12 @@ backend URL/provider is unavailable.
 
 ## Helpers (`src/lib/`)
 
+### `pivotEngine.ts`
+Smart Dietary Pivot & Market Intelligence engine:
+- Generates tailored meal swaps (e.g. low-sodium gravy pivot, pasta-to-veggie swap, high-carb brown rice replacement, antioxidant produce booster).
+- Computes exact macro deltas ($\Delta\text{kcal}$, $\Delta\text{carbs}$, $\Delta\text{fiber}$, $\Delta\text{sodium}$) and BDT market price impact ($\Delta\text{BDT}$).
+- Provides actionable grocery items with categories (`Produce`, `Protein`, `Grains & staples`) for 1-click addition to `GroceryScreen`.
+
 ### `format.ts`
 Pure helpers extracted from `CaptureScreen`:
 - `formatRelative(iso, now?)` — "just now" / "5m ago" / "Yesterday" / weekday / month-day
@@ -107,6 +113,7 @@ Pure helpers extracted from `CaptureScreen`:
 ### `personalize.ts`
 Flag rules + meal totals. Mirrors `app/services/personalize.py`:
 - `mealTotals(items)` — zeros when no items, scales by grams correctly
+- `getEffectiveNutrition(item)` — canonical lookup across global and regional foods (pasta, spaghetti, parsley, local dishes)
 - `buildContributions(items, targets, focusedNutrients)` — SHAP-style per-nutrient contributions
 - `focusedNutrients(profile)` — diabetic vs non-diabetic focus list
 - `FLAG_RULES` — the rule table that powers the verdict chips

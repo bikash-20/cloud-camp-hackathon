@@ -79,8 +79,8 @@ on `ResultsScreen`. The possible stages are:
 | Stage | When | Status values |
 |---|---|---|
 | `cache-check` | Always first | `running` → `done` or `cache-hit` |
-| `vision-id` | After cache miss | `done` (Gemini) or `fallback` |
-| `hf-validate` | After cache miss | `done` (HF) or `fallback` |
+| `vision-id` | Multi-tier cascade | `done` (Groq / Gemini / OpenRouter / Gemini Fallback) or `fallback` |
+| `hf-validate` | Validator / fallback | `done` (HF) or `fallback` |
 | `reconcile` | After vision-id + hf-validate | `done` or `fallback` |
 | `nutrition` | (Reserved) | — |
 | `portion` | (Reserved) | — |
@@ -89,18 +89,11 @@ on `ResultsScreen`. The possible stages are:
 
 On a cache hit, only `cache-check` + `vision-id` (cache-hit) +
 `hf-validate` (cache-hit) + `reconcile` (cache-hit) are emitted. On
-a full live pipeline, all 4 main stages are emitted.
-
-The reserved stages (`nutrition`, `portion`, `personalize`,
-`explain`) are placeholders for future cut-c work. They exist in the
-schema so the toast UI doesn't need to change when they're wired up.
+a full live pipeline, all main stages are emitted.
 
 ### Behavior when no vision provider is configured
 
-If `GEMINI_API_KEY` and `HF_API_TOKEN` are both unset, the route
-returns HTTP 503. Gemini is sufficient; Hugging Face is optional.
-The client surfaces the failure and does not substitute sample
-detections for the uploaded photo.
+If `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, and `HF_API_TOKEN` are all unset or fail to respond, the route returns HTTP 503 (`Vision Service Temporarily Unavailable`). Any single configured provider is sufficient. The frontend surfaces the failure with a Retry Analysis action and never substitutes sample detections for an uploaded photo.
 
 ### Cache writes
 

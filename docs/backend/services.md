@@ -8,8 +8,27 @@ implementation notes, and where it's used.
 
 ## HTTP clients
 
+### `groq_client.py`
+Groq LPU vision client (Tier 1 fastest inference).
+
+```python
+from app.services.groq_client import GroqClient
+
+client = GroqClient()  # reads GROQ_API_KEY from env
+client.is_configured()   # True iff GROQ_API_KEY is set
+result = client.detect_vision(image_ref)  # VisionDetectionResult
+items = client.detect(image_ref)  # list[DetectedItem]
+```
+
+- Primary model: `llama-3.2-11b-vision-preview` (fallback `llama-3.2-90b-vision-preview`).
+- Ultra-low latency LPU execution (~400-800ms).
+- Evaluates food detection, confidence thresholding, portion estimation, and restaurant menu OCR.
+- **Used by:** `app/api/vision.py` (Tier 1 primary in vision cascade).
+
+---
+
 ### `gemini_client.py`
-Google Gemini 2.0 Flash vision client.
+Google Gemini 2.0 Flash vision client (Tier 2 primary high-accuracy vision).
 
 ```python
 from app.services.gemini_client import GeminiClient
@@ -31,8 +50,23 @@ client.close()
 
 Returns `[]` on any error so the route can degrade.
 
-**Used by:** `app/api/vision.py` (live path when `GEMINI_API_KEY` is
-set).
+**Used by:** `app/api/vision.py` (Tier 2 and Tier 4 fallback).
+
+---
+
+### `openrouter_client.py`
+OpenRouter multimodal vision client (Tier 3 free cascade).
+
+```python
+from app.services.openrouter_client import OpenRouterVisionClient
+
+client = OpenRouterVisionClient()  # reads OPENROUTER_API_KEY from env
+client.is_configured()
+result = client.detect_vision(image_ref)
+```
+
+- Provides automatic model failover using free and multimodal models (including Nemotron).
+- **Used by:** `app/api/vision.py` (Tier 3 fallback).
 
 ---
 

@@ -91,9 +91,7 @@ can OOM a worker; the cap exists to prevent that.
 
 **File:** `app/api/vision.py#analyze_meal`
 
-The route runs four named stages, each surfacing as a `PipelineTrace`
-entry in the response: cache check, vision identification, optional
-Hugging Face validation, and reconciliation.
+The route runs a multi-stage pipeline surfaced as a `PipelineTrace` in the response: cache check, multi-provider vision cascade (Groq → Gemini → OpenRouter → Gemini Fallback → HuggingFace), and confidence-weighted reconciliation.
 
 ### Stage 1: cache-check (always first)
 
@@ -112,99 +110,48 @@ The vector cache is checked:
   appended (`vision-id`, `hf-validate`, `reconcile`). The route returns
   immediately.
 On miss, the stage flips to `done` and execution continues. Successful
-results are also written to a SQLite TTL cache, but this route does not
-currently read that cache.
+results are also written to a SQLite TTL cache.
 
-### Stage 2: vision-id (Gemini, if configured)
+### Stage 2: vision-id (Multi-tier provider cascade)
 
-**File:** `app/services/gemini_client.py`
+The system executes a fail-safe, multi-tier provider cascade to ensure lightning-fast processing, zero downtime, and robust fallback when external quotas are saturated:
 
-`GeminiClient.detect(image_ref)`:
-1. Reads the data URL → `(base64_payload, mime_type)`. Also accepts
-   local file paths.
-2. `POST` to `{base_url}/{model}:generateContent?key={api_key}` with
-   an `inline_data` part containing the base64 image and a strict-JSON
-   prompt asking for `[{name, confidence, grams, bbox?}, ...]`.
-3. On `5xx` / timeout → `log_http_failure("Gemini", exc, image_ref=...)` at `WARNING`.
-4. On `429` → `ERROR` with rate-limit hint.
-5. On `401` / `403` → `ERROR` with config hint (`check GEMINI_API_KEY env var`).
-6. Returns `[]` on any error so the route can degrade gracefully.
-7. Parses the response with a tolerant regex (Gemini sometimes wraps
-   JSON in ```json ... ``` fences) and emits a list of `DetectedItem`.
+1. **Tier 1: Groq Vision (Fastest LPU Inference):**
+   - **File:** `app/services/groq_client.py`
+   - Model: `llama-3.2-11b-vision-preview` (fallback `llama-3.2-90b-vision-preview`).
+   - Sub-second inference time via Groq LPUs. Evaluates food detection, portion gram estimation, and restaurant menu OCR if applicable.
+   - If Groq succeeds with confident food detection ($\ge 0.45$), it resolves immediately. On rate-limit (429), quota exhaustion, or failure, it logs a warning and cascades to Tier 2.
 
-If `GEMINI_API_KEY` is unset, `is_configured()` returns `False` and the
-client short-circuits to `[]`. A configured Hugging Face provider can
-still provide detections; if neither provider is configured, the route
-returns HTTP 503.
+2. **Tier 2: Google Gemini 2.0 Flash (Primary High-Accuracy Vision):**
+   - **File:** `app/services/gemini_client.py`
+   - Model: `gemini-2.0-flash`.
+   - Comprehensive multimodal detection with strict JSON output format (`[{name, confidence, grams, bbox?}]`).
+   - On 429 quota or timeout, gracefully cascades to Tier 3.
 
-### Stage 3: hf-validate (HuggingFace, if configured)
+3. **Tier 3: OpenRouter Vision (Free Multimodal Cascade):**
+   - **File:** `app/services/openrouter_client.py`
+   - Active multimodal model cascade (including Nemotron and free vision models).
+   - Provides resilient failover when primary API quotas are exhausted.
 
-**File:** `app/services/hf_client.py`
+4. **Tier 4: Google Gemini Secondary Fallback:**
+   - Fallback models: `gemini-1.5-flash-8b` / `gemini-1.5-flash` with distinct quota pools.
 
-`HFClient.classify(image_ref)`:
-1. Same data-URL → base64 decoding as Gemini.
-2. `POST` to the HF Inference API with the image as a binary body.
-3. Returns top-K labels as `{name, confidence, bbox?}`.
-4. Same severity-graded logging as Gemini.
+5. **Tier 5: Hugging Face Classifier (Validator & Fallback):**
+   - **File:** `app/services/hf_client.py`
+   - Validates food categories and supplies bounding-box/label classification.
 
-If `HF_API_TOKEN` is unset, returns `[]`; Gemini can still provide
-detections.
+If all providers fail or are unconfigured, the route returns HTTP 503 (`Vision Service Temporarily Unavailable`).
 
-### Stage 4: reconcile (confidence-weighted merge)
+### Stage 3: reconcile & portion estimation
 
-**File:** `app/services/reconcile.py`
+**Files:** `app/services/reconcile.py` & `app/services/portion.py`
 
-`reconcile.merge(gemini_items, hf_labels)`:
-- Pure function, no I/O.
-- Confidence-weighted merge: items in both sets with overlapping
-  bboxes are merged using max-confidence, items in only one set are
-  kept.
-- Returns a single `list[DetectedItem]`.
+- `reconcile.merge`: Merges provider outputs with overlapping bounding boxes and resolves duplicate item detections using confidence-weighted heuristics.
+- `portion.estimate`: Bounding-box volumetric density estimation mapping category-specific food densities to realistic gram weights.
 
-Stage status reflects cache or configured provider results. A missing
-provider is an HTTP 503, not a canned fixture response.
+### Stages 4–5: persist + respond
 
-### Stage 5: portion (per-item)
-
-**File:** `app/services/portion.py`
-
-`portion.estimate(item)`:
-- Pure function, no I/O.
-- If the item has a bbox, estimates grams from bbox area and a per-category density table (`DensityEntry`).
-- If no bbox, leaves `grams` unchanged (the value Gemini returned).
-
-### Stages 6–8: persist + respond
-
-```python
-detected = [d.model_copy(deep=True) for d in detected]
-
-# 4. Persist so the next request for the same image_ref short-circuits.
-if detected:
-    try:
-        vector_cache.put(body.image_ref, detected)
-    except Exception:
-        pass
-    try:
-        _get_sqlite_cache().put(
-            ("vision", body.image_ref),
-            [d.model_dump() for d in detected],
-            ttl_s=_vision_ttl_s(),  # default 7d
-        )
-    except Exception:
-        pass
-```
-
-Cache writes are best-effort. A failing cache write does **not** 500
-the route — the response is built from the live pipeline output
-regardless.
-
-### Stage 9: response
-
-```python
-return AnalyzeResult(detected=detected, pipeline=pipeline)
-```
-
-Pydantic serializes the response. The backend returns:
+Caches successful detections in ChromaDB vector cache and SQLite TTL cache. Returns `AnalyzeResult(detected=detected, pipeline=pipeline)`.
 
 ```json
 {
@@ -237,9 +184,12 @@ The screen takes `detected` and `pipeline` as props:
 - The detected items become a list of `ExpandableRow` components, each
   showing the food name, confidence ring, portion +/- controls, and
   glycemic chip (for diabetic profiles).
+- Direct 1-tap `[ 🛒 Add to Grocery / বাজারে যোগ ]` button adjacent to Share button, allowing instant grocery list sync without leaving the screen.
+- Step progression header (`Review` → `Adjust` → `Confirm`).
 - Sort menu (confidence, calories, name, portion size).
 - Bulk action bar appears when the user multi-selects items.
 - "Confirm all" / "Add custom" actions.
+- Real-time sync: when portions are edited via `handleDetectedChange`, `updateLatestMeal()` updates `mealHistory` and notifies listening components via the `meal-history-updated` event.
 
 The user can edit portions, rename items, replace with alternatives, delete items, or add custom items. All edits update local component state.
 
@@ -272,7 +222,7 @@ resolveNutrition(detectedItems, profile)
 
 The cascade stops at the first DB that returns a confident match
 (non-zero kcal + non-empty macros). Each client returns `None` on
-miss / error so the next one is tried.
+miss / error so the next one is tried. Global food profiles (pasta, noodles, spaghetti, macaroni, parsley) and regional Bangladeshi dishes (`bd_food_composition.json`) provide verified facts, ensuring accurate calculations.
 
 `NutrientContribution` is built from the resolved items using the
 flag rules in `app/services/personalize.py` (mirrored on the frontend
@@ -291,11 +241,19 @@ Each contribution includes a `reason` string and a `tone: 'good' | 'warn'`.
 **File:** `src/components/screens/NutrientsScreen.tsx`
 
 The screen renders:
-- Macro donuts (protein, carbs, fat) with animated count-up.
-- Progress bars for fiber, sodium, sugar (`MiniBar` / `MacroMeter` from `src/components/Meter.tsx`).
-- "Why these flags?" strip listing each flagged `NutrientContribution` with its reason.
-- Meal context: photo thumbnail, date/time, total calories.
-- "Share to clipboard" button.
+- **Revenue-Style Intake Curve (`RevenueCurveChart.tsx`):**
+  - FinTech Catmull-Rom spline curve with soft orange gradient fill representing actual meal intake.
+  - Dashed forecast curve continuing gently toward the daily target (e.g. 2269 kcal), marked as **পূর্বাভাস / Forecast**.
+  - Olive target line (`দৈনিক লক্ষ্য ২২৬৯` / `Target: 2269 kcal`).
+  - Bengali and English X/Y axes ticks (`৮ AM`, `১২ PM`, `৪ PM`, `৮ PM`, `১১ PM`; `০`, `১০০০`, `২০০০`, `২৫০০` kcal) with draw-in animation and high-contrast stat chips.
+  - Dynamically displays accurate meals logged count (`todaySummary.mealsLogged`) and meal calories via the `subtitle` prop.
+- **Smart Dietary Pivot & Market Intelligence (`pivotEngine.ts`):**
+  - Generates meal-specific swaps with exact macro and BDT market price deltas (e.g. Low-Sodium Gravy Pivot, Pasta & Steamed Veggies Swap, or Antioxidant Salad Booster).
+  - 1-click `[ 🛒 Add pivot items to Grocery List ]` button automatically syncing recommended items with categories into the Grocery tab.
+- **Macro Donuts:** (protein, carbs, fat) with animated count-up and deep ink (`#2E2522`) labels.
+- **Modern Pill Meters:** 10px high-contrast gradient meters (`src/components/Bar.tsx`) with benchmark notches and over-target badges for fiber, sodium, and sugar.
+- **SHAP Explainability Strip:** "Why these flags?" section breaking down individual food contributions with 8px pill gauges and bold percentages.
+- **Live Sync:** on mount, updates latest meal totals in history via `updateLatestMeal()` and fires `meal-history-updated`.
 
 The user can navigate back to `ResultsScreen` (preserving edits) or forward to `GroceryScreen` or `ProfileScreen`.
 
@@ -303,7 +261,7 @@ The user can navigate back to `ResultsScreen` (preserving edits) or forward to `
 
 ## 7. User logs the meal
 
-**File:** `src/lib/api.ts#saveMeal`
+**File:** `src/lib/api.ts#saveMeal` & `updateLatestMeal`
 
 When the user taps "Save" on `NutrientsScreen`:
 
@@ -322,7 +280,7 @@ saveMeal(meal);
 
 `saveMeal()` pushes onto `mealHistory` (in-memory) and writes the
 array to `localStorage` under the `meal_history` key via
-`src/lib/storage.ts`. (Real backend: also `POST /api/meals` to
+`src/lib/storage.ts`. Any later portion or item adjustments call `updateLatestMeal(meal)`, which replaces the latest entry and dispatches `meal-history-updated`. (Real backend: also `POST /api/meals` to
 `app/api/meals.py`, which inserts into `app/services/state.py`.)
 
 ---
@@ -331,26 +289,25 @@ array to `localStorage` under the `meal_history` key via
 
 **File:** `src/lib/api.ts#getTodaySummary`
 
-After save, the app re-fetches `getTodaySummary()`, which:
+After save or update:
 - Filters `mealHistory` for meals dated today.
 - Sums `totals` across those meals.
 - Returns `{ mealsLogged, totalKcal, totalProtein, totalCarbs, totalFat, dailyKcalTarget }`.
 
-The `CaptureScreen` Home section renders this — the "X of 2000 kcal
-today" progress bar updates immediately.
+`CaptureScreen` listens for the `meal-history-updated` event so Today's Summary and Recent Meals cards re-render instantly without page reload.
 
 ---
 
 ## 9. Persistence summary
 
 | What | Where | When |
-|---|---|
-| Captured photo (data URL) | Component state → `mealHistory[i].photoUrl` in localStorage | On save |
+|---|---|---|
+| Captured photo (data URL) | Component state → `mealHistory[i].photoUrl` in localStorage | On save / capture |
 | Detected items | Component state | While editing on `ResultsScreen` |
-| Resolved nutrition | `MealEntry.totals` | On save |
+| Resolved nutrition | `MealEntry.totals` | On resolve & on save |
 | Profile | localStorage `profile` key | On every `updateProfile` |
-| Grocery list | localStorage `grocery` key | On every grocery mutation |
-| Meal history | localStorage `meal_history` key | On every `saveMeal` |
+| Grocery list (with `category`) | localStorage `grocery` key | On every grocery mutation / 1-tap add |
+| Meal history | localStorage `meal_history` key | On `saveMeal` & `updateLatestMeal` |
 | Auth session | localStorage `nv_auth` key | On login / signout |
 | Server state | `app/state.json` (default `STATE_PATH`) | On every backend mutation |
 

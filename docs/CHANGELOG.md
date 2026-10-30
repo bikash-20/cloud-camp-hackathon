@@ -121,3 +121,60 @@ helpers" counted as one task but produced ~4 files of work.)
 | ruff (backend lint) | clean | — |
 | tsc --noEmit (frontend) | clean | — |
 | vite build | clean | — |
+
+---
+
+# Changelog — Revenue Curve Trajectory, Pipeline Calculations & Grocery Sync Audit
+
+A major engineering and UI/UX pass replacing flat progress bars with high-contrast FinTech-style spline curves, auditing calculation pipelines, and connecting end-to-end grocery synchronization across the full stack.
+
+## Highlights
+
+1. **Revenue-Style Trajectory Chart (`src/components/RevenueCurveChart.tsx`):**
+   - Implemented a pure Catmull-Rom to cubic Bézier spline generator ($\alpha = 0.5$ centripetal parameterization) rendering continuous $C^1$ smooth curves across irregular meal time intervals without external charting library dependencies.
+   - Flowing soft-orange gradient area fill under actual logged calorie path ($0 \rightarrow \text{Current kcal}$, flat after the latest meal).
+   - Dashed projection forecast curve gently continuing toward the daily target (e.g. 2269 kcal) by evening, marked as **পূর্বাভাস / Forecast** in the legend badge.
+   - Olive dashed reference line (`#4F772D`) labeled `দৈনিক লক্ষ্য ২২৬৯` / `Target: 2269 kcal` with a target flag.
+   - Real Bengali and English X and Y axes ticks (`সকাল ৮টা`, `দুপুর ১২টা`, `বিকাল ৪টা`, `রাত ৮টা`, `রাত ১১টা` / `8 AM`, `12 PM`, `4 PM`, `8 PM`, `11 PM`; `০`, `১০০০`, `২০০০`, `২৫০০` kcal) with subtle gridlines.
+   - Draw-in animation from left to right on mount with pulsing active marker dot and interactive hover/tap tooltips.
+   - High-contrast stat chips for Protein, Carbs, and Fat with progress pills and deep ink (`#2E2522`) typography.
+   - Responsive vector SVG (`viewBox="0 0 540 220"`) fitting all screens from 320px mobile to desktop.
+   - Deployed across:
+     - `CaptureScreen.tsx`: Replaces flat horizontal mini-bar in Today's Summary.
+     - `SummaryCard.tsx`: Toggleable mode switch `[ 📈 গতিপথ / Curve | 📊 ম্যাক্রো / Macros ]`.
+     - `NutrientsScreen.tsx`: Featured meal trajectory and daily intake card.
+
+2. **High-Contrast Pill Meters (`src/components/Bar.tsx`):**
+   - Upgraded flat 8px dull bars to modern 10px pill meters with linear gradients (`#D96B27` $\rightarrow$ `#E87A38`, `#D97706` $\rightarrow$ `#F59E0B`, `#DC2626` $\rightarrow$ `#EF4444`, `#4F772D` $\rightarrow$ `#689F38`).
+   - Benchmark target notch indicator at 100% and over-target badge.
+   - Glossy top highlight for elevated FinTech aesthetic and high-contrast typography.
+   - Upgraded SHAP Explainability mini-bars in `NutrientsScreen.tsx` to 8px pill gauges with bold percentage tags.
+
+3. **Smart Dietary Pivot Engine & Grocery Sync (`src/lib/pivotEngine.ts`):**
+   - Broadened carb detection beyond white rice to include pasta, noodles, spaghetti, macaroni, potatoes, bread, and meals with carbs $\ge 50\text{g}$.
+   - Added tailored `pivot-pasta-veggie-swap`: portion-controlled pasta + steamed broccoli & zucchini, delivering $-45\text{g}$ net carbs, $+6\text{g}$ fiber, and $-110\text{ kcal}$.
+   - Added guaranteed fallback fresh produce and micronutrient salad booster so **every meal uploaded always has an active Smart Dietary Pivot card with actionable grocery items**.
+   - Added direct `[ 🛒 Add to Grocery / বাজারে যোগ ]` button on `ResultsScreen.tsx` for 1-tap addition of detected ingredients.
+   - Full end-to-end grocery synchronization: dispatches `grocery-updated` event, updates category buckets (`Produce`, `Protein`, `Grains & staples`), and keeps `GroceryScreen.tsx` in real-time sync.
+
+4. **Calculation Pipeline & Global Foods Audit:**
+   - Identified and resolved calculation discrepancy where cooked pasta meals fell through to an unconfigured 110 kcal fallback. Added canonical profiles for `Penne Pasta`, `Pasta`, `Spaghetti`, `Macaroni`, `Noodles`, and `Parsley` into `food_aliases.json`, `foodAliases.ts`, and `personalize.ts`.
+   - Added `updateLatestMeal()` in `src/lib/api.ts` and `handleDetectedChange()` in `src/App.tsx`: whenever nutrition facts are resolved or portion sliders are adjusted in `ResultsScreen`, the latest meal in `mealHistory` and `TodaySummary` are updated immediately.
+   - Fixed `mealsLogged={detected.length}` bug in `NutrientsScreen.tsx`: added dedicated `subtitle` prop to `RevenueCurveChart` and referenced true count of meals logged today.
+   - Added `meal-history-updated` event dispatch and listener in `CaptureScreen.tsx`, guaranteeing total synchronization between Recent Meals, Today's Summary, Results, and Nutrients screen.
+
+5. **Schema Drift Guard & Backend Stability:**
+   - Synchronized `app/models/schemas.py#GroceryItem` with `category: str | None = None` matching TypeScript contract.
+   - All 129 backend pytest tests and 68 frontend Vitest tests pass 100% green.
+
+6. **AI Coach Persona (`CoachScreen.tsx`):**
+   - Updated AI coach identity to Dr. Susmit (ড. সুস্মিত - পুষ্টি বিজ্ঞানী) with BIRDEM, ICMR-NIN, and ADA guidelines.
+
+## Test surface after this update
+
+| Suite | Tests | Result |
+|---|---|---|
+| vitest (frontend, 13 test files) | 68 | **PASS** |
+| pytest (backend, incl. schema drift) | 129 | **PASS** |
+| tsc --noEmit (TypeScript typecheck) | clean | **0 errors** |
+| vite build (Production bundle) | clean | **1.18s** |

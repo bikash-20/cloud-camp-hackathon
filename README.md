@@ -12,30 +12,38 @@ Built for **Cloud Camp Hackathon** by [bikash-20](https://github.com/bikash-20).
 
 ## Features
 
-### Capture
+### Capture & Home
 - Real camera integration via `getUserMedia` (rear camera preferred)
 - File upload fallback for devices without camera access
-- Live preview with viewfinder overlay and shutter animation
+- Live preview with viewfinder overlay, shutter animation, and retake
+- **FinTech Spline Curve Chart (`RevenueCurveChart.tsx`):** Catmull-Rom smoothed area curve showing daily calorie intake ($0 \rightarrow \text{Current kcal}$) with dashed forecast projection toward the 2269 kcal daily goal
+- Live reactive updates via `meal-history-updated` event
 
 ### Results & Review
-- Gemini food detection with optional Hugging Face label validation
+- **Multi-Tier Vision Cascade:** Groq Vision (Tier 1 fast LPU) → Google Gemini 2.0 Flash (Tier 2 high accuracy) → OpenRouter (Tier 3 free cascade) → Gemini 1.5 Fallback (Tier 4) → Hugging Face (Tier 5)
+- Direct 1-tap `[ 🛒 Add to Grocery / বাজারে যোগ ]` button next to Share button for instant grocery addition
 - Confidence scores with color-coded badges (high/medium/low)
 - Sortable food items (by confidence, calories, name, portion size)
-- Portion editing with +/- 25g controls
-- Edit mode: rename, replace with alternatives, delete items
+- Portion editing with +/- 25g controls, renaming, replacing, or deleting
 - Bulk actions: confirm all, review low-confidence, add custom
 - "Frequently eaten with" suggestions
 - Glycemic index chips for diabetic profiles
 - Share detected items to clipboard
 
 ### Nutrients & Analysis
-- Animated macro donut charts (protein, carbs, fat)
-- Visual progress bars for fiber, sodium, sugar
+- **Revenue-Style Intake Curve (`RevenueCurveChart.tsx`):** Visual trajectory curve with real Bengali/English X/Y axes (`৮ AM` – `১১ PM`, `০` – `২৫০০` kcal), olive target line, and draw-in animation
+- **Smart Dietary Pivot & Market Intelligence (`pivotEngine.ts`):** Tailored meal swaps with exact macro and BDT market price deltas (e.g. Low-Sodium Gravy Pivot, Pasta & Steamed Veggies Swap, Antioxidant Salad Booster)
+- 1-click `[ 🛒 Add pivot items to Grocery List ]` button automatically adding swap ingredients with categories
+- Animated macro donut charts (protein, carbs, fat) with deep ink (`#2E2522`) high-contrast numbers
+- Modern 10px gradient pill meters (`Bar.tsx`) with benchmark notches and over-target badges
 - SHAP-style explainability strip with per-item contributions
-- Color-coded health flags (green within range, red exceeded)
-- Smart insights: "Why these flags?" with item-specific verdicts
-- Meal context: photo thumbnail, date/time, total calories
 - Share nutrition summary to clipboard
+
+### AI Coach
+- **Persona:** Dr. Susmit (পুষ্টি বিজ্ঞানী / Nutrition Scientist)
+- **Dual Expertise:** Biochemical & nutritional analysis paired with empathetic habit coaching (CBT habit science & WHO/ICMR lifestyle protocols)
+- **Bilingual & Cultural:** Seamless English & Bengali support tailored for regional diets, feasts, dawats, and cravings
+- **Scientific Transparency:** Evidence-based citations (INFS/BIRDEM guidelines, WHO protocols)
 
 ### Profile
 - Editable health goals: prediabetic-friendly, high-protein, budget-aware, Mediterranean
@@ -46,10 +54,11 @@ Built for **Cloud Camp Hackathon** by [bikash-20](https://github.com/bikash-20).
 - User statistics: total meals logged, days active, avg kcal/day
 
 ### Grocery
-- Weekly grocery list with category grouping (Grains, Produce, Protein)
+- Weekly grocery list with category grouping (Grains & staples, Produce, Protein)
 - Check items as bought with strike-through
 - Inline price editing (BDT currency)
-- Add custom items with name + price
+- Add custom items with name + price + category
+- 1-tap addition from ResultsScreen and NutrientsScreen pivot cards
 - "Generate from Meals" — auto-adds pairings from meal history
 - Clear all items with confirmation
 - Budget tracking ring with remaining balance
@@ -167,12 +176,12 @@ src/
 The image-analysis and nutrition-resolution flows call the FastAPI service:
 
 - **FastAPI** (Python 3.11)
-- **Vision cascade**: **Gemini 2.0 Flash** (primary vision) → **Groq Vision** (fast multimodal cascade fallback via `llama-3.2-11b-vision-preview` or `qwen/qwen3.8-27b`) + optional **Hugging Face** classifier (validator)
-- **Nutrition cascade**: Open Food Facts → USDA → Fruityvice
-- **Cache**: ChromaDB lookup plus SQLite TTL writes (SQLite is not yet read by the vision route)
+- **Vision cascade**: **Groq Vision** (Tier 1 fast LPU via `llama-3.2-11b-vision-preview` / `llama-3.2-90b-vision-preview`) → **Gemini 2.0 Flash** (Tier 2 primary high-accuracy vision) → **OpenRouter Vision** (Tier 3 free cascade) → **Gemini 1.5 Fallback** (Tier 4) → optional **Hugging Face** classifier (Tier 5 validator)
+- **Nutrition cascade**: Open Food Facts → USDA → Fruityvice + global/regional Bangladeshi food composition databases
+- **Cache**: ChromaDB vector cache lookup plus SQLite TTL writes
 
 Set `VITE_API_BASE` to the backend URL in the Vercel project settings. Set
-`GEMINI_API_KEY` and/or `GROQ_API_KEY` on the backend host (Render); `HF_API_TOKEN` is optional.
+`GROQ_API_KEY`, `GEMINI_API_KEY`, and/or `OPENROUTER_API_KEY` on the backend host (Render); `HF_API_TOKEN` is optional.
 The image-analysis route returns an error when no vision provider is
 configured and never substitutes sample detections for an uploaded photo.
 

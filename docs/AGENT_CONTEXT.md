@@ -62,27 +62,30 @@ implications:
 
 | File | Purpose |
 |---|---|
-| `App.tsx` | App shell: theme provider → auth gate → 5-tab UserApp or AdminLayout |
+| `App.tsx` | App shell: theme provider → auth gate → 6-tab UserApp or AdminLayout |
 | `main.tsx` | React root + ErrorBoundary |
 | `types/schemas.ts` | **TS source of truth** for the wire format |
-| `lib/api.ts` | **Mock API client** — drop-in swap target for real `fetch()` |
+| `lib/api.ts` | API client (`analyzeMeal`, `resolveNutrition`, `saveMeal`, `updateLatestMeal`) |
 | `lib/auth.ts` | Mock auth (don't touch) |
 | `lib/format.ts` | Pure helpers (`formatRelative`, `hashStr`, `pickThumbnailStyle`) |
-| `lib/personalize.ts` | Flag rules + meal totals (mirrors backend) |
+| `lib/personalize.ts` | Flag rules + meal totals + canonical food profiles (mirrors backend) |
+| `lib/pivotEngine.ts` | **Dietary Pivot Engine** — macro deltas, price impact, 1-click grocery sync |
 | `lib/storage.ts` | Typed localStorage wrapper |
 | `mocks/fixtures.ts` | All `MOCK_*` constants (DB, profile, tabs, targets) |
 | `theme/tokens.ts` | Earth-tone design tokens |
 | `theme/ThemeContext.tsx` | Light/dark mode provider |
 | `data.ts` | **Re-export shim** (don't add new imports here) |
-| `components/screens/CaptureScreen.tsx` | Camera + home + meal history (largest screen) |
-| `components/screens/ResultsScreen.tsx` | Detected items list, sort/edit/confirm |
-| `components/screens/NutrientsScreen.tsx` | Donut charts + flag explainability |
+| `components/screens/CaptureScreen.tsx` | Camera + home + revenue curve + meal history |
+| `components/screens/ResultsScreen.tsx` | Detected items list, sort/edit/confirm + 1-tap grocery add |
+| `components/screens/NutrientsScreen.tsx` | Spline trajectory curve + smart dietary pivots + donuts |
 | `components/screens/ProfileScreen.tsx` | Goals, preferences, allergens, budget |
-| `components/screens/GroceryScreen.tsx` | Weekly grocery list |
+| `components/screens/GroceryScreen.tsx` | Weekly grocery list grouped by category |
+| `components/screens/CoachScreen.tsx` | Dr. Susmit AI habit & nutrition scientist |
+| `components/RevenueCurveChart.tsx` | **FinTech revenue-style Catmull-Rom spline trajectory chart** |
 | `components/admin/*` | Admin dashboard (KpiCard, Sparkline, AdminOverview) |
 | `components/auth/LoginScreen.tsx` | Mock login (don't touch) |
 | `components/Meter.tsx` | MiniBar + MacroMeter (extracted from CaptureScreen) |
-| `components/Bar.tsx` | Labeled bar (different from MiniBar) |
+| `components/Bar.tsx` | 10px gradient pill meters with benchmark notches |
 
 See [frontend/components.md](./frontend/components.md) for the full
 list with one-paragraph purposes.
@@ -92,15 +95,17 @@ list with one-paragraph purposes.
 | File | Purpose |
 |---|---|
 | `main.py` | FastAPI entrypoint, CORS, lifespan, router wiring |
-| `api/vision.py` | `POST /api/vision/analyze` (the headline route) |
+| `api/vision.py` | `POST /api/vision/analyze` (multi-tier vision cascade) |
 | `api/nutrition.py` | `/targets`, `/resolve`, `/personalize` |
 | `api/profile.py` | `GET/PUT /api/profile` + admin directory |
 | `api/grocery.py` | Grocery list CRUD |
 | `api/meals.py` | Meal history + `/today` |
 | `models/schemas.py` | **Pydantic source of truth** for the wire format |
 | `services/state.py` | JSON-file-backed in-memory state singleton |
-| `services/gemini_client.py` | Gemini 2.0 Flash vision client |
-| `services/hf_client.py` | HuggingFace validator client |
+| `services/groq_client.py` | Groq Llama 3.2 vision client (Tier 1 fast LPU inference) |
+| `services/gemini_client.py` | Gemini 2.0 Flash vision client (Tier 2 high accuracy) |
+| `services/openrouter_client.py` | OpenRouter vision client (Tier 3 free cascade) |
+| `services/hf_client.py` | HuggingFace validator client (Tier 5) |
 | `services/off_client.py` | Open Food Facts nutrition client |
 | `services/usda_client.py` | USDA FDC nutrition client |
 | `services/fruityvice_client.py` | Fruityvice nutrition client |
