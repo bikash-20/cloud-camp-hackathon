@@ -231,9 +231,9 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
       const welcome: CoachMessage = {
         role: 'assistant',
         content: isBn
-          ? '🔬 **স্বাগতম! আমি ড. অর্পিতা (Dr. ARPITA - পুষ্টি বিজ্ঞানী)।**\n\n' +
+          ? '🔬 **স্বাগতম! আমি ড. সুস্মিত (Dr. Susmit - পুষ্টি বিজ্ঞানী)।**\n\n' +
             'আপনার খাদ্যের গ্লাইসেমিক সূচক (GI/GL), রান্নার তেলের প্রভাব, পুষ্টি উপাদান এবং বিপি/ডায়াবেটিসের বৈজ্ঞানিক বিশ্লেষণ জানাতে আমি প্রস্তুত। যেকোনো প্রশ্ন নির্বাচন করুন বা সরাসরি জিজ্ঞাসা করুন!'
-          : '🔬 **Welcome! I am Dr. ARPITA (Nutritional Biochemist).**\n\n' +
+          : '🔬 **Welcome! I am Dr. Susmit (Nutritional Biochemist).**\n\n' +
             'I provide evidence-based biochemical analysis of your meals, glycemic load ($GL$), cooking oil absorption, and clinical macronutrient partitioning per BIRDEM/ADA guidelines. Ask any nutrition question!',
       };
       setMessages([welcome]);
@@ -427,7 +427,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
               }}
             >
               <span>🔬</span>
-              <span>{isBn ? 'ড. অর্পিতা (বিজ্ঞানী)' : 'Dr. ARPITA (Scientist)'}</span>
+              <span>{isBn ? 'ড. সুস্মিত (বিজ্ঞানী)' : 'Dr. Susmit (Scientist)'}</span>
             </motion.button>
 
             <motion.button
@@ -524,7 +524,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                   ) : agentType === 'scientist' ? (
                     <>
                       <span style={{ fontWeight: 600, color: T.primary }}>
-                        🔬 {isBn ? 'ড. অর্পিতা (পুষ্টি বিজ্ঞানী)' : 'Dr. ARPITA (Scientist)'}
+                        🔬 {isBn ? 'ড. সুস্মিত (পুষ্টি বিজ্ঞানী)' : 'Dr. Susmit (Scientist)'}
                       </span>
                       <span style={{ opacity: 0.7 }}>• BIRDEM / ADA</span>
                     </>

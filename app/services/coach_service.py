@@ -1,7 +1,7 @@
 """Multi-Agent AI Coach Service for NutriVision AI.
 
 Coordinates two specialized agent personas:
-  1. 🔬 Culinary & Nutrition Scientist (Dr. ARPITA - পুষ্টি বিজ্ঞানী):
+  1. 🔬 Culinary & Nutrition Scientist (Dr. Susmit - পুষ্টি বিজ্ঞানী):
      Grounded in BIRDEM/ADA guidelines, biochemical mechanisms, glycemic indices,
      and hidden sodium/oil calculations.
   2. 🧠 Behavioral & Habit Coach (আচরণ ও অভ্যাস কোচ):
@@ -110,7 +110,7 @@ def fetch_active_openrouter_models(timeout: float = 3.5) -> dict[str, list[str]]
 # ── System Prompts ─────────────────────────────────────────────────────────
 
 SCIENTIST_SYSTEM_PROMPT = """\
-You are Dr. ARPITA, a clinical culinary scientist specializing in South Asian and Bangladeshi nutrition at NutriVision AI. You speak fluently and naturally in Bengali and English.
+You are Dr. Susmit, a clinical culinary scientist specializing in South Asian and Bangladeshi nutrition at NutriVision AI. You speak fluently and naturally in Bengali and English.
 
 RULE 1 (CRITICAL GREETING RULE):
 If the user says a simple greeting or casual opener (e.g., 'hello', 'hi', 'hey', 'হ্যালো', 'সালাম', 'নমস্কার', 'কেমন আছেন'), reply briefly and warmly (e.g., 'Hello! What would you like to know about nutrition or calories today? 🔬' in English or 'হ্যালো! আজকের খাবারে পুষ্টি বা ক্যালরি নিয়ে কী জানতে চান? 🔬' in Bengali).
@@ -625,7 +625,7 @@ class CoachService:
             if any(w in q_lower for w in ["গ্লাইসেমিক", "glycemic", "ভাত", "rice", "কার্ব", "carb", "ডায়াবেটিস", "diabetes"]):
                 if is_bn:
                     return (
-                        "🔬 **বায়োকেমিক্যাল পুষ্টি বিশ্লেষণ (ড. অর্পিতা):**\n\n"
+                        "🔬 **বায়োকেমিক্যাল পুষ্টি বিশ্লেষণ (ড. সুস্মিত):**\n\n"
                         "রক্তে গ্লুকোজের প্রভাব নিরূপণে আমরা গ্লাইসেমিক লোড ($GL$) হিসাব করি এই সূত্রের সাহায্যে:\n\n"
                         "$$GL = \\frac{GI \\times \\text{Net Carbs (g)}}{100}$$\n\n"
                         "সাদা ভাতের (White Rice) গ্লাইসেমিক ইনডেক্স ($GI \\approx ৭৩$) তুলনামূলকভাবে বেশি। খাবার গ্রহণের পর দ্রুত গ্লুকোজ স্পাইক রোধ করতে নিচের ৩টি বৈজ্ঞানিক কৌশল অত্যন্ত কার্যকর:\n\n"
@@ -635,7 +635,7 @@ class CoachService:
                         "[উৎস: BIRDEM ক্লিনিক্যাল গাইডলাইন ও ADA Guidelines]"
                     )
                 return (
-                    "🔬 **Nutritional Biochemical Analysis (Dr. ARPITA):**\n\n"
+                    "🔬 **Nutritional Biochemical Analysis (Dr. Susmit):**\n\n"
                     "To evaluate the true postprandial glucose impact of carbohydrate intake, we calculate the Glycemic Load ($GL$):\n\n"
                     "$$GL = \\frac{GI \\times \\text{Net Carbs (g)}}{100}$$\n\n"
                     "White rice has a high Glycemic Index ($GI \\approx 73$). To blunt rapid postprandial glucose surges, apply these 3 scientific levers:\n\n"

@@ -503,12 +503,12 @@ export async function sendCoachChat(req: CoachChatRequest): Promise<CoachChatRes
   if (isScientist) {
     return {
       reply: isBn
-        ? '🔬 **বায়োকেমিক্যাল পুষ্টি বিশ্লেষণ (ড. অর্পিতা):**\n\n' +
+        ? '🔬 **বায়োকেমিক্যাল পুষ্টি বিশ্লেষণ (ড. সুস্মিত):**\n\n' +
           'খাবারের গ্লাইসেমিক লোড ($GL$) হিসাব করা হয়: $$GL = \\frac{GI \\times \\text{Net Carbs}}{100}$$\n\n' +
           'খাবারের গ্লাইসেমিক লোড নিয়ন্ত্রণে রাখতে পর্যাপ্ত দ্রবণীয় ফাইবার (শাকসবজি) যুক্ত করুন এবং রান্নার তেলের পরিমাণ পরিমিত রাখুন। ' +
           'ভাতের সাথে এক বাটি ঘন ডাল বা মাছের ঝোল পেটের শূন্য হওয়ার গতি শ্লথ করে রক্তে শর্করার মাত্রা স্থিতিশীল রাখে।\n\n' +
           '[উৎস: BIRDEM ক্লিনিক্যাল গাইডলাইন ও INFS ডাটাবেজ]'
-        : '🔬 **Nutritional Biochemical Analysis (Dr. ARPITA):**\n\n' +
+        : '🔬 **Nutritional Biochemical Analysis (Dr. Susmit):**\n\n' +
           'We evaluate glycemic response via Glycemic Load: $$GL = \\frac{GI \\times \\text{Net Carbs (g)}}{100}$$\n\n' +
           'To optimize the glycemic response of this meal, buffer carbs with dietary soluble fiber and protein. ' +
           'Cooling starches slightly promotes resistant starch, helping flatten postprandial glucose curves.\n\n' +
