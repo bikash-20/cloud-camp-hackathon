@@ -80,7 +80,7 @@ export const MOCK_TARGETS = {
 // ── Profile defaults ────────────────────────────────────────────────────
 
 export const MOCK_PROFILE: UserProfile = {
-  name: 'Rafi',
+  name: '',
   age: 28,
   sex: 'male',
   heightCm: 172,

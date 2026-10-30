@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Edit3, LogOut, Minus, Plus, RotateCcw, Zap } from 'lucide-react';
 import { T } from '../../data';
@@ -204,7 +204,6 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
   const [name, setName] = useState(profile.name);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
-  const statsLoadedRef = useRef(false);
 
   // Track the last JSON-serialized profile state we committed/synced, so
   // echoes coming back down from onProfileChange(saved) -> App.tsx -> profile
@@ -282,18 +281,33 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
     }
   }, [profile]);
 
-  useEffect(() => {
-    if (statsLoadedRef.current) return;
-    statsLoadedRef.current = true;
-    let cancelled = false;
-    getUserStats().then((s) => {
-      if (!cancelled) {
-        setStats(s);
+  const fetchStats = useCallback(() => {
+    setStatsLoading(true);
+    getUserStats()
+      .then((s) => {
+        setStats({
+          totalMeals: Number(s?.totalMeals ?? 0),
+          totalDaysActive: Number(s?.totalDaysActive ?? 0),
+          avgDailyKcal: Number(s?.avgDailyKcal ?? 0),
+          streakDays: Number(s?.streakDays ?? 0),
+        });
+      })
+      .catch(() => {
+        setStats({ totalMeals: 0, totalDaysActive: 0, avgDailyKcal: 0, streakDays: 0 });
+      })
+      .finally(() => {
         setStatsLoading(false);
-      }
-    });
-    return () => { cancelled = true; };
+      });
   }, []);
+
+  useEffect(() => {
+    fetchStats();
+    const handleMealUpdate = () => fetchStats();
+    window.addEventListener('meal-history-updated', handleMealUpdate);
+    return () => {
+      window.removeEventListener('meal-history-updated', handleMealUpdate);
+    };
+  }, [fetchStats]);
 
   const triggerToast = (msg: string) => {
     setToast(msg);
@@ -736,59 +750,66 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         </motion.div>
 
         {/* User Stats Card */}
-        {!statsLoading && stats && (
-          <>
-            <SectionLabel>{isBn ? 'আপনার পরিসংখ্যান' : 'Your Stats'}</SectionLabel>
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.08 }}
-              className="glass-card"
-              style={{
-                borderRadius: 18,
-                padding: '14px 16px',
-                marginBottom: 22,
-                display: 'flex',
-                gap: 12,
-              }}
-            >
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.ink }}>
-                  {isBn ? toBengaliDigits(stats.totalMeals) : stats.totalMeals}
-                </div>
-                <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
-                  {isBn ? 'নথিভুক্ত খাবার' : 'meals logged'}
-                </div>
+        <SectionLabel>{isBn ? 'আপনার পরিসংখ্যান' : 'Your Stats'}</SectionLabel>
+        {statsLoading ? (
+          <div
+            className="glass-card skeleton"
+            style={{
+              borderRadius: 18,
+              height: 72,
+              marginBottom: 22,
+            }}
+          />
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.08 }}
+            className="glass-card"
+            style={{
+              borderRadius: 18,
+              padding: '14px 16px',
+              marginBottom: 22,
+              display: 'flex',
+              gap: 12,
+            }}
+          >
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.ink }}>
+                {isBn ? toBengaliDigits(stats?.totalMeals ?? 0) : (stats?.totalMeals ?? 0)}
               </div>
-              <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.ink }}>
-                  {isBn ? toBengaliDigits(stats.totalDaysActive) : stats.totalDaysActive}
-                </div>
-                <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
-                  {isBn ? 'সক্রিয় দিন' : 'days active'}
-                </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
+                {isBn ? 'নথিভুক্ত খাবার' : 'meals logged'}
               </div>
-              <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.accentAmber }}>
-                  {isBn ? toBengaliDigits(stats.streakDays) : stats.streakDays}
-                </div>
-                <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
-                  {isBn ? 'টানা ধারা (দিন)' : 'streak days'}
-                </div>
+            </div>
+            <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.ink }}>
+                {isBn ? toBengaliDigits(stats?.totalDaysActive ?? 0) : (stats?.totalDaysActive ?? 0)}
               </div>
-              <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.primary }}>
-                  {isBn ? toBengaliDigits(stats.avgDailyKcal) : stats.avgDailyKcal}
-                </div>
-                <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
-                  {isBn ? 'গড় ক্যালরি/দিন' : 'avg kcal/day'}
-                </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
+                {isBn ? 'সক্রিয় দিন' : 'days active'}
               </div>
-            </motion.div>
-          </>
+            </div>
+            <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.accentAmber }}>
+                {isBn ? toBengaliDigits(stats?.streakDays ?? 0) : (stats?.streakDays ?? 0)}
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
+                {isBn ? 'টানা ধারা (দিন)' : 'streak days'}
+              </div>
+            </div>
+            <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.primary }}>
+                {isBn ? toBengaliDigits(stats?.avgDailyKcal ?? 0) : (stats?.avgDailyKcal ?? 0)}
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
+                {isBn ? 'গড় ক্যালরি/দিন' : 'avg kcal/day'}
+              </div>
+            </div>
+          </motion.div>
         )}
 
         {/* ── 1. Biological Sex ─────────────────────────────────── */}

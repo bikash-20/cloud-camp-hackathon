@@ -344,26 +344,27 @@ class MealEntry(BaseModel):
     photo_url: str | None = Field(default=None, alias="photoUrl")
     """Which profile goals were active when this meal was logged."""
     active_goals: HealthGoals
+    review_status: str | None = Field(default=None, alias="reviewStatus")
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class UserStats(BaseModel):
-    total_meals: int
-    total_days_active: int
-    avg_daily_kcal: int
-    streak_days: int
+    total_meals: int = 0
+    total_days_active: int = 0
+    avg_daily_kcal: int = 0
+    streak_days: int = 0
 
 
 # Lifted from `getTodaySummary()`'s inline return type in the frontend
 # so FastAPI has an explicit response_model.
 class TodaySummary(BaseModel):
-    meals_logged: int
-    total_kcal: float
-    total_protein: float
-    total_carbs: float
-    total_fat: float
-    daily_kcal_target: float
+    meals_logged: int = 0
+    total_kcal: float = 0.0
+    total_protein: float = 0.0
+    total_carbs: float = 0.0
+    total_fat: float = 0.0
+    daily_kcal_target: float = 2000.0
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -400,21 +401,78 @@ class GoogleAuthResponse(BaseModel):
 class AdminUserSummary(BaseModel):
     email: str
     name: str | None = None
+    avatar_url: str | None = Field(default=None, alias="avatarUrl")
     role: Role
     meals_count: int = Field(alias="mealsCount")
+    streak_days: int = Field(default=0, alias="streakDays")
     joined_date: str = Field(alias="joinedDate")
     last_active: str = Field(alias="lastActive")
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+
+class DailyMealVolume(BaseModel):
+    date: str
+    count: int
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
 
 
 class AdminMetrics(BaseModel):
     total_users: int = Field(alias="totalUsers")
+    new_users_today: int = Field(default=0, alias="newUsersToday")
+    new_users_this_week: int = Field(default=0, alias="newUsersThisWeek")
+    active_users7d: int = Field(default=0, alias="activeUsers7d")
     meals_today: int = Field(alias="mealsToday")
     meals_this_week: int = Field(alias="mealsThisWeek")
+    total_meals: int = Field(default=0, alias="totalMeals")
     avg_meals_per_user: float = Field(alias="avgMealsPerUser")
-    flagged_percentage: float = Field(alias="flaggedPercentage")
+    flagged_meals_count: int = Field(default=0, alias="flaggedMealsCount")
+    flagged_percentage: float | None = Field(default=None, alias="flaggedPercentage")
+    daily_meal_volume: list[DailyMealVolume] = Field(default_factory=list, alias="dailyMealVolume")
     users: list[AdminUserSummary] = Field(default_factory=list)
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+
+class AdminUserDetail(BaseModel):
+    user: AdminUserSummary
+    profile: UserProfile
+    recent_meals: list[MealEntry] = Field(default_factory=list, alias="recentMeals")
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+
+class PopularFoodItem(BaseModel):
+    name: str
+    count: int
+    share_percentage: float = Field(alias="sharePercentage")
+    category: str = "other"
+    avg_confidence: float = Field(alias="avgConfidence")
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+
+class ReviewQueueItem(BaseModel):
+    meal_id: str = Field(alias="mealId")
+    user_email: str = Field(alias="userEmail")
+    user_name: str | None = Field(default=None, alias="userName")
+    timestamp: str
+    label: str
+    photo_url: str | None = Field(default=None, alias="photoUrl")
+    items: list[DetectedItem]
+    lowest_confidence: float = Field(alias="lowestConfidence")
+    review_status: str = Field(default="pending", alias="reviewStatus")
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+
+ReviewQueueAction = Literal["approve", "correct", "dismiss"]
+
+
+class ReviewQueueUpdateRequest(BaseModel):
+    action: ReviewQueueAction
+    corrected_label: str | None = Field(default=None, alias="correctedLabel")
 
     model_config = ConfigDict(populate_by_name=True)
 

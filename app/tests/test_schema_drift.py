@@ -270,7 +270,13 @@ MUST_MATCH = {
     "GoogleAuthRequest",
     "GoogleAuthResponse",
     "AdminUserSummary",
+    "DailyMealVolume",
     "AdminMetrics",
+    "AdminUserDetail",
+    "PopularFoodItem",
+    "ReviewQueueAction",
+    "ReviewQueueItem",
+    "ReviewQueueUpdateRequest",
 }
 
 

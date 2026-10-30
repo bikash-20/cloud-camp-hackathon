@@ -390,19 +390,65 @@ export interface GoogleAuthResponse {
 export interface AdminUserSummary {
   email: string;
   name?: string | null;
+  avatarUrl?: string | null;
   role: Role;
   mealsCount: number;
+  streakDays: number;
   joinedDate: string;
   lastActive: string;
 }
 
+export interface DailyMealVolume {
+  date: string;
+  count: number;
+}
+
 export interface AdminMetrics {
   totalUsers: number;
+  newUsersToday: number;
+  newUsersThisWeek: number;
+  activeUsers7d: number;
   mealsToday: number;
   mealsThisWeek: number;
+  totalMeals: number;
   avgMealsPerUser: number;
-  flaggedPercentage: number;
+  flaggedMealsCount: number;
+  flaggedPercentage?: number | null;
+  dailyMealVolume: DailyMealVolume[];
   users: AdminUserSummary[];
+}
+
+export interface AdminUserDetail {
+  user: AdminUserSummary;
+  profile: UserProfile;
+  recentMeals: MealEntry[];
+}
+
+export interface PopularFoodItem {
+  name: string;
+  count: number;
+  sharePercentage: number;
+  category: string;
+  avgConfidence: number;
+}
+
+export type ReviewQueueAction = 'approve' | 'correct' | 'dismiss';
+
+export interface ReviewQueueItem {
+  mealId: string;
+  userEmail: string;
+  userName?: string | null;
+  timestamp: string;
+  label: string;
+  photoUrl?: string | null;
+  items: DetectedItem[];
+  lowestConfidence: number;
+  reviewStatus: string;
+}
+
+export interface ReviewQueueUpdateRequest {
+  action: ReviewQueueAction;
+  correctedLabel?: string | null;
 }
 
 /** Synthetic account the admin dashboard sees in its directory. Admins do
@@ -449,6 +495,7 @@ export interface MealEntry {
   photoUrl?: string | null;
   /** Which profile goals were active when this meal was logged */
   activeGoals: HealthGoals;
+  reviewStatus?: string | null;
 }
 
 /** Aggregated stats for the profile screen. */

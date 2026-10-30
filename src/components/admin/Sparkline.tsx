@@ -1,117 +1,149 @@
 import { motion, useReducedMotion } from 'framer-motion';
+import { useLanguage } from '../../i18n/LanguageContext';
+import { toBengaliDigits } from '../../lib/format';
 
 interface SparklineProps {
   /** One value per bar. Bars auto-scale to the max value. */
   values: number[];
   /** Optional labels rendered under each bar (e.g. day-of-week short). */
   labels?: string[];
-  /** Bar fill — single color or gradient. Defaults to brand cream→amber. */
-  fill?: string;
-  /** Container height in px (bars themselves are computed). */
+  /** Container height in px. */
   height?: number;
-  /** Tooltip-friendly hover label, e.g. "7 meals on Mon". */
+  /** Tooltip-friendly accessible label. */
   ariaLabel?: string;
 }
 
 /**
- * Tiny inline-SVG bar chart for the admin Overview's "7-day meals" panel.
- *
- * Bars are rendered as <rect>s inside a fixed-aspect <svg> so they scale
- * cleanly across responsive layouts. Animation: width grows from 0 to
- * final on mount via framer-motion.
+ * Responsive bar chart for the admin Overview's "7-day meals" panel.
+ * Uses flexbox and HTML typography to prevent SVG text scaling squashing.
  */
 export default function Sparkline({
   values,
-  labels,
-  fill = 'url(#sparklineGradient)',
-  height = 120,
+  labels = [],
+  height = 140,
   ariaLabel,
 }: SparklineProps) {
   const reduceMotion = useReducedMotion();
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
   const max = Math.max(1, ...values);
-  const barCount = values.length;
-  // Inline padding on the SVG so bars don't kiss the edges.
-  const padX = 6;
-  const padY = 8;
-  const labelGutter = labels && labels.length > 0 ? 18 : 0;
-  const usableW = 100 - padX * 2;
-  const usableH = height - padY * 2 - labelGutter;
-  const slot = barCount > 0 ? usableW / barCount : 0;
-  const barW = Math.max(2, slot * 0.62);
-  const gap = slot - barW;
 
   return (
-    <svg
-      viewBox={`0 0 100 ${height}`}
-      width="100%"
-      height={height}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={ariaLabel ?? `Bar chart with ${barCount} bars`}
-      style={{ display: 'block', overflow: 'visible' }}
+    <div
+      role="region"
+      aria-label={ariaLabel ?? '7-day meal volume chart'}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        paddingTop: 8,
+      }}
     >
-      <defs>
-        <linearGradient id="sparklineGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#F9F2E4" stopOpacity="0.95" />
-          <stop offset="60%"  stopColor="#D0AE92" stopOpacity="0.95" />
-          <stop offset="100%" stopColor="#A8836C" stopOpacity="0.95" />
-        </linearGradient>
-      </defs>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
+          gap: 8,
+          height: height - 28,
+          width: '100%',
+          paddingBottom: 4,
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        }}
+      >
+        {values.map((v, i) => {
+          const ratio = Math.max(0.04, v / max);
+          const barHeightPercent = Math.round(ratio * 100);
+          const dayLabel = labels[i] ?? `Day ${i + 1}`;
+          const formattedVal = isBn ? toBengaliDigits(v) : v;
 
-      {values.map((v, i) => {
-        const ratio = v / max;
-        const h = Math.max(2, ratio * usableH);
-        const x = padX + i * slot + gap / 2;
-        const y = padY + (usableH - h);
-        return (
-          <motion.rect
+          return (
+            <div
+              key={i}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                height: '100%',
+                justifyContent: 'flex-end',
+                position: 'relative',
+              }}
+              title={`${dayLabel}: ${v} meals`}
+            >
+              {v > 0 && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: 'rgba(249, 242, 228, 0.85)',
+                    marginBottom: 4,
+                  }}
+                >
+                  {formattedVal}
+                </span>
+              )}
+              <motion.div
+                initial={{ height: 0 }}
+                animate={{ height: `${barHeightPercent}%` }}
+                transition={
+                  reduceMotion
+                    ? { duration: 0 }
+                    : {
+                        type: 'spring',
+                        stiffness: 260,
+                        damping: 24,
+                        delay: 0.04 * i,
+                      }
+                }
+                style={{
+                  width: '100%',
+                  maxWidth: 32,
+                  minWidth: 12,
+                  borderRadius: '6px 6px 2px 2px',
+                  background:
+                    v > 0
+                      ? 'linear-gradient(180deg, #F9F2E4 0%, #D0AE92 60%, #A8836C 100%)'
+                      : 'rgba(255, 255, 255, 0.05)',
+                  boxShadow:
+                    v > 0
+                      ? '0 2px 8px rgba(208, 174, 146, 0.25)'
+                      : 'none',
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 8,
+          marginTop: 8,
+          width: '100%',
+        }}
+      >
+        {labels.map((lab, i) => (
+          <div
             key={i}
-            x={x}
-            width={barW}
-            initial={{ y: padY + usableH, height: 0 }}
-            animate={{ y, height: h }}
-            transition={
-              reduceMotion
-                ? { duration: 0 }
-                : {
-                    type: 'spring',
-                    stiffness: 220,
-                    damping: 26,
-                    delay: 0.05 * i,
-                  }
-            }
-            rx={Math.min(2, barW / 2)}
-            ry={Math.min(2, barW / 2)}
-            fill={fill}
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'rgba(249, 242, 228, 0.65)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
           >
-            <title>{`${labels?.[i] ?? `Bar ${i + 1}`}: ${v}`}</title>
-          </motion.rect>
-        );
-      })}
-
-      {/* Labels under the bars */}
-      {labels && labels.length > 0 && (
-        <g>
-          {labels.map((lab, i) => {
-            const x = padX + i * slot + slot / 2;
-            const y = padY + usableH + labelGutter - 4;
-            return (
-              <text
-                key={`l-${i}`}
-                x={x}
-                y={y}
-                textAnchor="middle"
-                fontFamily="Inter, system-ui, sans-serif"
-                fontSize={7}
-                fontWeight={600}
-                fill="rgba(249, 242, 228, 0.55)"
-              >
-                {lab}
-              </text>
-            );
-          })}
-        </g>
-      )}
-    </svg>
+            {lab}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

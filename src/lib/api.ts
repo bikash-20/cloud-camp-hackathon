@@ -9,6 +9,8 @@
 
 import type {
   AdminMetrics,
+  AdminUserDetail,
+  AdminUserSummary,
   AnalyzeResult,
   CoachChatRequest,
   CoachChatResponse,
@@ -16,8 +18,11 @@ import type {
   GroceryItem,
   GroceryList,
   MealEntry,
+  PopularFoodItem,
   ResolveNutritionResult,
   ResolvedItem,
+  ReviewQueueItem,
+  ReviewQueueUpdateRequest,
   TodaySummary,
   UserStats,
   UserProfile,
@@ -256,7 +261,26 @@ export async function getMealHistory(): Promise<MealEntry[]> {
 
 /** Get meals logged today for the authenticated user. */
 export async function getTodaySummary(): Promise<TodaySummary> {
-  return apiFetch<TodaySummary>('/api/meals/today');
+  try {
+    const raw = await apiFetch<any>('/api/meals/today');
+    return {
+      mealsLogged: Number(raw?.mealsLogged ?? raw?.meals_logged ?? 0),
+      totalKcal: Number(raw?.totalKcal ?? raw?.total_kcal ?? 0),
+      totalProtein: Number(raw?.totalProtein ?? raw?.total_protein ?? 0),
+      totalCarbs: Number(raw?.totalCarbs ?? raw?.total_carbs ?? 0),
+      totalFat: Number(raw?.totalFat ?? raw?.total_fat ?? 0),
+      dailyKcalTarget: Number(raw?.dailyKcalTarget ?? raw?.daily_kcal_target ?? 2000),
+    };
+  } catch {
+    return {
+      mealsLogged: 0,
+      totalKcal: 0,
+      totalProtein: 0,
+      totalCarbs: 0,
+      totalFat: 0,
+      dailyKcalTarget: 2000,
+    };
+  }
 }
 
 export function calculateStreak(days: Set<string>): number {
@@ -297,7 +321,22 @@ export function calculateStreak(days: Set<string>): number {
 
 /** Get aggregated user statistics for the profile screen. */
 export async function getUserStats(): Promise<UserStats> {
-  return apiFetch<UserStats>('/api/meals/stats');
+  try {
+    const raw = await apiFetch<any>('/api/meals/stats');
+    return {
+      totalMeals: Number(raw?.totalMeals ?? raw?.total_meals ?? 0),
+      totalDaysActive: Number(raw?.totalDaysActive ?? raw?.total_days_active ?? 0),
+      avgDailyKcal: Number(raw?.avgDailyKcal ?? raw?.avg_daily_kcal ?? 0),
+      streakDays: Number(raw?.streakDays ?? raw?.streak_days ?? 0),
+    };
+  } catch {
+    return {
+      totalMeals: 0,
+      totalDaysActive: 0,
+      avgDailyKcal: 0,
+      streakDays: 0,
+    };
+  }
 }
 
 /** Delete a meal from history. */
@@ -431,4 +470,44 @@ export async function getAdminMetrics(): Promise<AdminMetrics | null> {
     console.warn('Failed to fetch admin metrics:', err);
     return null;
   }
+}
+
+/** Get searchable and sortable list of all registered platform users. */
+export async function getAdminUsers(
+  search?: string,
+  sortBy?: string,
+  order?: string,
+): Promise<AdminUserSummary[]> {
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  if (sortBy) params.set('sortBy', sortBy);
+  if (order) params.set('order', order);
+  const q = params.toString() ? `?${params.toString()}` : '';
+  return apiFetch<AdminUserSummary[]>(`/api/admin/users${q}`);
+}
+
+/** Get comprehensive admin details for a specific user. */
+export async function getAdminUserDetail(email: string): Promise<AdminUserDetail> {
+  return apiFetch<AdminUserDetail>(`/api/admin/users/${encodeURIComponent(email)}`);
+}
+
+/** Get popular food breakdown across all users. */
+export async function getPopularFoods(range: string = '7d'): Promise<PopularFoodItem[]> {
+  return apiFetch<PopularFoodItem[]>(`/api/admin/popular-foods?range=${encodeURIComponent(range)}`);
+}
+
+/** Get review queue items (flagged meals with confidence <70%). */
+export async function getReviewQueue(status: string = 'all'): Promise<ReviewQueueItem[]> {
+  return apiFetch<ReviewQueueItem[]>(`/api/admin/review-queue?status=${encodeURIComponent(status)}`);
+}
+
+/** Approve, correct, or dismiss a flagged meal from the review queue. */
+export async function updateReviewQueue(
+  mealId: string,
+  req: ReviewQueueUpdateRequest,
+): Promise<ReviewQueueItem> {
+  return apiFetch<ReviewQueueItem>(`/api/admin/review-queue/${encodeURIComponent(mealId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(req),
+  });
 }

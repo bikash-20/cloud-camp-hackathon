@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Camera, Sparkles, ScanLine, RotateCcw, X, Upload, UtensilsCrossed, History, ShoppingBag } from 'lucide-react';
-import { T, USER_NAME, getGreeting, NUTRITION_DB } from '../../data';
+import { T, getGreeting, NUTRITION_DB } from '../../data';
 import { getTodaySummary, getMealHistory } from '../../lib/api';
 import { formatRelative, pickThumbnailStyle, toBengaliDigits } from '../../lib/format';
 import RevenueCurveChart from '../../components/RevenueCurveChart';
@@ -28,6 +28,7 @@ interface CaptureScreenProps {
   previewUrl?: string | null;
   /** Optional callback to switch tabs (used by quick-action chips). */
   onNavigateTab?: (index: number) => void;
+  userName?: string | null;
 }
 
 /** 40×40 thumbnail — prefers a captured photo, falls back to a deterministic
@@ -75,9 +76,11 @@ export default function CaptureScreen({
   captured,
   previewUrl,
   onNavigateTab,
+  userName,
 }: CaptureScreenProps) {
   const { foodName, language } = useLanguage();
   const isBn = language === 'bn';
+  const displayName = userName?.trim() || (isBn ? 'বন্ধু' : 'Friend');
   const reduceMotion = useReducedMotion();
   const [phase, setPhase] = useState<CapturePhase>('idle');
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -351,7 +354,7 @@ export default function CaptureScreen({
           textTransform: 'uppercase',
         }}
       >
-        {isBn ? 'শুভ দিন' : getGreeting()}, {USER_NAME}
+        {isBn ? 'শুভ দিন' : getGreeting()}, {displayName}
       </motion.div>
 
       <motion.h1

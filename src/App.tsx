@@ -303,6 +303,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
               captured={captured}
               previewUrl={capturedImage}
               onNavigateTab={goToTab}
+              userName={profile?.name || session?.name || (session?.email ? session.email.split('@')[0] : null)}
             />
           )}
           {tab === 1 && (

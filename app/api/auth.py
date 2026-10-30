@@ -213,7 +213,7 @@ def sign_in_with_google(
     role: Role = "admin" if email in admins else "user"
 
     # Upsert user record in backend state
-    state.get_or_create_user(email=email, name=name, role=role)
+    state.get_or_create_user(email=email, name=name, avatar_url=picture, role=role)
     user_profile = state.get_user_profile(email)
     if name and not user_profile.name:
         user_profile.name = name

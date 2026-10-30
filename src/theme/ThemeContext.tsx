@@ -43,10 +43,23 @@ interface ThemeProviderProps {
  */
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<ThemeName>(() => {
+    if (typeof document !== 'undefined') {
+      const docTheme = document.documentElement.getAttribute('data-theme') as ThemeName | null;
+      if (docTheme === 'dark' || docTheme === 'light') {
+        setActiveTokens(docTheme === 'dark' ? darkTokens : lightTokens);
+        return docTheme;
+      }
+    }
     const stored = storage.load<ThemeName>(THEME_KEY);
-    const initial = stored === 'dark' ? 'dark' : 'light';
-    // Sync the active token set synchronously so the very first render
-    // reads the correct tokens through the T Proxy — no light→dark flash.
+    if (stored === 'dark' || stored === 'light') {
+      setActiveTokens(stored === 'dark' ? darkTokens : lightTokens);
+      return stored;
+    }
+    const prefersDark =
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const initial: ThemeName = prefersDark ? 'dark' : 'light';
     setActiveTokens(initial === 'dark' ? darkTokens : lightTokens);
     return initial;
   });
@@ -67,6 +80,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const setTheme = useCallback((next: ThemeName) => {
     setThemeState(next);
     storage.save(THEME_KEY, next);
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', next);
+    }
+    setActiveTokens(next === 'dark' ? darkTokens : lightTokens);
   }, []);
 
   const toggleTheme = useCallback(() => {
