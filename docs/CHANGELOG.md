@@ -1,12 +1,43 @@
-# Changelog — Recent Cleanup Pass
+# Changelog
 
-A single audit pass surfaced ~20 hygiene issues across the project.
-This file documents what was found, what was fixed, and what was
-deliberately left out of scope. The user approved a "conservative
-refactor" scope: extract only the helpers, ship a schema-drift
-guard, and add CI + a few targeted unit tests. Auth
-(`src/lib/auth.ts`, `src/components/auth/LoginScreen.tsx`) was
-explicitly excluded.
+## [Production Release] Real Google OAuth 2.0, PostgreSQL Multi-Tenancy & Dynamic Admin Intelligence
+
+This major release upgrades NutriVision AI from a prototype with local/demo fixtures to a production-ready, multi-tenant system backed by real Google authentication and managed PostgreSQL storage.
+
+### 1. Real Google OAuth 2.0 Authentication
+- Replaced mock login buttons with official **Google Identity Services (GIS)** ID-token flow.
+- Backend verifies Google ID tokens cryptographically against Google's public JWKS endpoints (`POST /api/auth/google`).
+- Issues signed HMAC-SHA256 session JWTs attached via `Authorization: Bearer <token>`.
+- Admin privileges granted dynamically based on `ADMIN_EMAILS` environment configuration.
+- Completely removed all fake demo buttons, judge accounts, and hardcoded fallbacks.
+
+### 2. Dual-Mode PostgreSQL Persistence (`app/services/state.py`)
+- Dynamic PostgreSQL persistence via `psycopg 3` (`psycopg[binary]>=3.1,<4.0`), activated by `DATABASE_URL`.
+- Auto-runs DDL migrations on startup for `nv_users`, `nv_meals`, and `nv_grocery`.
+- Fully optimized for **Neon Serverless Postgres** pooled endpoints (`-pooler`) and PgBouncer by disabling server-side prepared statements (`prepare_threshold=None`).
+- Supports strict TLS channel binding (`channel_binding=require` with `SCRAM-SHA-256-PLUS`).
+- Multi-user tenant isolation: each user's profile, meals, and grocery records are strictly keyed to their verified Google email.
+- Automatic startup purge removes legacy synthetic demo accounts (`judge`, `rafi`, `@nutrivision.ai`).
+
+### 3. Dynamic 4-View Admin Intelligence Portal
+- **Overview:** Live platform metrics (`totalRegisteredUsers`, `newUsersToday`, `activeUsers7d`, `mealsToday`, `mealsThisWeek`), auto-refreshing every 30 seconds with manual Refresh control. Real flagged meal ratio with dynamic meal count denominator.
+- **Sparkline:** Rebuilt with responsive flexbox bars and crisp HTML weekday labels (`dayLabel`, Bengali font support), eliminating squashed SVG text.
+- **Users Directory:** Searchable and sortable table of all registered users with avatars, joined dates, streak days, and slide-over user inspection modal.
+- **Popular Foods View:** Ranked food item frequencies with date-range filters (`Today`, `7 Days`, `30 Days`, `All Time`), share percentage progress bars, and average confidence badges.
+- **Review Queue View:** Flagged low-confidence (<70%) meals table with photo preview, confidence score chips, and modal actions for Approve, Correct food label, and Dismiss.
+
+### 4. Zero-Flash Theme Engine & WCAG AA Styling
+- Synchronous inline script in `<head>` of `index.html` checks stored theme preference or OS dark-mode setting before DOM render, completely eliminating white theme flash on load.
+- Enforced WCAG AA contrast for dark mode across all admin views, modals, forms, dropdowns, inputs, language switches, and coach chat bubbles.
+
+### 5. Clean User Onboarding
+- New Google users begin with a clean zero-state profile (name and avatar from Google, 0 meals, 0 streak, 0 stats).
+- Added skeleton loading states for profile metrics to eliminate flash of zeroes.
+- Preserved all food RAG datasets and nutritional dictionaries intact.
+
+---
+
+## [Initial Audit] Hygiene & Refactoring Pass
 
 ## Summary
 

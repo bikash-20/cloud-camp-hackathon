@@ -1,17 +1,19 @@
 # Profile API
 
-The user's profile (goals, preferences, allergens, budget, serving
-size, daily kcal target). Plus the admin directory endpoints used
-by the admin dashboard.
+Management endpoints for the user's personal anthropometrics, clinical health goals, dietary preferences, allergens, daily grocery budget, and target calorie metrics.
+
+---
 
 ## `GET /api/profile`
 
-Fetch the current user's profile.
+Fetches the profile for the currently authenticated user.
 
 ### Request
 
-No parameters. The user is identified by the auth session
-(`mock-auth` for the demo).
+```http
+GET /api/profile HTTP/1.1
+Authorization: Bearer <jwt-token>
+```
 
 ### Response
 
@@ -20,61 +22,66 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 
 {
-  "name": "Demo User",
+  "name": "Bikash Talukder",
+  "age": 28,
+  "sex": "male",
+  "heightCm": 175.0,
+  "weightKg": 72.0,
+  "heightUnit": "cm",
+  "weightUnit": "kg",
+  "activityLevel": "moderate",
+  "goal": "improve_health",
+  "targetRateKgPerWeek": null,
+  "dietType": "standard",
+  "medicalConditions": [],
+  "mealsPerDay": 3,
+  "consentAnonymizedData": true,
+  "language": "en",
   "goals": {
     "diabetic": false,
-    "protein": false,
+    "protein": true,
     "budget": true,
     "mediter": false
   },
-  "preferences": ["Vegetarian"],
-  "allergens": ["Peanuts"],
-  "budget": 350,
-  "serving": 2,
-  "dailyKcalTarget": 2000
+  "preferences": [],
+  "allergens": [],
+  "budget": 500.0,
+  "serving": 1,
+  "dailyKcalTarget": 2200.0
 }
 ```
 
-**Schema:** `UserProfile` (see [schemas.md](../schemas.md#profile--personalization)).
-
-`dailyKcalTarget` is optional; older profiles fall back to
-`DAILY_KCAL_TARGET_DEFAULT` (2000).
-
-### Example
-
-```bash
-curl http://localhost:8000/api/profile
-```
+**Schema:** `UserProfile` (see [schemas.md](../schemas.md#profile--clinical-personalization)).
 
 ---
 
 ## `PUT /api/profile`
 
-Replace the current user's profile.
+Updates the profile for the authenticated user. New calorie and macro ceilings will recalculate dynamically across the Home and Nutrients screens.
 
 ### Request
 
 ```http
 PUT /api/profile HTTP/1.1
+Authorization: Bearer <jwt-token>
 Content-Type: application/json
 
 {
-  "name": "Demo User",
+  "name": "Bikash Talukder",
+  "age": 28,
+  "sex": "male",
+  "heightCm": 175.0,
+  "weightKg": 72.0,
   "goals": {
     "diabetic": true,
     "protein": false,
-    "budget": false,
+    "budget": true,
     "mediter": false
   },
-  "preferences": ["Vegetarian", "Gluten-free"],
-  "allergens": ["Peanuts", "Tree nuts"],
-  "budget": 350,
-  "serving": 2,
-  "dailyKcalTarget": 1800
+  "budget": 600.0,
+  "dailyKcalTarget": 2100.0
 }
 ```
-
-**Schema:** `UserProfile`.
 
 ### Response
 
@@ -83,72 +90,15 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 
 {
-  "name": "Demo User",
-  "goals": {...},
+  "name": "Bikash Talukder",
   ...
 }
 ```
 
-The returned object is the new state (after applying defaults for
-any missing fields).
-
-### Errors
-
-| Status | Cause |
-|---|---|
-| `422 Unprocessable Entity` | Body fails Pydantic validation |
-| `404 Not Found` | Profile doesn't exist (shouldn't happen for the current user) |
-
-### Example
-
-```bash
-curl -X PUT http://localhost:8000/api/profile \
-  -H "Content-Type: application/json" \
-  -d @new-profile.json
-```
-
 ---
 
-## `GET /api/profile/demo-users` (admin)
+## See Also
 
-List the synthetic accounts shown in the admin dashboard. The
-**real signed-in user is included** as one of these.
-
-### Request
-
-Requires admin session.
-
-### Response
-
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json
-
-[
-  {
-    "email": "user@nutrivision.ai",
-    "displayName": "Demo User",
-    "joinedDaysAgo": 14,
-    "meals": [<MealEntry>, ...]
-  },
-  {
-    "email": "alice@example.com",
-    "displayName": "Alice",
-    "joinedDaysAgo": 30,
-    "meals": [<MealEntry>, ...]
-  }
-]
-```
-
-**Schema:** `DemoUser[]` (frontend-only type; not in the drift test's
-`MUST_MATCH`).
-
-The admin dashboard doesn't see passwords — only the public profile
-+ a generated meal history.
-
----
-
-## See also
-
-- [services.md](../backend/services.md) — `state.py` (profile bucket)
-- [schemas.md](../schemas.md) — `UserProfile`, `DemoUser`
+- [auth.md](./auth.md) — Authentication and token issuance
+- [admin.md](./admin.md) — Admin inspection of user profiles
+- [schemas.md](../schemas.md) — `UserProfile` definition

@@ -51,6 +51,8 @@ Mounted under `/api/*`:
 
 | Router | File | Prefix | Tags |
 |---|---|---|---|
+| Auth | `app/api/auth.py` | `/api/auth` | auth |
+| Admin | `app/api/admin.py` | `/api/admin` | admin |
 | Vision | `app/api/vision.py` | `/api/vision` | vision |
 | Nutrition | `app/api/nutrition.py` | `/api/nutrition` | nutrition |
 | Profile | `app/api/profile.py` | `/api/profile` | profile |
@@ -59,29 +61,27 @@ Mounted under `/api/*`:
 
 See [docs/api/](../api/) for per-route reference.
 
-## State singleton
+## Multi-Tenant Persistence & State Store
 
 **File:** `app/services/state.py`
 
-A process-wide JSON-file-backed in-memory store. Not a database —
-demo-scale (single user, <100 meals, <100 grocery items). Cut (b)
-swaps in SQLite behind the same interface.
+NutriVision AI implements dual-mode persistence with automatic PostgreSQL schema migrations:
 
-```python
-from app.services.state import get_state
-
-state = get_state()                # process-wide singleton
-state.profile.upsert(profile)      # type-checked mutation
-state.meals.upsert(meal)
-state.grocery.upsert(item)
-```
-
-Every mutation rewrites the JSON file. The file is rewritten
-synchronously, which is fine for demo-scale but would be a
-bottleneck in production.
-
-Each collection is a `Bucket` — a thin wrapper around `list[X] +
-dict[id, X]` for O(1) lookups + ordered iteration.
+1. **PostgreSQL Adapter (`PostgresStore`):**
+   - Activated automatically when `DATABASE_URL` is set.
+   - Built on `psycopg 3` (`psycopg[binary]`) with connection pooling.
+   - Supports Neon pooled connection strings (`-pooler`) and `channel_binding=require`.
+   - Explicitly sets `prepare_threshold=None` to ensure 100% compatibility with PgBouncer transaction pooling.
+   - Automatically migrates database tables on boot:
+     - `nv_users`: Email, name, avatar URL, role, joined date, last active, and `profile_json` (JSONB).
+     - `nv_meals`: ID, user email, date, label, photo URL, review status, active goals, and `meal_json` (JSONB).
+     - `nv_grocery`: Composite primary key `(user_email, id)`, name, price, and checked state.
+2. **Local JSON Fallback:**
+   - If `DATABASE_URL` is omitted, persists to a local JSON file (`STATE_PATH`, default `app/state.json`).
+3. **Multi-User Isolation:**
+   - User data is strictly partitioned by verified email address.
+   - Legacy mock and synthetic personas (`judge`, `rafi`, `@nutrivision.ai`) are automatically purged on startup.
+   - New users initialize with an empty, zero-state profile without pre-populated meals or fake streak days.
 
 ## Caches
 

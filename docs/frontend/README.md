@@ -1,157 +1,107 @@
-# Frontend
+# Frontend Architecture & Component Guide
 
-React 18 + Vite + TypeScript PWA. It uses a hybrid API client
-(`src/lib/api.ts`): image analysis and nutrition resolution call the
-FastAPI backend when `VITE_API_BASE` is configured; profile, grocery,
-meal history, and authentication remain browser-local/demo behavior.
+React 18 + Vite + TypeScript Progressive Web App (PWA) with responsive design, Google OAuth authentication, dark/light theme hydration, and English/Bengali localization.
 
-## App shell
+---
+
+## 1. Application Shell & State Flow
 
 **File:** `src/App.tsx`
 
 ```
-<ThemeProvider>
-  <AppShell />
-</ThemeProvider>
+┌──────────────────────────────────────────────┐
+│              <ThemeProvider>                 │
+│         (ThemeContext.tsx + Tokens)          │
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│                  <AppShell>                  │
+│                                              │
+│  1. Synchronous check of `getSession()`      │
+│  2. If unauthenticated ──▶ <LoginScreen>    │
+│  3. If role === 'admin' ──▶ <AdminLayout>    │
+│  4. If role === 'user'  ──▶ <UserApp>        │
+└──────────────────────────────────────────────┘
 ```
 
-`AppShell`:
-1. On mount, reads `nv_auth` from localStorage via `getSession()`.
-2. If no session → renders `<LoginScreen>`.
-3. If `session.role === 'admin'` → renders `<AdminLayout>` with `<AdminOverview>`.
-4. Otherwise → renders `<UserApp session={session}>`.
+### Pre-Paint Theme Hydration
+To eliminate the light-mode flash on page load, `index.html` executes a synchronous inline script in `<head>`:
+```javascript
+(function () {
+  try {
+    var stored = localStorage.getItem('nv_theme');
+    var isDark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  } catch (e) {}
+})();
+```
+This guarantees that `data-theme="dark"` is already attached to `<html>` prior to the first CSS paint and DOM mounting.
 
-`UserApp`:
-1. Reads profile, today summary, and meal history from browser-local state.
-2. Owns the `activeTab` state (`0..5` for the 6 main tabs).
-3. Renders `<PhoneFrame>` wrapping the active `<Screen>`.
-4. Renders `<BottomNav>` for tab switching.
-5. Renders `<StepDots>` (the animated progress strip).
-6. Renders `<PwaInstallBanner>` for the PWA install prompt.
+---
 
-The `CaptureScreen` is the home screen, combining the camera viewfinder, shutter animation, FinTech revenue-curve trajectory, and recent-meals history.
+## 2. Authentication Flow
 
-## Routing
+**Files:** `src/lib/auth.ts`, `src/components/auth/LoginScreen.tsx`
 
-There is no React Router. Routing is a `useState` ladder:
+- Uses **Google Identity Services (GIS)** via `@react-oauth/google`.
+- The `LoginScreen` renders the official Google sign-in button and Google One-Tap prompt.
+- On successful authorization:
+  1. The Google ID token is dispatched to `POST /api/auth/google`.
+  2. The backend verifies the token with Google public JWKS certificates and returns a secure session JWT.
+  3. `loginWithGoogle()` persists the session in `localStorage['nv_auth']`.
+  4. Role determination: Users whose verified email is listed in `ADMIN_EMAILS` are granted `admin` access; all others receive `user` access.
+  5. The application dynamically routes admins to `<AdminLayout>` and regular users to `<UserApp>`.
 
-```ts
+---
+
+## 3. Screen Routing
+
+### A. User PWA (6 Tabs)
+In `<UserApp>`, navigation uses a zero-overhead `useState` tab ladder:
+```typescript
 const [activeTab, setActiveTab] = useState(0);
-
-const screens = [<CaptureScreen />, <ResultsScreen />, <NutrientsScreen />, <ProfileScreen />, <GroceryScreen />, <CoachScreen />];
-return screens[activeTab];
 ```
 
-The six tabs map to:
-- `0` → `CaptureScreen` (home + camera + revenue curve)
-- `1` → `ResultsScreen` (detected items + 1-tap grocery add)
-- `2` → `NutrientsScreen` (spline trajectory + smart dietary pivots + donuts)
-- `3` → `ProfileScreen` (goals + prefs + allergens)
-- `4` → `GroceryScreen` (weekly list with category grouping)
-- `5` → `CoachScreen` (Dr. Susmit AI habit & nutrition scientist)
+| Index | Screen | Purpose |
+|---|---|---|
+| `0` | `CaptureScreen` | Camera viewfinder (`getUserMedia`), Catmull-Rom calorie intake curve, and today's summary. |
+| `1` | `ResultsScreen` | Detected food items, bounding box confidence, portion adjustments, and 1-tap grocery add. |
+| `2` | `NutrientsScreen` | Macro donut charts, SHAP-style explainability, and smart dietary pivot recommendations. |
+| `3` | `ProfileScreen` | Health goals, dietary preferences, allergens, daily grocery budget stepper, and user stats. |
+| `4` | `GroceryScreen` | Categorized weekly grocery checklist with budget tracking ring and inline pricing. |
+| `5` | `CoachScreen` | Dr. Susmit AI habit and culinary nutrition scientist (bilingual English/Bengali). |
 
-Cross-tab navigation (e.g. "Open grocery" from the CaptureScreen's
-quick-action chips) uses `TAB_GROCERY` which is derived from
-`MOCK_TABS.findIndex(t => t.id === 'grocery')` so reordering tabs
-in `MOCK_TABS` doesn't break navigation.
+### B. Admin Intelligence Portal (4 Views)
+In `<AdminLayout>`, the admin dashboard provides 4 active navigable views:
+- **Overview (`'overview'`):** Real-time platform KPIs, active users, auto-refresh every 30s, and dynamic 7-day meal volume sparkline.
+- **Users Directory (`'users'`):** Searchable and sortable table of all registered users with avatar, joined date, streak days, and slide-over user inspection modal.
+- **Popular Foods (`'popular'`):** Ranked food item frequencies with date-range filters (`Today`, `7 Days`, `30 Days`, `All Time`) and share percentage progress bars.
+- **Review Queue (`'review'`):** Low-confidence (<70%) meals audit log with modal actions for approval, dish label correction, and dismissal.
 
-## State management
+---
 
-**There is no Redux, no Zustand, no React Query.** State lives in:
+## 4. API Client (`src/lib/api.ts`)
 
-- **App-level state** (`useState` in `App.tsx#UserApp`): active tab,
-  session, profile, today summary, meal history.
-- **Component-local state** (`useState` in each screen): form
-  values, UI toggles, transient captures.
-- **localStorage** (`src/lib/storage.ts`): persistent profile,
-  meal history, grocery list, theme preference, auth session.
+The typed API client manages communication with the FastAPI backend:
+- Automatically injects `Authorization: Bearer <token>` from the active Google auth session.
+- Normalizes snake_case backend payloads to TypeScript camelCase interfaces.
+- Intercepts `401 Unauthorized` responses to clear invalid sessions and redirect to login.
 
-Profile, meal history, and grocery mutations currently read/write
-localStorage; they are not synchronized to per-user backend storage.
+### Key API Methods:
+- `analyzeMeal(imageRef)`: Submits photo base64 to `/api/vision/analyze`.
+- `resolveNutrition(items, profile)`: Queries `/api/nutrition/resolve`.
+- `getAdminMetrics()`: Fetches live platform telemetry (`/api/admin/metrics`).
+- `getAdminUsers(params)`: Queries searchable user directory (`/api/admin/users`).
+- `getAdminUserDetail(email)`: Fetches user profile and meal history (`/api/admin/users/{email}`).
+- `getAdminPopularFoods(range)`: Fetches food rankings (`/api/admin/popular-foods`).
+- `getAdminReviewQueue(status)`: Fetches flagged meals (`/api/admin/review-queue`).
+- `updateReviewQueueItem(id, update)`: Approves, corrects, or dismisses flagged meals.
 
-## API and local demo state
+---
 
-**File:** `src/lib/api.ts`
+## 5. Design System & Accessibility
 
-This file contains live backend calls for `analyzeMeal` and, when
-configured, `resolveNutrition`. Other functions still use localStorage,
-seed data, or local calculations:
-
-- `analyzeMeal(imageRef)` → `AnalyzeResult`
-- `resolveNutrition(items, profile)` → `ResolveNutritionResult`
-- `getMacroTargets()` → `MacroTargets`
-- `getTodaySummary()` → `TodaySummary`
-- `getMealHistory()` → `MealEntry[]`
-- `saveMeal(meal)` → `MealEntry`
-- `updateLatestMeal(meal)` → updates latest meal in history & fires `meal-history-updated`
-- `deleteMeal(id)` → `void`
-- `getProfile()` → `UserProfile`
-- `updateProfile(profile)` → `UserProfile`
-- `getGrocery()` → `GroceryList`
-- `addGroceryItem(item)` / `updateGroceryItem` / `removeGroceryItem`
-- `clearGrocery()` / `generateGroceryFromMeals()`
-- `DEFAULT_PROFILE` (factory-fresh profile for Reset)
-
-The fallback in `resolveNutrition` is for local demo mode only. Vision
-analysis never returns canned detections: it fails clearly if the
-backend URL/provider is unavailable.
-
-## Helpers (`src/lib/`)
-
-### `pivotEngine.ts`
-Smart Dietary Pivot & Market Intelligence engine:
-- Generates tailored meal swaps (e.g. low-sodium gravy pivot, pasta-to-veggie swap, high-carb brown rice replacement, antioxidant produce booster).
-- Computes exact macro deltas ($\Delta\text{kcal}$, $\Delta\text{carbs}$, $\Delta\text{fiber}$, $\Delta\text{sodium}$) and BDT market price impact ($\Delta\text{BDT}$).
-- Provides actionable grocery items with categories (`Produce`, `Protein`, `Grains & staples`) for 1-click addition to `GroceryScreen`.
-
-### `format.ts`
-Pure helpers extracted from `CaptureScreen`:
-- `formatRelative(iso, now?)` — "just now" / "5m ago" / "Yesterday" / weekday / month-day
-- `hashStr(s)` — deterministic string hash (stable color from name)
-- `pickThumbnailStyle(meal, descriptorEmojis)` — gradient + emoji swatch for a meal thumbnail
-
-### `personalize.ts`
-Flag rules + meal totals. Mirrors `app/services/personalize.py`:
-- `mealTotals(items)` — zeros when no items, scales by grams correctly
-- `getEffectiveNutrition(item)` — canonical lookup across global and regional foods (pasta, spaghetti, parsley, local dishes)
-- `buildContributions(items, targets, focusedNutrients)` — SHAP-style per-nutrient contributions
-- `focusedNutrients(profile)` — diabetic vs non-diabetic focus list
-- `FLAG_RULES` — the rule table that powers the verdict chips
-
-### `storage.ts`
-Typed localStorage wrapper:
-- `load<T>(key)`, `loadOrDefault<T>(key, default)`, `save<T>(key, value)`, `clear(key)`
-- Catches `QuotaExceededError` and logs a warning (the UI shows no error to the user).
-
-## Design system (`src/theme/`)
-
-### `tokens.ts`
-Earth-tone palette and spacing/typography tokens:
-- Browns: `#4A3A34` (text) → `#F9F2E4` (background)
-- Accents: terracotta, olive, sage, mustard
-- Typography: Inter (UI), Fraunces (display), IBM Plex Mono (data)
-
-Exposed via the `T` object re-exported from `src/data.ts` (shim).
-
-### `ThemeContext.tsx`
-Light/dark mode provider. Reads from localStorage, falls back to
-`prefers-color-scheme`. Exposes `useTheme()` hook.
-
-### `useTokens.ts`
-Optional typed accessor for tokens outside the React tree.
-
-## Conventions
-
-- **Inline styles for one-offs**, CSS classes for reusable patterns.
-  Reusable patterns live in `src/styles.css` (glass utilities,
-  skeleton loaders, button reset).
-- **All animations via framer-motion.** Respect `prefers-reduced-motion`
-  via `useReducedMotion()` — replace spring physics with instant
-  transitions when the user prefers reduced motion.
-- **Tab indices are computed**, not hardcoded. See `TAB_GROCERY` in
-  `CaptureScreen.tsx`.
-- **No new imports from `src/data.ts`** — use `src/mocks/fixtures.ts`
-  or `src/theme/tokens.ts` directly. The shim exists for backward
-  compat.
-
-For per-component docs, see [components.md](./components.md).
+- **Palette:** Warm earth-tone system (`tokens.ts`) with adaptive dark-mode tokens for high contrast and reduced eye fatigue.
+- **WCAG AA Compliance:** Text contrast ratio $\ge 4.5:1$ on all backgrounds, interactive focus rings, screen reader attributes (`aria-label`, `role`, `aria-expanded`), and full keyboard navigation.
+- **Localization:** Real-time translation dictionary (`LanguageContext.tsx`) translating all UI text, food names, and clinical guidance between English and authentic Bengali.

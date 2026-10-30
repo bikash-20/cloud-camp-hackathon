@@ -1,63 +1,52 @@
-# NutriVision AI — Documentation
+# NutriVision AI — Documentation Index
 
-This folder is the comprehensive guide to the NutriVision AI codebase.
-If you're a new developer, an AI agent, or a curious onlooker, start
-here.
+Welcome to the architectural and operational documentation for **NutriVision AI**.
 
-## Quick links
+---
+
+## Quick Navigation
 
 | If you want to… | Read |
 |---|---|
-| Understand the whole system in 5 minutes | [ARCHITECTURE.md](./ARCHITECTURE.md) |
+| Understand the complete end-to-end architecture | [ARCHITECTURE.md](./ARCHITECTURE.md) |
+| Onboard as an AI agent or new core engineer | [AGENT_CONTEXT.md](./AGENT_CONTEXT.md) |
 | Deep dive into ChromaDB RAG & Live Price Scraper | [RAG_AND_SCRAPING_GUIDE.md](./RAG_AND_SCRAPING_GUIDE.md) |
-| Trace what happens when a user uploads a picture | [IMAGE_UPLOAD_FLOW.md](./IMAGE_UPLOAD_FLOW.md) |
-| Pick up this codebase as an AI agent | [AGENT_CONTEXT.md](./AGENT_CONTEXT.md) |
-| Set up the project locally and run tests | [development.md](./development.md) |
-| Deploy the frontend to Vercel + backend to Render | [deployment.md](./deployment.md) |
-| See what was changed in the recent cleanup | [CHANGELOG.md](./CHANGELOG.md) |
-| Add or modify a shared type | [schemas.md](./schemas.md) |
+| Trace what happens when a user uploads a meal photo | [IMAGE_UPLOAD_FLOW.md](./IMAGE_UPLOAD_FLOW.md) |
+| Deploy to Vercel (Frontend), Render (Backend), and Neon (PostgreSQL) | [deployment.md](./deployment.md) |
+| Run local development environment and test suites | [development.md](./development.md) |
+| Understand the wire-format contracts and schema drift guard | [schemas.md](./schemas.md) |
+| Review recent architectural updates and releases | [CHANGELOG.md](./CHANGELOG.md) |
 
-## Per-area deep dives
+---
+
+## Detailed Component & Subsystem Guides
 
 ### Frontend (`src/`)
-
-- [frontend/README.md](./frontend/README.md) — app shell, hybrid API/local state, theme system
-- [frontend/components.md](./frontend/components.md) — every component, grouped
+- [frontend/README.md](./frontend/README.md) — App shell, Google Auth integration, pre-paint theme engine, and reactive store synchronization.
+- [frontend/components.md](./frontend/components.md) — Complete component catalog (CaptureScreen, ResultsScreen, NutrientsScreen, ProfileScreen, GroceryScreen, CoachScreen, and Admin views).
 
 ### Backend (`app/`)
+- [backend/README.md](./backend/README.md) — FastAPI application entrypoint, CORS configuration, routing architecture, and caches.
+- [backend/services.md](./backend/services.md) — Multi-tier vision clients, clinical target resolution, and PostgreSQL persistence adapter.
 
-- [backend/README.md](./backend/README.md) — entrypoint, routers, caches, HTTP clients
-- [backend/services.md](./backend/services.md) — every service module, one paragraph each
+### HTTP REST APIs
+- [api/auth.md](./api/auth.md) — Google OAuth 2.0 Identity Services verification and session JWT management (`/api/auth/*`).
+- [api/admin.md](./api/admin.md) — Platform telemetry, multi-user directory, food popularity analytics, and review queue (`/api/admin/*`).
+- [api/vision.md](./api/vision.md) — 5-tier vision cascade and portion estimation (`/api/vision/analyze`).
+- [api/nutrition.md](./api/nutrition.md) — Dynamic BMR/TDEE targets, food database cascade, and clinical flags (`/api/nutrition/*`).
+- [api/meals.md](./api/meals.md) — Meal logging, daily intake summaries, and user streak statistics (`/api/meals/*`).
+- [api/profile.md](./api/profile.md) — User health profile, allergies, and daily grocery budget (`/api/profile`).
+- [api/grocery.md](./api/grocery.md) — Weekly grocery list management and auto-generation (`/api/grocery/*`).
 
-### HTTP API
+---
 
-- [api/vision.md](./api/vision.md) — `POST /api/vision/analyze`
-- [api/nutrition.md](./api/nutrition.md) — targets, resolve, personalize
-- [api/profile.md](./api/profile.md) — get/update profile, admin directory
-- [api/grocery.md](./api/grocery.md) — grocery list CRUD + generate-from-meals
-- [api/meals.md](./api/meals.md) — meal history + today's summary
+## System Invariants & Conventions
 
-## Source-of-truth files
-
-These are the files you must read before changing anything:
-
-- `NutriVision_AI_Blueprint.md` (repo root) — the original design doc
-- `src/types/schemas.ts` — frontend wire-format source of truth
-- `app/models/schemas.py` — backend wire-format source of truth
-- `app/tests/test_schema_drift.py` — enforces the two stay in sync
-- `scripts/dump-schemas.mjs` — TS AST walker used by the drift test
-
-## Repo conventions
-
-- **No Redux, no React Query.** State lives in `localStorage` + per-screen `useState`.
-- **Schema lockstep.** Any change to `src/types/schemas.ts` requires a matching change to `app/models/schemas.py`, and vice versa. The drift test in CI will fail otherwise.
-- **Auth is mock-grade.** `src/lib/auth.ts` and `src/components/auth/LoginScreen.tsx` are explicitly out of scope for refactors. Real auth is the next cut.
-- **HTTP clients share a logging helper.** `app/services/_http_logging.log_http_failure()` grades severity by exception class so an operator can tell "API is flaky" from "API key is wrong" at a glance.
-
-## Recent test surface
-
-- Frontend: 21 vitest tests across 2 files (`src/lib/format.test.ts`, `src/lib/personalize.test.ts`).
-- Backend: 66 pytest tests across 6 files, plus a 23-case parametrized schema-drift guard.
-- CI: `.github/workflows/ci.yml` runs both halves on every push and PR.
-
-See [development.md](./development.md) for the exact commands.
+1. **Schema Lockstep:** `src/types/schemas.ts` and `app/models/schemas.py` are strictly validated by `app/tests/test_schema_drift.py` via TypeScript AST reflection.
+2. **Real Authentication & Multi-Tenancy:** Authenticated sessions use verified Google OAuth 2.0 ID tokens and JWTs. User data is partitioned by email in PostgreSQL.
+3. **Resilient Neon & PgBouncer Persistence:** Database connections via `psycopg 3` enforce `prepare_threshold=None` and `channel_binding=require` for 100% transaction-pooling reliability.
+4. **Zero-Flash Theme Rendering:** Inline synchronous theme script in `<head>` ensures dark mode loads without white flashes.
+5. **Verified Test Coverage:**
+   - **Frontend:** 72 Vitest tests across 14 test suites (`npm test -- --run`).
+   - **TypeScript:** Strict typecheck passing with 0 errors (`npm run typecheck`).
+   - **Backend:** 155 Pytest tests across 8 test suites (`python3 -m pytest app/tests/ -v`).

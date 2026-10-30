@@ -170,27 +170,45 @@ src/
 - **Typography**: Inter (UI), Fraunces (display), IBM Plex Mono (data)
 - **Motion**: spring physics via framer-motion, respects `prefers-reduced-motion`
 - **Accessibility**: aria labels, focus-visible, sr-only, keyboard navigation
+- **Theme Hydration**: Synchronous inline head script checks stored theme & OS preference to prevent theme flash; full WCAG AA contrast in dark mode
 
-## Backend
+## Architecture & Backend
 
-The image-analysis and nutrition-resolution flows call the FastAPI service:
+The system operates on an asynchronous, decoupled client-server architecture:
 
-- **FastAPI** (Python 3.11)
-- **Vision cascade**: **Groq Vision** (Tier 1 fast LPU via `llama-3.2-11b-vision-preview` / `llama-3.2-90b-vision-preview`) → **Gemini 2.0 Flash** (Tier 2 primary high-accuracy vision) → **OpenRouter Vision** (Tier 3 free cascade) → **Gemini 1.5 Fallback** (Tier 4) → optional **Hugging Face** classifier (Tier 5 validator)
-- **Nutrition cascade**: Open Food Facts → USDA → Fruityvice + global/regional Bangladeshi food composition databases
-- **Cache**: ChromaDB vector cache lookup plus SQLite TTL writes
+- **Frontend:** React 18 + TypeScript PWA deployed on Vercel, talking to the backend via a typed REST API client with JWT authentication (`Authorization: Bearer <token>`).
+- **Backend:** FastAPI (Python 3.11+) service deployed on Render, exposing OpenAPI-documented endpoints with Pydantic v2 validation.
+- **Authentication:** Real Google OAuth 2.0 (Google Identity Services). Client sends Google ID token to `POST /api/auth/google`; backend verifies token signatures via Google's public JWKS endpoints, extracts user identity, assigns role (admin checked against `ADMIN_EMAILS`), and signs a secure session JWT.
+- **Multi-Tenant Persistence:** `app/services/state.py` dynamically activates PostgreSQL when `DATABASE_URL` is set, with connection pooling via `psycopg 3` (`psycopg[binary]`). Automatically runs DDL migrations for `nv_users`, `nv_meals`, and `nv_grocery`. Fully compatible with Neon pooled endpoints (`-pooler`) and `channel_binding=require` with server-side prepared statements disabled (`prepare_threshold=None`). Falls back to JSON storage if `DATABASE_URL` is unset.
+- **Admin Intelligence Dashboard:** Real-time metrics aggregated directly from PostgreSQL:
+  - **Overview:** Active user counts, meals today/this week, real flagged meals ratio, and a dynamic 7-day meal volume sparkline.
+  - **Users Directory:** Searchable, sortable table with user avatars, emails, roles, streak tracking, and recent meal inspection drawer.
+  - **Popular Foods:** Aggregated food frequency ranking with date-range filters (`Today`, `7 Days`, `30 Days`, `All Time`) and confidence ratings.
+  - **Review Queue:** Flagged low-confidence (<70%) meal audit log with modal actions for approval, name correction, and dismissal.
+- **Multi-Tier Vision Cascade:** **Groq Vision** (Tier 1 fast LPU) → **Google Gemini 2.0 Flash** (Tier 2 high accuracy) → **OpenRouter Vision** (Tier 3 free cascade) → **Gemini 1.5 Fallback** (Tier 4) → optional **Hugging Face** classifier (Tier 5 validator).
+- **Nutrition Cascade:** Open Food Facts → USDA FoodData Central → Fruityvice + canonical Bangladeshi & global food composition databases.
+- **Caching:** ChromaDB vector cache lookup + SQLite TTL exact-match cache.
 
-Set `VITE_API_BASE` to the backend URL in the Vercel project settings. Set
-`GROQ_API_KEY`, `GEMINI_API_KEY`, and/or `OPENROUTER_API_KEY` on the backend host (Render); `HF_API_TOKEN` is optional.
-The image-analysis route returns an error when no vision provider is
-configured and never substitutes sample detections for an uploaded photo.
+### Required Environment Variables
 
-**Production limitation:** authentication, profile/grocery/meal persistence,
-and several dashboard values still use seeded or browser-local demo data.
-The backend currently stores state in a JSON file and is not a multi-user
-database. Do not treat those features as production-ready or deploy them
-for real user accounts until authentication and durable per-user storage
-are implemented.
+#### Render Backend:
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection URI (e.g., Neon connection string: `postgresql://user:pass@ep-pooler.neon.tech/neondb?sslmode=require&channel_binding=require`) |
+| `GOOGLE_CLIENT_ID` | Google Cloud OAuth 2.0 Web Client ID (matches frontend) |
+| `JWT_SECRET` | 64-char random hex string used to sign backend session JWTs |
+| `ADMIN_EMAILS` | Comma-separated list of admin emails (e.g., `bikashtalukder040@gmail.com,admin@nutrivision.ai`) |
+| `CORS_ALLOW_ORIGINS` | `https://cloud-camp-hackathon.vercel.app` (or comma-separated allowed origins) |
+| `GROQ_API_KEY` | Groq API key for Tier 1 ultra-fast vision inference |
+| `GEMINI_API_KEY` | Google Gemini API key for Tier 2 vision cascade |
+| `OPENROUTER_API_KEY` | OpenRouter API key for Tier 3 vision cascade |
+| `USDA_API_KEY` | USDA FoodData Central key (defaults to `DEMO_KEY` if omitted) |
+
+#### Vercel Frontend:
+| Variable | Description |
+|---|---|
+| `VITE_API_BASE` | Render backend URL (e.g., `https://cloud-camp-hackathon.onrender.com` without trailing slash) |
+| `VITE_GOOGLE_CLIENT_ID` | Same Google Cloud OAuth 2.0 Web Client ID |
 
 ## Clinical Formulas & Dynamic Target Standards
 

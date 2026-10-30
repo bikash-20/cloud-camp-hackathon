@@ -1,193 +1,136 @@
-# Deployment
+# Production Deployment Guide
 
-How to deploy the frontend (Vercel) and backend (Render) so the
-live PWA talks to the live backend.
-
-## Overview
-
-```
-┌──────────────────────────────────┐
-│  Vercel                          │
-│  (frontend — Vite static build)  │   ← static SPA, auto-deploys
-│  https://cloud-camp-hackathon.vercel.app │ from `main` branch
-└──────────────┬───────────────────┘
-               │  HTTPS, VITE_API_BASE environment at build time
-               │  cross-origin API requests
-               ▼
-┌──────────────────────────────────┐
-│  Render                          │
-│  (backend — FastAPI on uvicorn)  │   ← long-running service
-│  <your-service>.onrender.com     │     with HTTPS + secrets
-└──────────────┬───────────────────┘
-               │
-               ▼
-       External APIs (Gemini, HF, OFF, USDA, Fruityvice)
-```
-
-Both halves are independent: the frontend is a static SPA, the
-backend is a single FastAPI process. They communicate over HTTPS.
+This guide covers deploying the **NutriVision AI** frontend (Vercel), backend (Render), PostgreSQL database (Neon / Supabase / Render), and Google OAuth credentials.
 
 ---
 
-## Frontend — Vercel
+## Architecture Topology
 
-Already wired. `vercel.json` at the repo root declares the build
-command and output dir:
-
-```json
-{
-  "framework": "vite",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist"
-}
 ```
-
-Vercel auto-detects this. Every push to `main` triggers a new
-deploy.
-
-### Set the API base URL
-
-In Vercel → Project Settings → Environment Variables:
-
-| Name | Value | Notes |
-|---|---|---|
-| `VITE_API_BASE` | `https://<your-render-service>.onrender.com` | **No trailing slash or `/api` suffix.** Used for vision + nutrition calls. |
-
-Set it for **Production**, **Preview**, and **Development** as
-needed. An empty value disables live backend calls; image analysis will
-show an error rather than sample detections, while other demo state
-remains browser-local.
-
-### First deploy / re-deploy
-
-Vercel auto-deploys on push to `main`. To trigger a manual deploy
-after changing env vars, use the Vercel dashboard "Redeploy"
-button (uncheck "Use existing build cache" so the new env var
-takes effect).
-
-### Verify
-
-Once deployed, open the PWA. The browser DevTools Network tab
-should show `POST /api/vision/analyze` going to your Render URL
-when you capture a photo.
+┌──────────────────────────────────────┐
+│  Google Cloud Console                │
+│  • OAuth 2.0 Web Client              │
+│  • Authorized JS Origins:            │
+│    https://cloud-camp-hackathon.     │
+│    vercel.app                        │
+└──────────────────┬───────────────────┘
+                   │ Client ID
+         ┌─────────┴─────────┐
+         ▼                   ▼
+┌──────────────────┐   ┌──────────────────────────────────┐
+│  Vercel          │   │  Render                          │
+│  Frontend (PWA)  │──▶│  FastAPI Backend Service         │
+│  • React 18      │   │  • Uvicorn async worker          │
+│  • Static Build  │   │  • JWT Auth & Vision Cascade     │
+└──────────────────┘   └─────────────────┬────────────────┘
+                                         │
+                                         ▼
+                       ┌──────────────────────────────────┐
+                       │  Neon / Managed PostgreSQL       │
+                       │  • Transaction Pooler (-pooler)  │
+                       │  • SSL & Channel Binding         │
+                       │  • Auto-migrated schema          │
+                       └──────────────────────────────────┘
+```
 
 ---
 
-## Backend — Render
+## 1. Google Cloud Console (OAuth 2.0)
 
-Create a Render Web Service from this GitHub repository.
-
-### Service settings
-
-| Setting | Value |
-|---|---|
-| Branch | `main` |
-| Root directory | `.` (repository root) |
-| Build command | `pip install -r app/requirements.txt` |
-| Start command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
-| Health check path | `/health` |
-
-Set these service environment variables:
-
-| Name | Value |
-|---|---|
-| `GEMINI_API_KEY` | Newly generated Gemini key (required for Gemini vision) |
-| `HF_API_TOKEN` | Optional Hugging Face token |
-| `CORS_ALLOW_ORIGINS` | `https://cloud-camp-hackathon.vercel.app` |
-| `USDA_API_KEY` | Optional; default is `DEMO_KEY` |
-| `STATE_PATH` | Leave default unless using persistent storage |
-
-Render assigns an HTTPS service URL after the first successful deploy.
-Set Vercel's `VITE_API_BASE` to that URL (origin only), then redeploy
-the frontend so Vite includes the new build-time variable.
-
-### Verify
-
-After Render has assigned the service URL:
-
-```bash
-curl https://<your-service>.onrender.com/health
-# {"status":"ok"}
-
-curl https://<your-service>.onrender.com/docs
-# Swagger UI
-```
-
-### CORS
-
-`CORS_ALLOW_ORIGINS` is comma-separated. For local dev + Vercel
-production:
-```
-CORS_ALLOW_ORIGINS=http://localhost:5173,https://cloud-camp-hackathon.vercel.app
-```
-
-Without this, the browser will block cross-origin requests from
-the Vercel frontend to the Render backend.
-
-### Persistent state
-
-The JSON state, ChromaDB cache, and SQLite cache are file-backed and
-may be lost on redeploy or service replacement unless persistent disk
-storage is configured. This is demo-scale state, not durable
-multi-user persistence.
-
-The ChromaDB vector cache and SQLite TTL cache have the same
-limitation — they'll rebuild from real traffic after each redeploy,
-which is harmless.
+1. Open [Google Cloud Console](https://console.cloud.google.com/) $\rightarrow$ **APIs & Services** $\rightarrow$ **Credentials**.
+2. Click **Create Credentials** $\rightarrow$ **OAuth Client ID**.
+3. Select **Application type:** `Web application`.
+4. Name: `NutriVision AI Web Client`.
+5. Under **Authorized JavaScript origins**, add:
+   - `https://cloud-camp-hackathon.vercel.app` (Production)
+   - `http://localhost:5173` (Local development)
+   - `http://localhost:4173` (Vite preview)
+6. Under **Authorized redirect URIs**: Leave empty (NutriVision AI utilizes Google Identity Services ID-token flow; no server redirect URI is required).
+7. Copy the generated **Client ID** (e.g. `xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com`).
 
 ---
 
-## End-to-end verification
+## 2. Managed PostgreSQL (Neon / Supabase / Render)
 
-After both deploys are live and `VITE_API_BASE` is set on Vercel:
+NutriVision AI uses `psycopg 3` with automatic DDL table migrations on startup.
 
-1. Open the PWA on a phone (or a desktop with HTTPS).
-2. Tap the camera button → take a photo.
-3. Open DevTools → Network tab. You should see:
+### Recommended Provider: Neon Serverless Postgres
+1. Create a project in [Neon Console](https://console.neon.tech/).
+2. On the **Dashboard**, locate your connection details and select the **Pooled connection** checkbox (`-pooler`).
+3. Construct the connection URI:
+   ```text
+   postgresql://[user]:[password]@[endpoint]-pooler.[region].neon.tech/neondb?sslmode=require&channel_binding=require
    ```
-   POST https://<render-service>.onrender.com/api/vision/analyze  → 200
-   POST https://<render-service>.onrender.com/api/nutrition/resolve  → 200
-   ```
-4. The Results screen should show detections from Gemini and optional
-   HF validation, with confidence scores returned by the provider.
-5. The Nutrients screen should show per-100g nutrition from the
-   OFF → USDA → Fruityvice cascade (look at the `source` field
-   on each `ResolvedItem` in DevTools).
-6. Save the meal → verify it appears in the meal history.
-
-If the live backend or provider is unavailable, the app shows an
-analysis error and does not save or display a canned detection. Check
-the browser console, backend health endpoint, CORS origin, and provider
-environment variables.
+4. **Key Compatibility Features:**
+   - **Transaction Pooling:** Handled automatically via `prepare_threshold=None` in `app/services/state.py`.
+   - **Channel Binding:** `channel_binding=require` validates the `SCRAM-SHA-256-PLUS` token against the TLS certificate.
+   - **Auto-migrations:** Automatically creates `nv_users`, `nv_meals`, and `nv_grocery` on boot.
 
 ---
 
-## Rollback
+## 3. Backend Deployment (Render)
 
-If something goes wrong in production:
+1. Create a **New Web Service** connected to your GitHub repository.
+2. Configure service settings:
+   - **Environment:** `Python 3`
+   - **Branch:** `main`
+   - **Root Directory:** `.`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - **Health Check Path:** `/health`
+3. Configure **Environment Variables** in Render:
 
-- **Frontend**: Vercel dashboard → Deployments → click the
-  previous green deployment → "Promote to Production".
-- **Backend**: Render dashboard → Events → select the
-  previous successful deploy → "Rollback".
-
-Setting `VITE_API_BASE` to an empty value disables backend calls, but
-does not restore canned photo-analysis results. Use this only for
-frontend-local/demo behavior.
-
----
-
-## Cost / quotas
-
-| Service | Free tier | Demo cost |
+| Variable | Recommended Value | Notes |
 |---|---|---|
-| Vercel | Unlimited static deploys on hobby plan | $0 |
-| Render | Free service may sleep while idle | Depends on service plan and usage |
-| Gemini 2.0 Flash | 15 RPM, 1M tokens/min | $0 for the demo |
-| HuggingFace Inference | Free tier, ~1000 req/day | $0 |
-| Open Food Facts | Free, no key | $0 |
-| USDA FDC | Free, `DEMO_KEY` works | $0 |
-| Fruityvice | Free, no key | $0 |
+| `DATABASE_URL` | `postgresql://user:pass@ep-pooler.neon.tech/neondb?sslmode=require&channel_binding=require` | Persistent PostgreSQL store |
+| `GOOGLE_CLIENT_ID` | `xxxxxxxx.apps.googleusercontent.com` | Matches Google Console |
+| `JWT_SECRET` | `openssl rand -hex 32` | 64-char random hex string |
+| `ADMIN_EMAILS` | `bikashtalukder040@gmail.com,admin@nutrivision.ai` | Admin permissions grant |
+| `CORS_ALLOW_ORIGINS` | `https://cloud-camp-hackathon.vercel.app` | Allow frontend origin |
+| `GROQ_API_KEY` | `gsk_...` | Tier 1 Fast Vision |
+| `GEMINI_API_KEY` | `AIzaSy...` | Tier 2 High-Accuracy Vision |
+| `OPENROUTER_API_KEY` | `sk-or-...` | Tier 3 Vision Cascade |
+| `USDA_API_KEY` | `DEMO_KEY` (or custom key) | USDA FoodData Central |
 
-**Realistic demo cost: ~$1/mo** for a few-dozen-meals-a-day
-deployment. Way under any hackathon budget.
+4. Deploy the service and record the assigned HTTPS domain:
+   `https://cloud-camp-hackathon.onrender.com`
+
+---
+
+## 4. Frontend Deployment (Vercel)
+
+1. Connect the GitHub repository to [Vercel](https://vercel.com/).
+2. Root configuration is handled automatically by `vercel.json`:
+   - Framework: `Vite`
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+3. In **Project Settings** $\rightarrow$ **Environment Variables**, configure:
+
+| Variable | Value | Notes |
+|---|---|---|
+| `VITE_API_BASE` | `https://cloud-camp-hackathon.onrender.com` | **No trailing slash**, no `/api` suffix |
+| `VITE_GOOGLE_CLIENT_ID` | `xxxxxxxx.apps.googleusercontent.com` | Same Client ID as backend |
+
+4. Click **Redeploy** (with "Use existing build cache" unchecked) to bake the new environment variables into the Vite client bundle.
+
+---
+
+## 5. Verification Checklist
+
+1. **Health Check:**
+   ```bash
+   curl -s https://cloud-camp-hackathon.onrender.com/health | jq .
+   # Expected: {"status": "ok", "service": "nutrivision-backend"}
+   ```
+2. **Google Sign-In Flow:**
+   - Open `https://cloud-camp-hackathon.vercel.app`.
+   - Click **"Continue with Google"**.
+   - Verify that your real Google email and name appear on the Profile screen.
+   - Verify that new accounts start with clean 0 stats (0 meals, 0 active days, 0 streak).
+3. **Admin Dashboard Flow:**
+   - Sign in using an email configured in `ADMIN_EMAILS`.
+   - Verify the 4 active tabs: **Overview** (with real 7-day sparkline), **Users**, **Popular Foods**, and **Review Queue**.
+   - Verify that non-admin accounts receive `403 Forbidden` if attempting to access admin APIs.
+4. **Theme Rendering:**
+   - Switch between Light and Dark mode.
+   - Refresh the page and confirm zero white flash on dark theme.
