@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { T, TABS } from './data';
 import { getProfile, saveMeal, updateLatestMeal, analyzeMeal, resolveNutrition } from './lib/api';
 import { getEffectiveNutrition } from './lib/personalize';
-import { getSession } from './lib/auth';
+import { getSession, logout } from './lib/auth';
 import { ThemeProvider } from './theme/ThemeContext';
 import type { AuthSession, DetectedItem, PipelineTrace, UserProfile } from './types/schemas';
 import PhoneFrame from './components/PhoneFrame';
@@ -45,6 +45,16 @@ function AppShell() {
   useEffect(() => {
     setSession(getSession());
     setAuthReady(true);
+
+    const handleAuthChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<AuthSession | null>;
+      setSession(customEvent.detail ?? null);
+    };
+
+    window.addEventListener('auth-changed', handleAuthChanged);
+    return () => {
+      window.removeEventListener('auth-changed', handleAuthChanged);
+    };
   }, []);
 
   // While restoring, render a quiet placeholder so the page doesn't flash
@@ -79,7 +89,15 @@ function AppShell() {
     );
   }
 
-  return <UserApp session={session} onSignOut={() => setSession(null)} />;
+  return (
+    <UserApp
+      session={session}
+      onSignOut={() => {
+        logout();
+        setSession(null);
+      }}
+    />
+  );
 }
 
 /**

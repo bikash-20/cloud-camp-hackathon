@@ -24,7 +24,6 @@ import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 import { cmToFtIn, ftInToCm, kgToLb, lbToKg } from '../../lib/units';
 import { toBengaliDigits } from '../../lib/format';
 import { calculateBiometricsBreakdown } from '../../lib/personalize';
-import { DEMO_PERSONAS, type DemoPersona } from '../../lib/personas';
 import Pill from '../Pill';
 import Chip from '../Chip';
 import SectionLabel from '../SectionLabel';
@@ -314,31 +313,6 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
     setDailyKcalTarget((v) => Math.min(4000, Math.max(1000, v + delta)));
   };
 
-  const applyPersona = async (persona: DemoPersona) => {
-    setManualKcalOverride(false);
-    const p = persona.profile;
-    setName(p.name);
-    if (p.sex) setSex(p.sex);
-    if (typeof p.age === 'number') setAge(p.age);
-    if (typeof p.heightCm === 'number') setHeightCm(p.heightCm);
-    if (typeof p.weightKg === 'number') setWeightKg(p.weightKg);
-    if (p.activityLevel) setActivityLevel(p.activityLevel);
-    if (p.goal) setGoal(p.goal);
-    if (p.dietType) setDietType(p.dietType);
-    if (p.medicalConditions) setMedicalConditions(p.medicalConditions);
-    setGoals(p.goals);
-    setPrefs(Object.fromEntries(p.preferences.map((k) => [k, true])));
-    setAllergens(Object.fromEntries(p.allergens.map((k) => [k, true])));
-    setBudget(p.budget);
-    setServing(p.serving);
-    if (p.dailyKcalTarget) setDailyKcalTarget(p.dailyKcalTarget);
-    triggerToast(
-      isBn
-        ? `${persona.nameBn} প্রোফাইল লোড করা হয়েছে (${toBengaliDigits(p.dailyKcalTarget || 2000)} কিলোক্যালরি)`
-        : `Loaded ${persona.name} profile (${p.dailyKcalTarget || 2000} kcal)`,
-    );
-  };
-
   const resetAll = async () => {
     const fresh = structuredClone(DEFAULT_PROFILE);
     setGoals(fresh.goals);
@@ -610,47 +584,6 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           {isBn ? `হ্যালো ${name} — এগুলো আপনার দেখা প্রতিটি সতর্কতা ও পরামর্শ নির্ধারণ করে।` : `Hi ${name} — these shape every flag and swap you see.`}
         </p>
 
-        {/* Demo Persona Quick-Switcher */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.inkSoft }}>
-              {isBn ? 'ডেমো পার্সোনা সুইচ করুন (Demo Personas)' : 'Demo Personas'}
-            </span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
-            {DEMO_PERSONAS.map((persona) => {
-              const isSelected = name.toLowerCase() === persona.profile.name.toLowerCase();
-              return (
-                <motion.button
-                  key={persona.id}
-                  type="button"
-                  onClick={() => applyPersona(persona)}
-                  whileHover={{ y: -1, scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: 14,
-                    background: isSelected ? 'rgba(74, 58, 52, 0.12)' : 'rgba(249, 242, 228, 0.65)',
-                    border: isSelected ? `2px solid ${T.primary}` : '1px solid rgba(74, 58, 52, 0.15)',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 3,
-                  }}
-                >
-                  <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 700, color: T.ink }}>
-                    {isBn ? persona.nameBn : persona.name}
-                  </div>
-                  <div style={{ fontFamily: 'Inter', fontSize: 10, color: isSelected ? T.primary : T.inkSoft, fontWeight: 600 }}>
-                    {isBn ? persona.badgeBn : persona.badge}
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
-        </div>
-
         {/* Profile Header Card */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -664,40 +597,56 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <motion.button
-              type="button"
-              onClick={() => setEditingName((v) => !v)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.92 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-              aria-label={isBn ? 'প্রোফাইলের নাম সম্পাদনা করুন' : 'Edit profile name'}
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                background: T.primary,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow:
-                  '0 6px 14px -4px rgba(46, 37, 34, 0.45), inset 0 1.5px 0 rgba(255,255,255,0.35)',
-                fontFamily: 'Inter',
-                fontWeight: 700,
-                fontSize: 14,
-                color: '#FFFFFF',
-                cursor: 'pointer',
-                border: 'none',
-                flexShrink: 0,
-                padding: 0,
-              }}
-            >
-              {name
-                .split(' ')
-                .map((p) => p[0])
-                .join('')
-                .slice(0, 2)
-                .toUpperCase()}
-            </motion.button>
+            {session?.avatarUrl ? (
+              <img
+                src={session.avatarUrl}
+                alt={name || session.name || 'User'}
+                referrerPolicy="no-referrer"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: `2px solid ${T.primary}`,
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <motion.button
+                type="button"
+                onClick={() => setEditingName((v) => !v)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.92 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                aria-label={isBn ? 'প্রোফাইলের নাম সম্পাদনা করুন' : 'Edit profile name'}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  background: T.primary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow:
+                    '0 6px 14px -4px rgba(46, 37, 34, 0.45), inset 0 1.5px 0 rgba(255,255,255,0.35)',
+                  fontFamily: 'Inter',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: '#FFFFFF',
+                  cursor: 'pointer',
+                  border: 'none',
+                  flexShrink: 0,
+                  padding: 0,
+                }}
+              >
+                {(name || session?.name || session?.email || 'U')
+                  .split(' ')
+                  .map((p) => p[0])
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase()}
+              </motion.button>
+            )}
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <AnimatePresence mode="wait" initial={false}>
@@ -750,7 +699,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                       color: T.ink,
                     }}
                   >
-                    <span>{name}</span>
+                    <span>{name || session?.name || 'User'}</span>
                     <Edit3
                       size={11}
                       color={T.inkSoft}
@@ -766,18 +715,28 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                   fontSize: 12,
                   color: T.inkSoft,
                   marginTop: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  flexWrap: 'wrap',
                 }}
               >
-                {isBn
-                  ? `ঢাকা, বাংলাদেশ · টানা ${toBengaliDigits(stats?.streakDays ?? 1)} দিনের ধারা`
-                  : `Dhaka, Bangladesh · ${stats?.streakDays ?? 1}-day streak`}
+                {session?.email ? (
+                  <span style={{ fontWeight: 500, color: T.ink }}>{session.email}</span>
+                ) : null}
+                <span>·</span>
+                <span>
+                  {isBn
+                    ? `টানা ${toBengaliDigits(stats?.streakDays ?? 0)} দিনের ধারা`
+                    : `${stats?.streakDays ?? 0}-day streak`}
+                </span>
               </div>
             </div>
           </div>
         </motion.div>
 
         {/* User Stats Card */}
-        {!statsLoading && stats && stats.totalMeals > 0 && (
+        {!statsLoading && stats && (
           <>
             <SectionLabel>{isBn ? 'আপনার পরিসংখ্যান' : 'Your Stats'}</SectionLabel>
             <motion.div

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Users, UtensilsCrossed, Activity, AlertTriangle, TrendingUp, Sparkles, UserCheck } from 'lucide-react';
-import { SEED_DEMO_USERS } from '../../mocks/fixtures';
 import { getAdminMetrics, getMealHistory } from '../../lib/api';
 import type { AdminMetrics, AuthSession, MealEntry } from '../../types/schemas';
 import KpiCard from './KpiCard';
@@ -112,24 +111,22 @@ export default function AdminOverview({ session }: AdminOverviewProps) {
     }
 
     const realUserMeals = realMeals ?? [];
-    const demoMeals = SEED_DEMO_USERS.flatMap((u) => u.meals);
-    const allMeals = [...demoMeals, ...realUserMeals];
-    const totalUsers = SEED_DEMO_USERS.length + 1; // +1 for the signed-in user
+    const totalUsers = 1;
 
     const today = todayKey();
     const week = new Set(lastNDays(7));
 
     let mealsToday = 0;
     let mealsThisWeek = 0;
-    for (const m of allMeals) {
+    for (const m of realUserMeals) {
       const k = localDayKey(m.date);
       if (k === today) mealsToday += 1;
       if (week.has(k)) mealsThisWeek += 1;
     }
 
-    const { flagged, total } = countFlagged(allMeals);
+    const { flagged, total } = countFlagged(realUserMeals);
     const flaggedPct = total > 0 ? (flagged / total) * 100 : 0;
-    const avgPerUser = totalUsers > 0 ? mealsThisWeek / totalUsers : 0;
+    const avgPerUser = mealsThisWeek;
 
     return {
       totalUsers,
@@ -146,12 +143,10 @@ export default function AdminOverview({ session }: AdminOverviewProps) {
 
   const sparkData = useMemo(() => {
     const realUserMeals = realMeals ?? [];
-    const demoMeals = SEED_DEMO_USERS.flatMap((u) => u.meals);
-    const allMeals = [...demoMeals, ...realUserMeals];
     const days = lastNDays(7);
     const counts = new Map<string, number>();
     for (const k of days) counts.set(k, 0);
-    for (const m of allMeals) {
+    for (const m of realUserMeals) {
       const k = localDayKey(m.date);
       if (counts.has(k)) counts.set(k, counts.get(k)! + 1);
     }

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.api.auth import get_current_user_optional
+from app.api.auth import require_current_user
 from app.models.schemas import (
     AuthSession,
     DetectedItem,
@@ -40,26 +40,39 @@ class SaveMealRequest(BaseModel):
     active_goals: HealthGoals
 
 
+class UpdateLatestMealRequest(BaseModel):
+    label: str | None = None
+    items: list[DetectedItem] | None = None
+    totals: MealTotals | None = None
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────
+
+
+@router.patch("/latest", response_model=MealEntry | None)
+def update_latest_meal(
+    body: UpdateLatestMealRequest,
+    current_user: AuthSession = Depends(require_current_user),
+    state: State = Depends(get_state),
+) -> MealEntry | None:
+    """Update items, totals, or label on the authenticated user's latest meal."""
+    return state.update_user_latest_meal(
+        current_user.email,
+        label=body.label,
+        items=body.items,
+        totals=body.totals,
+    )
 
 
 @router.post("", response_model=MealEntry, status_code=status.HTTP_201_CREATED)
 def save_meal(
     body: SaveMealRequest,
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> MealEntry:
-    """Append a new meal entry for the authenticated user or default state."""
-    if current_user:
-        return state.add_user_meal(
-            current_user.email,
-            label=body.label,
-            items=body.items,
-            totals=body.totals,
-            photo_url=body.photo_url,
-            active_goals=body.active_goals,
-        )
-    return state.add_meal(
+    """Append a new meal entry for the authenticated user."""
+    return state.add_user_meal(
+        current_user.email,
         label=body.label,
         items=body.items,
         totals=body.totals,
@@ -70,40 +83,35 @@ def save_meal(
 
 @router.get("", response_model=list[MealEntry])
 def get_meal_history(
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> list[MealEntry]:
-    """Return the full meal history, newest first."""
-    if current_user:
-        return state.list_user_meals(current_user.email)
-    return state.list_meals()
+    """Return the authenticated user's meal history, newest first."""
+    return state.list_user_meals(current_user.email)
 
 
 @router.delete("/{meal_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_meal(
     meal_id: str,
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> None:
     try:
-        if current_user:
-            state.delete_user_meal(current_user.email, meal_id)
-        else:
-            state.delete_meal(meal_id)
+        state.delete_user_meal(current_user.email, meal_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/today", response_model=TodaySummary)
 def get_today_summary(
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> TodaySummary:
-    """Aggregate today's meals."""
-    meals = state.list_user_meals(current_user.email) if current_user else state.list_meals()
+    """Aggregate today's meals for the authenticated user."""
+    meals = state.list_user_meals(current_user.email)
     today_prefix = datetime.now(timezone.utc).date().isoformat()
     today = [m for m in meals if m.date.startswith(today_prefix)]
-    user_profile = state.get_user_profile(current_user.email) if current_user else state.get_profile()
+    user_profile = state.get_user_profile(current_user.email)
     return TodaySummary(
         meals_logged=len(today),
         total_kcal=sum(m.totals.kcal for m in today),
@@ -141,11 +149,11 @@ def _calculate_streak(days: set[str]) -> int:
 
 @router.get("/stats", response_model=UserStats)
 def get_user_stats(
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> UserStats:
-    """Aggregate user-level stats for the Profile screen."""
-    meals = state.list_user_meals(current_user.email) if current_user else state.list_meals()
+    """Aggregate authenticated user stats for the Profile screen."""
+    meals = state.list_user_meals(current_user.email)
     if not meals:
         return UserStats(
             total_meals=0, total_days_active=0, avg_daily_kcal=0, streak_days=0

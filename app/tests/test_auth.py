@@ -49,20 +49,12 @@ def test_jwt_tampered_returns_none():
     assert verify_jwt(tampered, secret) is None
 
 
-def test_demo_login_user_and_admin(client):
-    # User demo login
+def test_demo_login_route_is_removed_and_returns_404(client):
     res_user = client.post("/api/auth/demo?role=user")
-    assert res_user.status_code == 200
-    user_data = res_user.json()
-    assert user_data["session"]["role"] == "user"
-    assert "token" in user_data
+    assert res_user.status_code == 404
 
-    # Admin demo login
     res_admin = client.post("/api/auth/demo?role=admin")
-    assert res_admin.status_code == 200
-    admin_data = res_admin.json()
-    assert admin_data["session"]["role"] == "admin"
-    assert admin_data["session"]["email"] == "admin@nutrivision.ai"
+    assert res_admin.status_code == 404
 
 
 def test_google_sign_in_regular_user(client):

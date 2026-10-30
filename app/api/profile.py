@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.api.auth import get_current_user_optional
+from app.api.auth import require_current_user
 from app.models.schemas import AuthSession, UserProfile
 from app.services.state import State, get_state
 
@@ -20,22 +20,18 @@ router = APIRouter(prefix="/api/profile", tags=["profile"])
 
 @router.get("", response_model=UserProfile)
 def get_profile(
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> UserProfile:
-    """Return the profile for the authenticated user, or default demo profile."""
-    if current_user:
-        return state.get_user_profile(current_user.email)
-    return state.get_profile()
+    """Return the profile for the authenticated user."""
+    return state.get_user_profile(current_user.email)
 
 
 @router.put("", response_model=UserProfile)
 def update_profile(
     profile: UserProfile,
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> UserProfile:
-    """Replace the profile for the authenticated user, or default demo profile."""
-    if current_user:
-        return state.set_user_profile(current_user.email, profile)
-    return state.set_profile(profile)
+    """Replace the profile for the authenticated user."""
+    return state.set_user_profile(current_user.email, profile)

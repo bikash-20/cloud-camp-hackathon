@@ -21,12 +21,9 @@ def client(tmp_path, monkeypatch):
     return TestClient(app)
 
 
-def test_admin_metrics_endpoint_unauthenticated_or_demo(client):
+def test_admin_metrics_endpoint_unauthenticated_returns_401(client):
     res = client.get("/api/admin/metrics")
-    assert res.status_code == 200
-    data = res.json()
-    assert "totalUsers" in data or "total_users" in data
-    assert "mealsToday" in data or "meals_today" in data
+    assert res.status_code == 401
 
 
 def test_admin_metrics_forbidden_for_regular_user(client):

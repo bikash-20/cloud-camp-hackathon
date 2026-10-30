@@ -12,7 +12,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from app.api.auth import get_current_user_optional
+from app.api.auth import require_current_user
 from app.models.schemas import AuthSession, GroceryGroup, GroceryItem, GroceryList
 from app.seed.fixtures import DEFAULT_GROCERY_GROUPS
 from app.services.state import State, get_state
@@ -75,11 +75,11 @@ class UpdatePriceRequest(BaseModel):
 @router.get("", response_model=GroceryList)
 def get_grocery_list(
     budget: float = Query(..., ge=0),
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> GroceryList:
-    """Return the grocery list bucketed by category."""
-    items = state.list_user_grocery(current_user.email) if current_user else state.list_grocery()
+    """Return the grocery list bucketed by category for the authenticated user."""
+    items = state.list_user_grocery(current_user.email)
     return GroceryList(budget=budget, groups=_bucket_grocery_by_category(items))
 
 
@@ -90,26 +90,21 @@ def get_grocery_list(
 )
 def add_grocery_item(
     body: AddGroceryRequest,
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> GroceryItem:
-    """Add a new custom item."""
-    if current_user:
-        return state.add_user_grocery(current_user.email, body.name, body.price)
-    return state.add_grocery(body.name, body.price)
+    """Add a new custom item for the authenticated user."""
+    return state.add_user_grocery(current_user.email, body.name, body.price)
 
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_grocery_item(
     item_id: str,
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> None:
     try:
-        if current_user:
-            state.remove_user_grocery(current_user.email, item_id)
-        else:
-            state.remove_grocery(item_id)
+        state.remove_user_grocery(current_user.email, item_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -121,14 +116,11 @@ def remove_grocery_item(
 def update_grocery_price(
     item_id: str,
     body: UpdatePriceRequest,
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> None:
     try:
-        if current_user:
-            state.update_user_grocery_price(current_user.email, item_id, body.price)
-        else:
-            state.update_grocery_price(item_id, body.price)
+        state.update_user_grocery_price(current_user.email, item_id, body.price)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -136,25 +128,20 @@ def update_grocery_price(
 @router.post("/items/{item_id}/toggle", response_model=GroceryItem)
 def toggle_grocery_item(
     item_id: str,
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> GroceryItem:
     """Flip the `checked` flag for an item."""
     try:
-        if current_user:
-            return state.toggle_user_grocery(current_user.email, item_id)
-        return state.toggle_grocery(item_id)
+        return state.toggle_user_grocery(current_user.email, item_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 def clear_grocery_list(
-    current_user: AuthSession | None = Depends(get_current_user_optional),
+    current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> None:
-    """Empty the grocery list."""
-    if current_user:
-        state.clear_user_grocery(current_user.email)
-    else:
-        state.clear_grocery()
+    """Empty the grocery list for the authenticated user."""
+    state.clear_user_grocery(current_user.email)

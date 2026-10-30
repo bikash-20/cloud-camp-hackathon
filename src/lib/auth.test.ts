@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
-import { getSession, login, loginWithDemo, loginWithGoogle, logout } from './auth';
+import { getSession, loginWithGoogle, logout } from './auth';
 import * as storage from './storage';
 
 const memStore = new Map<string, string>();
@@ -19,7 +19,7 @@ beforeAll(() => {
   });
 });
 
-describe('Authentication module (Google & Demo)', () => {
+describe('Authentication module (Real Google OAuth)', () => {
   beforeEach(() => {
     memStore.clear();
     storage.remove('auth');
@@ -30,53 +30,61 @@ describe('Authentication module (Google & Demo)', () => {
     expect(getSession()).toBeNull();
   });
 
-  it('logs in with demo user account and persists session', async () => {
-    const session = await loginWithDemo('user');
-    expect(session.role).toBe('user');
-    expect(session.email).toContain('nutrivision.ai');
-    expect(getSession()).toEqual(session);
-  });
-
-  it('logs in with demo admin account and gives admin role', async () => {
-    const session = await loginWithDemo('admin');
-    expect(session.role).toBe('admin');
-    expect(session.email).toBe('admin@nutrivision.ai');
-    expect(getSession()?.role).toBe('admin');
-  });
-
-  it('processes Google ID token and creates authenticated session', async () => {
-    const payload = {
-      sub: 'google-sub-456',
-      email: 'john.doe@gmail.com',
-      name: 'John Doe',
-      picture: 'https://lh3.googleusercontent.com/avatar.jpg',
+  it('processes Google ID token and creates authenticated session via backend', async () => {
+    const mockSession = {
+      email: 'bikashtalukder040@gmail.com',
+      role: 'admin',
+      loginAt: '2026-10-31T01:00:00Z',
+      name: 'Bikash Talukder',
+      avatarUrl: 'https://lh3.googleusercontent.com/photo.jpg',
+      token: 'real-backend-jwt-token',
+      sub: 'google-sub-12345',
     };
-    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-    const b64Payload = btoa(JSON.stringify(payload));
-    const fakeIdToken = `${header}.${b64Payload}.signature`;
 
-    const session = await loginWithGoogle(fakeIdToken);
-    expect(session.email).toBe('john.doe@gmail.com');
-    expect(session.name).toBe('John Doe');
-    expect(session.role).toBe('user');
-    expect(session.avatarUrl).toBe('https://lh3.googleusercontent.com/avatar.jpg');
-    expect(session.token).toBe(fakeIdToken);
-    expect(getSession()?.email).toBe('john.doe@gmail.com');
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          session: mockSession,
+          token: 'real-backend-jwt-token',
+          profile: { name: 'Bikash Talukder' },
+        }),
+    }) as unknown as typeof fetch;
+
+    const session = await loginWithGoogle('valid-google-id-token');
+    expect(session.email).toBe('bikashtalukder040@gmail.com');
+    expect(session.name).toBe('Bikash Talukder');
+    expect(session.role).toBe('admin');
+    expect(session.token).toBe('real-backend-jwt-token');
+    expect(getSession()?.email).toBe('bikashtalukder040@gmail.com');
   });
 
   it('clears session on logout', async () => {
-    await loginWithDemo('user');
+    const mockSession = {
+      email: 'user@gmail.com',
+      role: 'user' as const,
+      loginAt: '2026-10-31T01:00:00Z',
+      name: 'User',
+      avatarUrl: null,
+      token: 'jwt-123',
+    };
+    storage.save('auth', mockSession);
     expect(getSession()).not.toBeNull();
+
     logout();
     expect(getSession()).toBeNull();
   });
 
-  it('validates password correctly for seeded accounts', async () => {
-    const success = await login('admin@nutrivision.ai', 'admin123');
-    expect(success).not.toBeNull();
-    expect(success?.role).toBe('admin');
+  it('throws clear error if backend verification fails', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({ detail: 'Invalid or expired Google ID token.' }),
+    }) as unknown as typeof fetch;
 
-    const failed = await login('admin@nutrivision.ai', 'wrong-pass');
-    expect(failed).toBeNull();
+    await expect(loginWithGoogle('invalid-token')).rejects.toThrow(
+      'Authentication error (401): Invalid or expired Google ID token.',
+    );
   });
 });

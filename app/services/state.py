@@ -33,7 +33,6 @@ from app.models.schemas import (
     Role,
     UserProfile,
 )
-from app.seed.fixtures import DEFAULT_PROFILE, default_grocery_items
 
 
 T = TypeVar("T")
@@ -41,6 +40,33 @@ T = TypeVar("T")
 
 class StateError(ValueError):
     """Raised when a mutation references an unknown entity id."""
+
+
+def make_clean_profile(name: str = "") -> UserProfile:
+    """Create a pristine empty profile for new users without seeded persona data."""
+    return UserProfile(
+        name=name,
+        age=None,
+        sex=None,
+        height_cm=None,
+        weight_kg=None,
+        height_unit="cm",
+        weight_unit="kg",
+        activity_level=None,
+        goal=None,
+        target_rate_kg_per_week=None,
+        diet_type=None,
+        medical_conditions=[],
+        meals_per_day=3,
+        consent_anonymized_data=True,
+        language="en",
+        goals=HealthGoals(),
+        preferences=[],
+        allergens=[],
+        budget=500.0,
+        serving=1,
+        daily_kcal_target=2000.0,
+    )
 
 
 class UserData:
@@ -60,15 +86,9 @@ class UserData:
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         self.joined_date = joined_date or now
         self.last_active = last_active or now
-        self.profile = DEFAULT_PROFILE.model_copy(deep=True)
-        self.profile.name = self.name
+        self.profile = make_clean_profile(self.name)
         self.meals = Bucket[MealEntry](newest_first=True)
         self.grocery = Bucket[GroceryItem]()
-        self._seed_grocery()
-
-    def _seed_grocery(self) -> None:
-        for item in default_grocery_items():
-            self.grocery.items.append(item.model_copy(deep=True))
 
 
 class Bucket(Generic[T]):
@@ -115,15 +135,10 @@ class State:
     def __init__(self, path: Path) -> None:
         self.path = path
         self._lock = threading.RLock()
-        self.profile: UserProfile = DEFAULT_PROFILE.model_copy(deep=True)
+        self.profile: UserProfile = make_clean_profile("Guest")
         self.meals = Bucket[MealEntry](newest_first=True)
         self.grocery = Bucket[GroceryItem]()
         self.users: dict[str, UserData] = {}
-        self._seed_grocery()
-
-    def _seed_grocery(self) -> None:
-        for item in default_grocery_items():
-            self.grocery.items.append(item.model_copy(deep=True))
         self._save_unlocked()
 
     # ── Persistence ──────────────────────────────────────────────────────
@@ -239,7 +254,7 @@ class State:
             user = self.users.get(email.lower().strip())
             if user:
                 return user.profile.model_copy(deep=True)
-            return self.profile.model_copy(deep=True)
+            return make_clean_profile()
 
     def set_user_profile(self, email: str, profile: UserProfile) -> UserProfile:
         clean_email = email.lower().strip()
@@ -260,7 +275,7 @@ class State:
             user = self.users.get(email.lower().strip())
             if user:
                 return [m.model_copy(deep=True) for m in user.meals.items]
-            return self.list_meals()
+            return []
 
     def add_user_meal(
         self,
@@ -307,12 +322,37 @@ class State:
 
         self._mutate(op)
 
+    def update_user_latest_meal(
+        self,
+        email: str,
+        *,
+        label: str | None = None,
+        items: list[DetectedItem] | None = None,
+        totals: MealTotals | None = None,
+    ) -> MealEntry | None:
+        clean_email = email.lower().strip()
+
+        def op() -> MealEntry | None:
+            user = self.users.get(clean_email)
+            if not user or not user.meals.items:
+                return None
+            latest = user.meals.items[0]
+            if label is not None:
+                latest.label = label
+            if items is not None:
+                latest.items = [i.model_copy(deep=True) for i in items]
+            if totals is not None:
+                latest.totals = totals.model_copy(deep=True)
+            return latest.model_copy(deep=True)
+
+        return self._mutate(op)  # type: ignore[return-value]
+
     def list_user_grocery(self, email: str) -> list[GroceryItem]:
         with self._lock:
             user = self.users.get(email.lower().strip())
             if user:
                 return [g.model_copy(deep=True) for g in user.grocery.items]
-            return self.list_grocery()
+            return []
 
     def add_user_grocery(self, email: str, name: str, price: float) -> GroceryItem:
         clean_email = email.lower().strip()
@@ -394,7 +434,7 @@ class State:
     def get_admin_metrics(self) -> AdminMetrics:
         with self._lock:
             all_users_list = list(self.users.values())
-            all_meals: list[MealEntry] = list(self.meals.items)
+            all_meals: list[MealEntry] = []
             for u in all_users_list:
                 all_meals.extend(u.meals.items)
 

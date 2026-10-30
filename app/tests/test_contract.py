@@ -143,44 +143,56 @@ def test_nutrition_resolve_emits_contributions(client: TestClient, stub_off) -> 
 # ── Profile ─────────────────────────────────────────────────────────────
 
 
-def test_profile_round_trip(client: TestClient) -> None:
-    """GET → seed, PUT → replacement, GET reflects the PUT.
+def test_unauthenticated_requests_return_401(client: TestClient) -> None:
+    """Security contract: unauthenticated requests to protected endpoints return 401."""
+    assert client.get("/api/profile").status_code == 401
+    assert client.get("/api/grocery", params={"budget": 500}).status_code == 401
+    assert client.get("/api/meals").status_code == 401
+    assert client.get("/api/meals/today").status_code == 401
+    assert client.get("/api/meals/stats").status_code == 401
 
-    Only this combined test — the seed round-trip is the only
-    contract worth pinning on the profile endpoint."""
-    initial = client.get("/api/profile").json()
-    assert initial["name"] == DEFAULT_PROFILE.name
+
+def test_profile_round_trip(client: TestClient, auth_headers: dict[str, str]) -> None:
+    """GET → clean profile, PUT → replacement, GET reflects the PUT."""
+    initial = client.get("/api/profile", headers=auth_headers).json()
+    assert "name" in initial
 
     updated = UserProfile.model_validate(initial).model_copy(update={"name": "Updated"})
-    put = client.put("/api/profile", json=updated.model_dump(mode="json", by_alias=True))
+    put = client.put("/api/profile", json=updated.model_dump(mode="json", by_alias=True), headers=auth_headers)
     assert put.status_code == 200
     assert put.json()["name"] == "Updated"
 
-    again = client.get("/api/profile").json()
+    again = client.get("/api/profile", headers=auth_headers).json()
     assert again["name"] == "Updated"
 
 
 # ── Grocery ─────────────────────────────────────────────────────────────
 
 
-def test_grocery_list_seeded_in_seed_order(client: TestClient) -> None:
-    """First GET returns the seeded groups in seeded order."""
-    resp = client.get("/api/grocery", params={"budget": 500})
+def test_grocery_list_seeded_in_seed_order(client: TestClient, auth_headers: dict[str, str]) -> None:
+    """Adding an item and fetching grocery returns 200 with matching budget."""
+    add = client.post(
+        "/api/grocery/items",
+        json={"name": "Apples", "price": 120.0, "category": "Produce"},
+        headers=auth_headers,
+    )
+    assert add.status_code == 201
+
+    resp = client.get("/api/grocery", params={"budget": 500}, headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["budget"] == 500
-    assert [g["category"] for g in body["groups"]] == [g.category for g in DEFAULT_GROCERY_GROUPS]
 
 
-def test_grocery_remove_unknown_returns_404(client: TestClient) -> None:
+def test_grocery_remove_unknown_returns_404(client: TestClient, auth_headers: dict[str, str]) -> None:
     """Negative path: missing grocery id → 404, not 500."""
-    assert client.delete("/api/grocery/items/g-does-not-exist").status_code == 404
+    assert client.delete("/api/grocery/items/g-does-not-exist", headers=auth_headers).status_code == 404
 
 
 # ── Meals ───────────────────────────────────────────────────────────────
 
 
-def test_meal_save_and_list_round_trip(client: TestClient) -> None:
+def test_meal_save_and_list_round_trip(client: TestClient, auth_headers: dict[str, str]) -> None:
     """Save a meal → list includes it with server-assigned id + date."""
     save = client.post(
         "/api/meals",
@@ -194,16 +206,17 @@ def test_meal_save_and_list_round_trip(client: TestClient) -> None:
             "photo_url": None,
             "active_goals": {"diabetic": True, "protein": False, "budget": True, "mediter": False},
         },
+        headers=auth_headers,
     )
     assert save.status_code == 201
     saved = save.json()
     assert saved["id"] and saved["date"] and saved["label"] == "Test meal"
 
-    meals = client.get("/api/meals").json()
+    meals = client.get("/api/meals", headers=auth_headers).json()
     assert any(m["id"] == saved["id"] for m in meals)
 
 
-def test_meal_today_summary_reflects_saved_meals(client: TestClient) -> None:
+def test_meal_today_summary_reflects_saved_meals(client: TestClient, auth_headers: dict[str, str]) -> None:
     """A meal saved now appears in today's summary with the right total."""
     client.post(
         "/api/meals",
@@ -217,13 +230,14 @@ def test_meal_today_summary_reflects_saved_meals(client: TestClient) -> None:
             "photo_url": None,
             "active_goals": {"diabetic": True, "protein": False, "budget": True, "mediter": False},
         },
+        headers=auth_headers,
     )
-    today = client.get("/api/meals/today").json()
+    today = client.get("/api/meals/today", headers=auth_headers).json()
     assert today["meals_logged"] == 1
     assert today["total_kcal"] == 500.0
 
 
-def test_meal_stats_aggregate(client: TestClient) -> None:
+def test_meal_stats_aggregate(client: TestClient, auth_headers: dict[str, str]) -> None:
     """Two meals → stats reflect count + active day count."""
     payload = {
         "items": [{"name": "X", "confidence": 90, "grams": 100}],
@@ -235,15 +249,15 @@ def test_meal_stats_aggregate(client: TestClient) -> None:
         "active_goals": {"diabetic": False, "protein": False, "budget": False, "mediter": False},
     }
     for label in ("M0", "M1"):
-        client.post("/api/meals", json={"label": label, **payload})
-    stats = client.get("/api/meals/stats").json()
+        client.post("/api/meals", json={"label": label, **payload}, headers=auth_headers)
+    stats = client.get("/api/meals/stats", headers=auth_headers).json()
     assert stats["total_meals"] == 2
     assert stats["total_days_active"] == 1
 
 
-def test_meal_delete_unknown_returns_404(client: TestClient) -> None:
+def test_meal_delete_unknown_returns_404(client: TestClient, auth_headers: dict[str, str]) -> None:
     """Negative path: missing meal id → 404, not 500."""
-    assert client.delete("/api/meals/meal-does-not-exist").status_code == 404
+    assert client.delete("/api/meals/meal-does-not-exist", headers=auth_headers).status_code == 404
 
 
 # ── Cut (b): real vision pipeline with mocked Gemini/HF clients ────────

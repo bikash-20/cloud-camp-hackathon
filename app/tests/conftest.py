@@ -34,6 +34,24 @@ def state_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def auth_headers() -> dict[str, str]:
+    """A valid Bearer token header for test requests."""
+    import time
+    from app.api.auth import create_jwt
+
+    token = create_jwt(
+        {
+            "sub": "test-user-123",
+            "email": "test@nutrivision.ai",
+            "name": "Test User",
+            "role": "user",
+            "exp": int(time.time()) + 3600,
+        }
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
 def client(tmp_path: Path, state_path: Path) -> Generator[TestClient, None, None]:
     """A FastAPI TestClient with an isolated state.json and isolated caches."""
     # Re-init the singleton for each test — `STATE_PATH` is read by
