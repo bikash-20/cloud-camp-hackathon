@@ -297,6 +297,7 @@ DAILY_KCAL_TARGET_DEFAULT: float = 2000
 class GroceryItem(BaseModel):
     id: str
     name: str
+    category: str | None = None
     """Per-unit price in BDT."""
     price: float
     checked: bool = False

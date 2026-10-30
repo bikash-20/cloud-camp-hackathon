@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Flame } from 'lucide-react';
+import { ChevronDown, Flame, TrendingUp, BarChart2 } from 'lucide-react';
 import { T } from '../data';
 import useCountUp from './useCountUp';
 import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 import { toBengaliDigits } from '../lib/format';
+import RevenueCurveChart from './RevenueCurveChart';
 
 interface Totals {
   kcal: number;
@@ -19,10 +20,12 @@ interface SummaryCardProps {
 }
 
 /**
- * Sticky header summary card for the Results screen.
+ * Sticky header summary card for the Results screen with toggleable
+ * Revenue-Style trajectory curve and high-contrast macro gauges.
  */
 export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
   const [open, setOpen] = useState(true);
+  const [showCurve, setShowCurve] = useState(false);
   const { language } = useLanguage();
   const isBn = language === 'bn';
   const kcal = useCountUp(Math.round(totals.kcal));
@@ -43,8 +46,11 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
       className="glass-card"
       style={{
         borderRadius: 18,
-        padding: open ? '12px 14px' : '10px 14px',
+        padding: open ? '14px 16px' : '10px 14px',
         marginBottom: 12,
+        background: 'rgba(255, 255, 255, 0.90)',
+        border: '1px solid rgba(74, 58, 52, 0.14)',
+        boxShadow: '0 6px 20px rgba(46, 37, 34, 0.08)',
       }}
     >
       <div
@@ -59,7 +65,7 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
             style={{
               fontFamily: 'Inter',
               fontSize: 13,
-              fontWeight: 600,
+              fontWeight: 700,
               color: T.ink,
               whiteSpace: 'nowrap',
             }}
@@ -69,39 +75,67 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
           <span style={{ color: T.inkMuted, fontSize: 12 }}>·</span>
           <span
             className="kcal-chip"
-            style={{ fontSize: 12, padding: '3px 8px' }}
+            style={{ fontSize: 12, padding: '3px 8px', fontWeight: 700 }}
           >
             <Flame size={11} /> {isBn ? toBengaliDigits(Math.round(kcal)) : Math.round(kcal)} {isBn ? 'কিলোক্যালরি' : 'kcal'}
           </span>
         </div>
-        <motion.button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          whileTap={{ scale: 0.92 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-          aria-label={open ? (isBn ? 'সারসংক্ষেপ গুটিয়ে নিন' : 'Collapse summary') : (isBn ? 'সারসংক্ষেপ প্রসারিত করুন' : 'Expand summary')}
-          aria-expanded={open}
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: '50%',
-            background: 'rgba(249, 242, 228, 0.6)',
-            border: '1px solid rgba(74, 58, 52, 0.15)',
-            cursor: 'pointer',
-            padding: 0,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <motion.span
-            animate={{ rotate: open ? 0 : 180 }}
-            transition={{ duration: 0.2 }}
-            style={{ display: 'inline-flex', color: T.inkSoft }}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <motion.button
+            type="button"
+            onClick={() => setShowCurve((v) => !v)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92 }}
+            title={showCurve ? (isBn ? 'ম্যাক্রো বিবরণ দেখুন' : 'View macros') : (isBn ? 'গতিপথ কার্ভ চার্ট দেখুন' : 'View trajectory curve')}
+            style={{
+              padding: '4px 8px',
+              borderRadius: 8,
+              background: showCurve ? 'rgba(201, 98, 45, 0.15)' : 'rgba(74, 58, 52, 0.07)',
+              color: showCurve ? T.primary : T.ink,
+              border: 'none',
+              fontFamily: 'Inter',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
           >
-            <ChevronDown size={14} />
-          </motion.span>
-        </motion.button>
+            {showCurve ? <BarChart2 size={12} /> : <TrendingUp size={12} />}
+            <span>{showCurve ? (isBn ? 'ম্যাক্রো' : 'Macros') : (isBn ? 'গতিপথ' : 'Curve')}</span>
+          </motion.button>
+
+          <motion.button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            whileTap={{ scale: 0.92 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+            aria-label={open ? (isBn ? 'সারসংক্ষেপ গুটিয়ে নিন' : 'Collapse summary') : (isBn ? 'সারসংক্ষেপ প্রসারিত করুন' : 'Expand summary')}
+            aria-expanded={open}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              background: 'rgba(249, 242, 228, 0.7)',
+              border: '1px solid rgba(74, 58, 52, 0.15)',
+              cursor: 'pointer',
+              padding: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <motion.span
+              animate={{ rotate: open ? 0 : 180 }}
+              transition={{ duration: 0.2 }}
+              style={{ display: 'inline-flex', color: T.inkSoft }}
+            >
+              <ChevronDown size={14} />
+            </motion.span>
+          </motion.button>
+        </div>
       </div>
 
       <AnimatePresence initial={false}>
@@ -112,63 +146,80 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            style={{ overflow: 'hidden', marginTop: 10 }}
+            style={{ overflow: 'hidden', marginTop: 12 }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {macros.map((m) => (
-                <div
-                  key={m.label}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: isBn ? '75px 1fr 54px' : '60px 1fr 44px',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
+            {showCurve ? (
+              <RevenueCurveChart
+                currentKcal={Math.round(totals.kcal)}
+                dailyTarget={2269}
+                mealsLogged={itemCount}
+                macros={{
+                  protein: Math.round(totals.protein),
+                  carbs: Math.round(totals.carbs),
+                  fat: Math.round(totals.fat),
+                }}
+                showMacroChips={false}
+                title={isBn ? 'এই খাবারের ক্যালরি প্রভাব' : 'Meal Calorie Trajectory'}
+              />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {macros.map((m) => (
                   <div
+                    key={m.label}
                     style={{
-                      fontFamily: 'Inter',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: T.ink,
+                      display: 'grid',
+                      gridTemplateColumns: isBn ? '80px 1fr 60px' : '65px 1fr 50px',
+                      alignItems: 'center',
+                      gap: 10,
                     }}
                   >
-                    {m.label}
-                  </div>
-                  <div
-                    style={{
-                      height: 6,
-                      borderRadius: 3,
-                      background: 'rgba(74, 58, 52, 0.10)',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${m.pct}%` }}
-                      transition={{ type: 'spring', stiffness: 100, damping: 18 }}
+                    <div
                       style={{
-                        height: '100%',
-                        background: m.color,
-                        borderRadius: 3,
+                        fontFamily: 'Inter',
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: T.ink,
                       }}
-                    />
+                    >
+                      {m.label}
+                    </div>
+                    <div
+                      style={{
+                        height: 8,
+                        borderRadius: 4,
+                        background: 'rgba(74, 58, 52, 0.08)',
+                        overflow: 'hidden',
+                        border: '1px solid rgba(255, 255, 255, 0.4)',
+                        boxShadow: 'inset 0 1px 2px rgba(46, 37, 34, 0.08)',
+                      }}
+                    >
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${m.pct}%` }}
+                        transition={{ type: 'spring', stiffness: 100, damping: 18 }}
+                        style={{
+                          height: '100%',
+                          background: m.color,
+                          borderRadius: 4,
+                        }}
+                      />
+                    </div>
+                    <div
+                      className="tnum"
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: T.ink,
+                        textAlign: 'right',
+                      }}
+                    >
+                      {isBn ? toBengaliDigits(m.value) : m.value} {isBn ? 'গ্রাম' : 'g'}
+                    </div>
                   </div>
-                  <div
-                    className="tnum"
-                    style={{
-                      fontFamily: "'Inter', sans-serif",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: T.ink,
-                      textAlign: 'right',
-                    }}
-                  >
-                    {isBn ? toBengaliDigits(m.value) : m.value} {isBn ? 'গ্রাম' : 'g'}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

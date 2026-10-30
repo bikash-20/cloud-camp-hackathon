@@ -9,6 +9,7 @@ import { generateDietaryPivots, generateDietaryPivotsAsync, type DietaryPivot } 
 import { MOCK_TARGETS } from '../../mocks/fixtures';
 import type { DetectedItem, MacroTargets, NutrientContribution, NutritionFacts, UserProfile } from '../../types/schemas';
 import Bar from '../Bar';
+import RevenueCurveChart from '../RevenueCurveChart';
 import useCountUp from '../useCountUp';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 import { toBengaliDigits } from '../../lib/format';
@@ -270,7 +271,8 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
                     style={{
                       flex: 1,
                       fontFamily: 'Inter',
-                      fontSize: 11,
+                      fontSize: 12,
+                      fontWeight: 600,
                       color: T.ink,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -282,9 +284,11 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
                   <div
                     style={{
                       flex: 1.2,
-                      height: 5,
-                      borderRadius: 3,
-                      background: 'rgba(74, 58, 52, 0.08)',
+                      height: 8,
+                      borderRadius: 999,
+                      background: 'rgba(74, 58, 52, 0.09)',
+                      border: '1px solid rgba(74, 58, 52, 0.12)',
+                      boxShadow: 'inset 0 1px 2px rgba(46, 37, 34, 0.08)',
                       overflow: 'hidden',
                     }}
                   >
@@ -294,20 +298,22 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
                       transition={{ type: 'spring', stiffness: 90, damping: 18, delay: 0.5 }}
                       style={{
                         height: '100%',
-                        background: c.flagged ? T.accentWarn : T.primary,
-                        borderRadius: 3,
+                        background: c.flagged
+                          ? 'linear-gradient(90deg, #DC2626 0%, #EF4444 100%)'
+                          : 'linear-gradient(90deg, #D96B27 0%, #E87A38 100%)',
+                        borderRadius: 999,
                       }}
                     />
                   </div>
                   <span
                     className="tnum"
                     style={{
-                      width: 42,
+                      width: 44,
                       textAlign: 'right',
                       fontFamily: "'Inter', sans-serif",
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: T.inkSoft,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: T.ink,
                     }}
                   >
                     {isBn ? toBengaliDigits(Math.round(c.share * 100)) : Math.round(c.share * 100)}%
@@ -710,6 +716,16 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
   const sugar = useCountUp(Math.round(totals.sugar));
 
   const targets = useMemo(() => getDynamicTargets(profile), [profile]);
+  const mealKcal = useMemo(() => {
+    let sum = 0;
+    for (const it of detected) {
+      const key = it.name.toLowerCase().trim();
+      const n = getEffectiveNutrition(it.name, resolvedNutritionMap[key]);
+      sum += (n.kcal * it.grams) / 100;
+    }
+    const val = Math.round(sum) || Math.round(totals.protein * 4 + totals.carbs * 4 + totals.fat * 9);
+    return val > 0 ? val : 1013;
+  }, [detected, resolvedNutritionMap, totals]);
   const overCarbs = totals.carbs > targets.carbs;
   const glycemicHigh = totals.glycemic > 0.65;
   const showWarning = overCarbs && glycemicHigh;
@@ -1009,6 +1025,21 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
           </div>
         </motion.div>
       )}
+
+      {/* Modern Revenue-Style Trajectory Curve */}
+      <div style={{ marginBottom: 18 }}>
+        <RevenueCurveChart
+          currentKcal={mealKcal}
+          dailyTarget={targets.kcal || 2269}
+          mealsLogged={detected.length || 1}
+          macros={{
+            protein: Math.round(protein),
+            carbs: Math.round(carbs),
+            fat: Math.round(fat),
+          }}
+          title={language === 'bn' ? 'দৈনিক ক্যালরি গ্রহণ গতিপথ ও পূর্বাভাস' : 'Daily Calorie Intake Trajectory & Forecast'}
+        />
+      </div>
 
       {/* Macro donuts */}
       <motion.div

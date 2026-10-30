@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Camera, Sparkles, ScanLine, RotateCcw, X, Upload, UtensilsCrossed, History, ShoppingBag, ChevronRight } from 'lucide-react';
+import { Camera, Sparkles, ScanLine, RotateCcw, X, Upload, UtensilsCrossed, History, ShoppingBag } from 'lucide-react';
 import { T, USER_NAME, getGreeting, NUTRITION_DB } from '../../data';
-import { getTodaySummary, getMealHistory, getMacroTargets } from '../../lib/api';
+import { getTodaySummary, getMealHistory } from '../../lib/api';
 import { formatRelative, pickThumbnailStyle, toBengaliDigits } from '../../lib/format';
-import { MiniBar, MacroMeter } from '../../components/Meter';
+import RevenueCurveChart from '../../components/RevenueCurveChart';
 import { MOCK_TABS } from '../../mocks/fixtures';
 import type { MealEntry, TodaySummary } from '../../types/schemas';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
@@ -304,18 +304,6 @@ export default function CaptureScreen({
   // ── Determine what image to show ──────────────────────────────────────
 
   const displayUrl = previewUrl ?? null;
-
-  // kcal ratio drives the over-target gradient on the headline progress bar.
-  const kcalRatio = (todaySummary?.totalKcal ?? 0) / Math.max(1, todaySummary?.dailyKcalTarget ?? 1);
-
-  // Macro mini-bars — pulled from the same MOCK_TARGETS source as NutrientsScreen
-  // so the two screens stay in lockstep.
-  const macroTargets = getMacroTargets();
-  const MACRO_METERS = [
-    { label: isBn ? 'প্রোটিন' : 'Protein', current: (s: TodaySummary) => s.totalProtein, target: () => macroTargets.protein, unit: 'g' as const, color: T.primary },
-    { label: isBn ? 'কার্বোহাইড্রেট' : 'Carbs',   current: (s: TodaySummary) => s.totalCarbs,   target: () => macroTargets.carbs,   unit: 'g' as const, color: T.accentAmber },
-    { label: isBn ? 'চর্বি' : 'Fat',     current: (s: TodaySummary) => s.totalFat,     target: () => macroTargets.fat,     unit: 'g' as const, color: T.accentGood },
-  ];
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -998,127 +986,50 @@ export default function CaptureScreen({
         </motion.div>
       )}
 
-      {/* ── Today's Summary Card ──────────────────────────────── */}
+      {/* ── Today's Revenue-Style Trajectory Chart ──────────────── */}
       {phase === 'idle' && !captured && todaySummary && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.3 }}
-          role={todaySummary.mealsLogged > 0 ? 'button' : undefined}
-          tabIndex={todaySummary.mealsLogged > 0 ? 0 : -1}
-          onClick={() => {
-            // Tap → scroll to recent meals so the user lands somewhere
-            // useful. We don't have a history tab yet; deep-linking to
-            // Results doesn't help because Results is the *current*
-            // detection, not history.
-            const el = document.getElementById('recent-meals-section');
-            el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              const el = document.getElementById('recent-meals-section');
-              el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-          }}
-          className="glass-card"
-          style={{
-            borderRadius: 18,
-            padding: '14px 16px',
-            marginTop: 16,
-            cursor: todaySummary.mealsLogged > 0 ? 'pointer' : 'default',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <span style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: T.inkSoft, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              {isBn ? 'আজকের সারসংক্ষেপ' : "Today's Summary"}
-            </span>
-            {todaySummary.mealsLogged > 0 ? (
-              <ChevronRight size={14} color={T.inkSoft} aria-hidden="true" />
-            ) : (
-              <span style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: T.inkMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {isBn ? 'খালি' : 'Empty'}
-              </span>
-            )}
-          </div>
-
+        <div style={{ marginTop: 16 }}>
           {todaySummary.mealsLogged === 0 ? (
-            // ── Empty state — render something useful so the section is
-            //    always present. Don't hide the card just because nothing's
-            //    logged yet.
-            <div
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.3 }}
+              className="glass-card"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                color: T.inkSoft,
-                fontFamily: 'Inter',
-                fontSize: 13,
-                lineHeight: 1.4,
+                borderRadius: 20,
+                padding: '16px 18px',
+                background: 'rgba(255, 255, 255, 0.88)',
+                border: '1px solid rgba(74, 58, 52, 0.12)',
               }}
             >
-              <UtensilsCrossed size={16} color={T.inkMuted} strokeWidth={1.8} />
-              <span>
-                {isBn ? (
-                  <>আজকের কোনো খাবার নেই — ট্র্যাকিং শুরু করতে <strong style={{ color: T.ink }}>প্রথম খাবারের ছবি তুলুন</strong>।</>
-                ) : (
-                  <>No meals yet today — <strong style={{ color: T.ink }}>snap your first</strong> to start tracking.</>
-                )}
-              </span>
-            </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: T.inkSoft, fontFamily: 'Inter', fontSize: 13, lineHeight: 1.4 }}>
+                <UtensilsCrossed size={18} color={T.primary} strokeWidth={2} />
+                <span>
+                  {isBn ? (
+                    <>আজকের কোনো খাবার এখনো যুক্ত হয়নি — ট্র্যাকিং শুরু করতে <strong style={{ color: T.ink }}>প্রথম খাবারের ছবি তুলুন</strong>।</>
+                  ) : (
+                    <>No meals logged yet today — <strong style={{ color: T.ink }}>snap your first plate</strong> to start tracking.</>
+                  )}
+                </span>
+              </div>
+            </motion.div>
           ) : (
-            <>
-              {/* Top row: meals + kcal + progress bar */}
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
-                <span className="tnum" style={{ fontFamily: 'Inter', fontSize: 22, fontWeight: 700, color: T.ink }}>
-                  {isBn ? toBengaliDigits(Math.round(todaySummary.totalKcal)) : Math.round(todaySummary.totalKcal)}
-                </span>
-                <span style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: T.inkSoft }}>
-                  / {isBn ? toBengaliDigits(todaySummary.dailyKcalTarget) : todaySummary.dailyKcalTarget} {isBn ? 'কিলোক্যালরি' : 'kcal'}
-                </span>
-                <span style={{ flex: 1 }} />
-                <span style={{ fontFamily: 'Inter', fontSize: 11, color: T.inkSoft }}>
-                  {isBn ? toBengaliDigits(todaySummary.mealsLogged) : todaySummary.mealsLogged} {isBn ? 'বেলা খাবার' : todaySummary.mealsLogged !== 1 ? 'meals' : 'meal'}
-                </span>
-              </div>
-
-              <div style={{ marginBottom: 12 }}>
-                <MiniBar
-                  ratio={kcalRatio}
-                  fill={
-                    kcalRatio > 1
-                      ? `linear-gradient(90deg, ${T.accentWarn}, ${T.accentAmber})`
-                      : `linear-gradient(90deg, ${T.primary}, ${T.accentGood})`
-                  }
-                  height={6}
-                  ariaLabel={isBn ? 'আজকের ক্যালরি অগ্রগতি' : "Today's kcal progress"}
-                  ariaValueNow={Math.round(todaySummary.totalKcal)}
-                  ariaValueMax={todaySummary.dailyKcalTarget}
-                />
-              </div>
-
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
-                  gap: 10,
-                }}
-              >
-                {MACRO_METERS.map((m) => (
-                  <MacroMeter
-                    key={m.label}
-                    label={m.label}
-                    current={m.current(todaySummary)}
-                    target={m.target()}
-                    unit={m.unit}
-                    color={m.color}
-                    delay={0.05}
-                  />
-                ))}
-              </div>
-            </>
+            <RevenueCurveChart
+              currentKcal={Math.round(todaySummary.totalKcal)}
+              dailyTarget={todaySummary.dailyKcalTarget}
+              mealsLogged={todaySummary.mealsLogged}
+              macros={{
+                protein: Math.round(todaySummary.totalProtein),
+                carbs: Math.round(todaySummary.totalCarbs),
+                fat: Math.round(todaySummary.totalFat),
+              }}
+              onCardClick={() => {
+                const el = document.getElementById('recent-meals-section');
+                el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            />
           )}
-        </motion.div>
+        </div>
       )}
 
       {/* ── Recent Meals Skeleton ──────────────────────────── */}
