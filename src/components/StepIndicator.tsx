@@ -1,15 +1,20 @@
 import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { T, STEP_LABELS } from '../data';
-import { LocalizedContent } from '../i18n/LanguageContext';
+import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
 interface StepIndicatorProps {
   step: number;
   onStep?: (i: number) => void;
 }
 
+const STEP_LABELS_BN = ['পর্যালোচনা', 'সমন্বয়', 'নিশ্চিতকরণ'];
+
 /** 3-step horizontal indicator (Review → Adjust → Confirm). */
 export default function StepIndicator({ step, onStep }: StepIndicatorProps) {
+  const { language } = useLanguage();
+  const isBn = language === 'bn';
+
   return (
     <LocalizedContent>
     <div
@@ -18,6 +23,7 @@ export default function StepIndicator({ step, onStep }: StepIndicatorProps) {
         alignItems: 'center',
         gap: 6,
         padding: '4px 0 2px',
+        width: '100%',
       }}
       role="progressbar"
       aria-valuemin={1}
@@ -28,6 +34,7 @@ export default function StepIndicator({ step, onStep }: StepIndicatorProps) {
       {STEP_LABELS.map((label, i) => {
         const done = i < step;
         const current = i === step;
+        const displayLabel = isBn ? STEP_LABELS_BN[i] : label;
 
         return (
           <div
@@ -46,7 +53,7 @@ export default function StepIndicator({ step, onStep }: StepIndicatorProps) {
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.92 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-              aria-label={`Go to step ${i + 1}: ${label}`}
+              aria-label={`Go to step ${i + 1}: ${displayLabel}`}
               style={{
                 position: 'relative',
                 width: 24,
@@ -77,17 +84,19 @@ export default function StepIndicator({ step, onStep }: StepIndicatorProps) {
               )}
             </motion.button>
             <span
+              onClick={() => onStep?.(i)}
               style={{
                 fontFamily: 'Inter',
                 fontSize: 11,
-                fontWeight: current ? 600 : 500,
+                fontWeight: current ? 700 : 500,
                 color: current ? T.ink : T.inkSoft,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
+                cursor: 'pointer',
               }}
             >
-              {label}
+              {displayLabel}
             </span>
 
             {i < STEP_LABELS.length - 1 && (

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles, ShoppingBag, CheckCircle } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles, ShoppingBag, CheckCircle, ArrowRight } from 'lucide-react';
 import { T, NUTRITION_DB } from '../../data';
 import { resolveNutrition, addGroceryItem } from '../../lib/api';
 import { focusedNutrients, unitForNutrient, getEffectiveNutrition, getDynamicTargets } from '../../lib/personalize';
@@ -640,13 +640,14 @@ interface NutrientsScreenProps {
   detected?: DetectedItem[];
   profile?: UserProfile;
   onBack?: () => void;
+  onNavigateToGrocery?: () => void;
 }
 
 /**
  * Nutrients screen — derives macros from current detected items,
  * animates count-up, and recomputes when grams change.
  */
-export default function NutrientsScreen({ detected = [], profile, onBack }: NutrientsScreenProps) {
+export default function NutrientsScreen({ detected = [], profile, onBack, onNavigateToGrocery }: NutrientsScreenProps) {
   const { foodName, language } = useLanguage();
   const [resolvedNutritionMap, setResolvedNutritionMap] = useState<Record<string, NutritionFacts>>({});
   const [contributions, setContributions] = useState<NutrientContribution[]>([]);
@@ -752,16 +753,18 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
 
   const handleAddPivotToGrocery = async (pivot: DietaryPivot) => {
     try {
-      for (const item of pivot.grocery_items_to_add) {
-        await addGroceryItem(item.category || 'Pantry', item.name, item.price_bdt);
-      }
+      await Promise.all(
+        pivot.grocery_items_to_add.map((item) =>
+          addGroceryItem(item.category || 'Produce', item.name, item.price_bdt),
+        ),
+      );
       setAddedPivotIds((prev) => ({ ...prev, [pivot.id]: true }));
       setPivotToast(
         language === 'bn'
           ? `${toBengaliDigits(pivot.grocery_items_to_add.length)}টি স্বাস্থ্যকর উপাদান মুদির তালিকায় যোগ করা হয়েছে!`
-          : `Added ${pivot.grocery_items_to_add.length} pivot items to your Grocery List!`
+          : `Added ${pivot.grocery_items_to_add.length} pivot items to your Grocery List!`,
       );
-      setTimeout(() => setPivotToast(null), 3500);
+      setTimeout(() => setPivotToast(null), 4000);
     } catch {
       setPivotToast(language === 'bn' ? 'যোগ করতে ব্যর্থ হয়েছে' : 'Failed to add items');
       setTimeout(() => setPivotToast(null), 3000);
@@ -1446,38 +1449,66 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
                   </div>
 
                   {/* 1-Click Grocery Sync CTA */}
-                  <motion.button
-                    type="button"
-                    onClick={() => handleAddPivotToGrocery(pivot)}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.97 }}
-                    disabled={alreadyAdded}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 7,
-                      padding: '8px 16px',
-                      borderRadius: 999,
-                      background: alreadyAdded ? '#2E7D32' : T.primary,
-                      color: '#FFFFFF',
-                      border: 'none',
-                      fontFamily: 'Inter',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: alreadyAdded ? 'default' : 'pointer',
-                      boxShadow: '0 4px 12px rgba(201, 98, 45, 0.25)',
-                    }}
-                  >
-                    {alreadyAdded ? (
-                      <>
-                        <CheckCircle size={14} /> {language === 'bn' ? 'মুদির তালিকায় যুক্ত হয়েছে' : 'Added to Grocery List'}
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingBag size={14} /> {language === 'bn' ? 'মুদির তালিকায় এই সমন্বয় যোগ করুন' : 'Add pivot items to Grocery List'}
-                      </>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <motion.button
+                      type="button"
+                      onClick={() => handleAddPivotToGrocery(pivot)}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.97 }}
+                      disabled={alreadyAdded}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        padding: '8px 16px',
+                        borderRadius: 999,
+                        background: alreadyAdded ? '#2E7D32' : T.primary,
+                        color: '#FFFFFF',
+                        border: 'none',
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: alreadyAdded ? 'default' : 'pointer',
+                        boxShadow: '0 4px 12px rgba(201, 98, 45, 0.25)',
+                      }}
+                    >
+                      {alreadyAdded ? (
+                        <>
+                          <CheckCircle size={14} /> {language === 'bn' ? 'মুদির তালিকায় যুক্ত হয়েছে' : 'Added to Grocery List'}
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingBag size={14} /> {language === 'bn' ? 'মুদির তালিকায় এই সমন্বয় যোগ করুন' : 'Add pivot items to Grocery List'}
+                        </>
+                      )}
+                    </motion.button>
+
+                    {alreadyAdded && onNavigateToGrocery && (
+                      <motion.button
+                        type="button"
+                        onClick={onNavigateToGrocery}
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.96 }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '8px 14px',
+                          borderRadius: 999,
+                          background: 'rgba(46, 125, 50, 0.12)',
+                          color: '#166534',
+                          border: '1px solid rgba(46, 125, 50, 0.35)',
+                          fontFamily: 'Inter',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span>{language === 'bn' ? 'বাজারের তালিকা দেখুন' : 'View in Grocery'}</span>
+                        <ArrowRight size={13} />
+                      </motion.button>
                     )}
-                  </motion.button>
+                  </div>
                 </div>
               );
             })}
@@ -1501,7 +1532,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
               right: 20,
               maxWidth: 420,
               margin: '0 auto',
-              background: '#2E7D32',
+              background: '#1B5E20',
               color: '#FFFFFF',
               padding: '12px 18px',
               borderRadius: 14,
@@ -1510,13 +1541,43 @@ export default function NutrientsScreen({ detected = [], profile, onBack }: Nutr
               fontWeight: 600,
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              boxShadow: '0 8px 24px rgba(46, 125, 50, 0.35)',
+              justifyContent: 'space-between',
+              gap: 12,
+              boxShadow: '0 8px 24px rgba(27, 94, 32, 0.45)',
               zIndex: 99,
             }}
           >
-            <CheckCircle size={16} />
-            <span>{pivotToast}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+              <CheckCircle size={16} style={{ flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{pivotToast}</span>
+            </div>
+            {onNavigateToGrocery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPivotToast(null);
+                  onNavigateToGrocery();
+                }}
+                style={{
+                  flexShrink: 0,
+                  background: '#FFFFFF',
+                  color: '#1B5E20',
+                  border: 'none',
+                  borderRadius: 999,
+                  padding: '5px 12px',
+                  fontFamily: 'Inter',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <span>{language === 'bn' ? 'তালিকা দেখুন' : 'View List'}</span>
+                <ArrowRight size={12} />
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

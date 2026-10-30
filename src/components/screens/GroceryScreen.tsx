@@ -51,7 +51,6 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
   const [mealCount, setMealCount] = useState<number | null>(null);
   const [livePriceMap, setLivePriceMap] = useState<Record<string, boolean>>({});
   const nextIdRef = useRef(100);
-  const initialLoadRef = useRef(false);
 
   // Probe live market prices asynchronously with 3s timeout
   useEffect(() => {
@@ -82,26 +81,36 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
     };
   }, [groups]);
 
-  // Load once on mount only. Subsequent profile updates (goals, prefs, etc.)
-  // intentionally do NOT wipe the user's locally-added grocery items.
+  // Load data on mount and whenever grocery list is updated (from pivots, meals, etc.)
   useEffect(() => {
-    if (initialLoadRef.current) return;
-    initialLoadRef.current = true;
     let cancelled = false;
-    getGroceryList(profile).then((list: GroceryList) => {
-      if (cancelled) return;
-      setGroups(list.groups.map((g) => ({ cat: g.category, items: g.items })));
-      setBudget(list.budget);
-      setLoading(false);
-    });
-    // We also fetch the meal history count so the "Generate from meals"
-    // button can show a meaningful label and stay visible even on an empty
-    // grocery list (its visibility should depend on whether there's history,
-    // not on whether the list is non-empty).
-    getMealHistory().then((h) => {
-      if (!cancelled) setMealCount(h.length);
-    });
-    return () => { cancelled = true; };
+
+    const loadData = () => {
+      getGroceryList(profile).then((list: GroceryList) => {
+        if (cancelled) return;
+        setGroups(list.groups.map((g) => ({ cat: g.category, items: g.items })));
+        setBudget(list.budget);
+        setLoading(false);
+      });
+      getMealHistory().then((h) => {
+        if (!cancelled) setMealCount(h.length);
+      });
+    };
+
+    loadData();
+
+    const handleGroceryUpdated = () => {
+      loadData();
+    };
+
+    window.addEventListener('grocery-updated', handleGroceryUpdated);
+    window.addEventListener('storage', handleGroceryUpdated);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('grocery-updated', handleGroceryUpdated);
+      window.removeEventListener('storage', handleGroceryUpdated);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

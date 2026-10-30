@@ -7,13 +7,15 @@ import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 interface PhotoThumbProps {
   /** Data URL or image URL of the captured photo. */
   src?: string | null;
+  /** Optional inline styles to customize positioning/margins. */
+  style?: React.CSSProperties;
 }
 
 /**
- * Sticky top-right circular thumbnail of the captured photo.
+ * Circular thumbnail of the captured photo.
  * Shows the real image when a src is provided, otherwise a placeholder.
  */
-export default function PhotoThumb({ src }: PhotoThumbProps) {
+export default function PhotoThumb({ src, style }: PhotoThumbProps) {
   const { language } = useLanguage();
   const isBn = language === 'bn';
   const [pulsing, setPulsing] = useState(false);
@@ -30,13 +32,13 @@ export default function PhotoThumb({ src }: PhotoThumbProps) {
     <LocalizedContent>
     <div
       style={{
-        position: 'absolute',
-        top: 8,
-        right: 12,
+        position: 'relative',
         zIndex: 4,
         display: 'flex',
         alignItems: 'center',
         gap: 6,
+        flexShrink: 0,
+        ...style,
       }}
     >
       <AnimatePresence>

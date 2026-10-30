@@ -393,6 +393,7 @@ const bnPhrases: Record<string, string> = {
   'Add custom grocery item': 'নিজে বাজারের আইটেম যোগ করুন',
   'Grains & staples': 'শস্য ও প্রধান খাবার',
   'Produce': 'শাকসবজি ও ফলমূল',
+  'Pantry': 'রান্নাঘরের সামগ্রী',
   'Checked': 'কেনা হয়েছে',
   'Remaining': 'বাকি',
   'Total': 'মোট',

@@ -10,6 +10,7 @@ import {
   Sparkles,
   CheckCircle2,
   BookOpen,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   T, NUTRITION_DB,
@@ -311,9 +312,13 @@ export default function ResultsScreen({
       rejectionReason.includes('service') ||
       (analysisResult?.overall_confidence === 0 && (!analysisResult?.detected || analysisResult.detected.length === 0)));
 
-  const visibleItems = step === 1
-    ? sorted.filter((it) => it.confidence < 80)
-    : sorted;
+  const visibleItems = useMemo(() => {
+    if (step === 1) {
+      // In Adjust step, show all items but prioritize items needing attention first
+      return [...sorted].sort((a, b) => a.confidence - b.confidence);
+    }
+    return sorted;
+  }, [sorted, step]);
 
   return (
     <LocalizedContent>
@@ -322,16 +327,22 @@ export default function ResultsScreen({
         style={{
           position: 'sticky',
           top: -8,
-          zIndex: 3,
-          paddingTop: 4,
+          zIndex: 10,
+          paddingTop: 6,
           paddingBottom: 8,
-          background: 'linear-gradient(180deg, var(--bg-gradient-end) 0%, rgba(249,242,228,0) 100%)',
+          background: 'linear-gradient(180deg, var(--bg-gradient-end) 0%, rgba(249,242,228,0.96) 88%, rgba(249,242,228,0) 100%)',
           marginInline: -16,
           paddingInline: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
         }}
       >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {!isNonFoodRejection && <StepIndicator step={step} onStep={setStep} />}
+        </div>
         <PhotoThumb src={capturedImage} />
-        {!isNonFoodRejection && <StepIndicator step={step} onStep={setStep} />}
       </div>
 
       {/* ── Non-Food Rejection Safety Gate View ── */}
@@ -845,15 +856,244 @@ export default function ResultsScreen({
 
       <SummaryCard totals={totals} itemCount={detected.length} />
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 12,
-          gap: 8,
-        }}
-      >
+      {step === 2 ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="glass-card"
+          style={{
+            marginTop: 14,
+            marginBottom: 24,
+            padding: '22px 18px',
+            borderRadius: 20,
+            background: 'rgba(255, 255, 255, 0.92)',
+            border: '1.5px solid rgba(46, 125, 50, 0.35)',
+            boxShadow: '0 8px 28px rgba(46, 125, 50, 0.12)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                background: '#DCFCE7',
+                color: '#166534',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <CheckCircle2 size={22} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: T.ink, fontFamily: 'Inter' }}>
+                {isBn ? 'খাবার নিশ্চিতকরণ' : 'Confirm Your Meal'}
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: T.inkSoft, fontFamily: 'Inter' }}>
+                {isBn
+                  ? 'সব উপাদান যাচাই সম্পন্ন হয়েছে। পুষ্টি ও বিশ্লেষণ দেখতে নিশ্চিত করুন।'
+                  : 'All food items verified. Confirm to analyze nutrients and log this meal.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Verified Items List */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+            {detected.map((it) => (
+              <div
+                key={it.name}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  background: 'rgba(249, 242, 228, 0.7)',
+                  border: '1px solid rgba(74, 58, 52, 0.08)',
+                  fontFamily: 'Inter',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: '50%',
+                      background: '#166534',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 10,
+                      fontWeight: 700,
+                    }}
+                  >
+                    ✓
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>
+                    {foodName(it.name, it.name_bn)}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: T.inkSoft }}>
+                    ~{isBn ? toBengaliDigits(it.grams) : it.grams}g
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '2px 6px',
+                      borderRadius: 6,
+                      background: 'rgba(46, 125, 50, 0.12)',
+                      color: '#166534',
+                    }}
+                  >
+                    {isBn ? toBengaliDigits(it.confidence) : it.confidence}%
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Macro Breakdown Summary */}
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: 12,
+              background: 'rgba(201, 98, 45, 0.08)',
+              marginBottom: 18,
+              display: 'flex',
+              justifyContent: 'space-around',
+              textAlign: 'center',
+              fontFamily: 'Inter',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 10, color: T.inkSoft, fontWeight: 600, textTransform: 'uppercase' }}>
+                {isBn ? 'ক্যালরি' : 'Calories'}
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>
+                {isBn ? toBengaliDigits(Math.round(totals.kcal)) : Math.round(totals.kcal)} kcal
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: T.inkSoft, fontWeight: 600, textTransform: 'uppercase' }}>
+                {isBn ? 'প্রোটিন' : 'Protein'}
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>
+                {isBn ? toBengaliDigits(Math.round(totals.protein)) : Math.round(totals.protein)}g
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: T.inkSoft, fontWeight: 600, textTransform: 'uppercase' }}>
+                {isBn ? 'শর্করা' : 'Carbs'}
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>
+                {isBn ? toBengaliDigits(Math.round(totals.carbs)) : Math.round(totals.carbs)}g
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: T.inkSoft, fontWeight: 600, textTransform: 'uppercase' }}>
+                {isBn ? 'চর্বি' : 'Fat'}
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>
+                {isBn ? toBengaliDigits(Math.round(totals.fat)) : Math.round(totals.fat)}g
+              </div>
+            </div>
+          </div>
+
+          {/* Confirmation CTA Buttons */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <motion.button
+              type="button"
+              onClick={() => setStep(1)}
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                flex: 1,
+                padding: '13px 14px',
+                borderRadius: 14,
+                background: 'rgba(249, 242, 228, 0.85)',
+                border: '1px solid rgba(74, 58, 52, 0.18)',
+                color: T.ink,
+                fontFamily: 'Inter',
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {isBn ? '← পরিবর্তন করুন' : '← Adjust Items'}
+            </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => {
+                const allConf: Record<string, boolean> = {};
+                detected.forEach((d) => { allConf[d.name] = true; });
+                setConfirmed(allConf);
+                triggerToast(isBn ? 'খাবার নিশ্চিত করা হয়েছে!' : 'Meal confirmed!');
+                onViewNutrients?.();
+              }}
+              whileHover={{ y: -1, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                flex: 2,
+                padding: '13px 18px',
+                borderRadius: 14,
+                background: '#166534',
+                color: '#FFFFFF',
+                border: 'none',
+                fontFamily: 'Inter',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(22, 101, 52, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+              }}
+            >
+              <span>{isBn ? 'খাবার নিশ্চিত করুন ও পুষ্টি দেখুন →' : 'Confirm Meal & View Nutrients →'}</span>
+            </motion.button>
+          </div>
+        </motion.div>
+      ) : (
+        <>
+          {step === 1 && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                padding: '10px 14px',
+                borderRadius: 12,
+                background: 'rgba(201, 98, 45, 0.08)',
+                border: '1px solid rgba(201, 98, 45, 0.22)',
+                margin: '12px 0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <SlidersHorizontal size={18} color={T.primary} style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: T.ink, lineHeight: 1.4, fontFamily: 'Inter' }}>
+                {isBn
+                  ? 'খাবারের অংশ বা ওজন (গ্রাম) সমন্বয় করুন। নতুন খাবার যোগ করতে নিচে + চাপুন বা এডিট করুন।'
+                  : 'Fine-tune portion sizes or item weights below. Tap Edit or + to adjust your meal.'}
+              </span>
+            </motion.div>
+          )}
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 12,
+              gap: 8,
+            }}
+          >
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <SortMenu value={sortKey} onChange={setSortKey} />
           {diabeticMode && (
@@ -1038,7 +1278,119 @@ export default function ResultsScreen({
             {isBn ? 'পর্যালোচনার জন্য কোনো খাবার নেই। নতুন খাবার যোগ করতে + চাপুন।' : 'No items to review. Tap + to add a custom item.'}
           </div>
         )}
+
+        {step === 0 && detected.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{
+              marginTop: 18,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}
+          >
+            <motion.button
+              type="button"
+              onClick={() => setStep(1)}
+              whileHover={{ y: -1, scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                width: '100%',
+                padding: '13px 20px',
+                borderRadius: 14,
+                background: T.primary,
+                color: '#FFFFFF',
+                border: 'none',
+                fontFamily: 'Inter',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(201, 98, 45, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+            >
+              <span>{isBn ? 'পরবর্তী: পরিমাণ সমন্বয় করুন (Adjust) →' : 'Next: Adjust Portions & Items →'}</span>
+            </motion.button>
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '6px',
+                color: T.inkSoft,
+                fontFamily: 'Inter',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                textAlign: 'center',
+              }}
+            >
+              {isBn ? 'অথবা সরাসরি খাবার নিশ্চিতকরণে যান (Confirm) →' : 'Or skip directly to Confirm Meal →'}
+            </button>
+          </motion.div>
+        )}
+
+        {step === 1 && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{
+              marginTop: 18,
+              display: 'flex',
+              gap: 10,
+            }}
+          >
+            <motion.button
+              type="button"
+              onClick={() => setStep(0)}
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                flex: 1,
+                padding: '13px 14px',
+                borderRadius: 14,
+                background: 'rgba(249, 242, 228, 0.85)',
+                border: '1px solid rgba(74, 58, 52, 0.18)',
+                color: T.ink,
+                fontFamily: 'Inter',
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {isBn ? '← পর্যালোচনায় ফিরুন' : '← Back to Review'}
+            </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => setStep(2)}
+              whileHover={{ y: -1, scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                flex: 2,
+                padding: '13px 18px',
+                borderRadius: 14,
+                background: T.primary,
+                color: '#FFFFFF',
+                border: 'none',
+                fontFamily: 'Inter',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(201, 98, 45, 0.3)',
+              }}
+            >
+              {isBn ? 'নিশ্চিতকরণে যান (Confirm) →' : 'Proceed to Confirm →'}
+            </motion.button>
+          </motion.div>
+        )}
       </motion.div>
+      </>
+      )}
 
       <AnimatePresence>
         {multiSelect && (

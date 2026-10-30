@@ -277,7 +277,14 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
               }}
             />
           )}
-          {tab === 2 && <NutrientsScreen detected={detected} profile={profile} onBack={() => goToTab(1)} />}
+          {tab === 2 && (
+            <NutrientsScreen
+              detected={detected}
+              profile={profile}
+              onBack={() => goToTab(1)}
+              onNavigateToGrocery={() => goToTab(4)}
+            />
+          )}
           {tab === 3 && (
             <ProfileScreen
               profile={profile}

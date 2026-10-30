@@ -218,33 +218,62 @@ const SEEDED_ID_TO_CATEGORY: ReadonlyMap<string, string> = (() => {
   return m;
 })();
 
+function normalizeGroceryCategory(cat?: string): string {
+  if (!cat) return 'Produce';
+  const c = cat.toLowerCase();
+  if (c.includes('grain') || c.includes('staple') || c.includes('rice') || c.includes('atta') || c.includes('dal') || c.includes('flour') || c.includes('cereal')) {
+    return 'Grains & staples';
+  }
+  if (c.includes('protein') || c.includes('meat') || c.includes('egg') || c.includes('fish') || c.includes('chicken') || c.includes('beef') || c.includes('mutton')) {
+    return 'Protein';
+  }
+  if (c.includes('produce') || c.includes('vegetable') || c.includes('fruit') || c.includes('herb') || c.includes('salad') || c.includes('spinach') || c.includes('shak')) {
+    return 'Produce';
+  }
+  if (c.includes('dairy') || c.includes('milk') || c.includes('yogurt') || c.includes('doi') || c.includes('cheese')) {
+    return 'Dairy';
+  }
+  if (c.includes('pantry') || c.includes('spice') || c.includes('oil')) {
+    return 'Pantry';
+  }
+  return cat;
+}
+
 /**
  * Bucket the flat `groceryState` array back into display groups.
- *
- * Items added via `addGroceryItem` arrive without a category — they land
- * in `Other`. Items whose id matches a seeded mock group (`g-0-0`,
- * `g-1-2`, …) keep their original category. Order: seeded groups first,
- * then `Other` if non-empty.
+ * Respects original categories from seeded items, custom items, and pivot additions.
  */
 function bucketGroceryByCategory(items: GroceryItem[]): GroceryGroup[] {
   const byCat = new Map<string, GroceryItem[]>();
   for (const g of MOCK_GROCERY_GROUPS) byCat.set(g.category, []);
   const other: GroceryItem[] = [];
+
   for (const item of items) {
-    const cat = SEEDED_ID_TO_CATEGORY.get(item.id);
-    const bucket = cat != null ? byCat.get(cat) : undefined;
-    (bucket ?? other).push(item);
+    const seededCat = SEEDED_ID_TO_CATEGORY.get(item.id);
+    const resolvedCat = normalizeGroceryCategory(seededCat || item.category);
+    const bucket = byCat.get(resolvedCat);
+    if (bucket) {
+      bucket.push(item);
+    } else if (resolvedCat && resolvedCat !== 'Other') {
+      if (!byCat.has(resolvedCat)) byCat.set(resolvedCat, []);
+      byCat.get(resolvedCat)!.push(item);
+    } else {
+      other.push(item);
+    }
   }
-  const groups: GroceryGroup[] = MOCK_GROCERY_GROUPS.map((g) => ({
-    category: g.category,
-    items: byCat.get(g.category) ?? [],
-  }));
+
+  const groups: GroceryGroup[] = [];
+  for (const [category, catItems] of byCat.entries()) {
+    if (catItems.length > 0 || MOCK_GROCERY_GROUPS.some((mg) => mg.category === category)) {
+      groups.push({ category, items: catItems });
+    }
+  }
   if (other.length > 0) groups.push({ category: 'Other', items: other });
   return groups;
 }
 
 export async function getGroceryList(profile: UserProfile): Promise<GroceryList> {
-  await delay(120, 220);
+  await delay(40, 80);
   budgetState = profile.budget;
   return { budget: budgetState, groups: bucketGroceryByCategory(groceryState) };
 }
@@ -262,19 +291,39 @@ function nextGroceryId(): string {
 }
 
 export async function addGroceryItem(
-  _category: string,
+  category: string,
   name: string,
   price: number,
 ): Promise<GroceryItem> {
-  await delay(80, 160);
-  const item: GroceryItem = {
-    id: nextGroceryId(),
-    name,
-    price: Math.max(0, price),
-    checked: false,
-  };
-  groceryState = [...groceryState, item];
+  await delay(10, 30);
+  const normCat = normalizeGroceryCategory(category);
+  const existing = groceryState.find(
+    (it) => it.name.trim().toLowerCase() === name.trim().toLowerCase(),
+  );
+
+  let item: GroceryItem;
+  if (existing) {
+    existing.price = Math.max(existing.price, Math.max(0, price));
+    existing.checked = false;
+    if (!existing.category) existing.category = normCat;
+    item = existing;
+  } else {
+    item = {
+      id: nextGroceryId(),
+      name,
+      category: normCat,
+      price: Math.max(0, price),
+      checked: false,
+    };
+    groceryState = [...groceryState, item];
+  }
+
   persist('grocery', () => groceryState);
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('grocery-updated', { detail: item }));
+  }
+
   return item;
 }
 

@@ -299,6 +299,7 @@ export interface TodaySummary {
 export interface GroceryItem {
   id: string;
   name: string;
+  category?: string;
   /** Per-unit price in BDT */
   price: number;
   checked: boolean;
