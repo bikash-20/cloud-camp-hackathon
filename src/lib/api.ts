@@ -369,7 +369,25 @@ export async function saveMeal(entry: Omit<MealEntry, 'id' | 'date'>): Promise<M
   };
   mealHistory = [saved, ...mealHistory];
   persist('meal_history', () => mealHistory);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('meal-history-updated', { detail: saved }));
+  }
   return clone(saved);
+}
+
+/** Update the most recent meal with updated items, totals, or label. */
+export async function updateLatestMeal(updates: Partial<MealEntry>): Promise<MealEntry | null> {
+  mealHistory = storage.loadOrDefault('meal_history', []);
+  if (mealHistory.length === 0) return null;
+  mealHistory[0] = {
+    ...mealHistory[0],
+    ...updates,
+  };
+  persist('meal_history', () => mealHistory);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('meal-history-updated', { detail: mealHistory[0] }));
+  }
+  return clone(mealHistory[0]);
 }
 
 /** Get full meal history, most recent first. */

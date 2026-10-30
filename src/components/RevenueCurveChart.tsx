@@ -18,6 +18,7 @@ export interface RevenueCurveChartProps {
   currentKcal: number;
   dailyTarget: number;
   mealsLogged?: number;
+  subtitle?: string;
   macros?: {
     protein: number;
     carbs: number;
@@ -61,6 +62,7 @@ export default function RevenueCurveChart({
   currentKcal,
   dailyTarget,
   mealsLogged = 1,
+  subtitle,
   macros = { protein: 94, carbs: 71, fat: 39 },
   showMacroChips = true,
   title,
@@ -283,7 +285,9 @@ export default function RevenueCurveChart({
                   color: T.inkSoft,
                 }}
               >
-                {isBn
+                {subtitle
+                  ? subtitle
+                  : isBn
                   ? `আজ ${toBengaliDigits(mealsLogged)} বেলা গ্রহণ · বর্তমান মোট ${toBengaliDigits(activeKcal)} কিলোক্যালরি`
                   : `${mealsLogged} meal${mealsLogged !== 1 ? 's' : ''} logged · Current ${activeKcal} kcal`}
               </p>

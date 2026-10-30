@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles, ShoppingBag, CheckCircle, ArrowRight } from 'lucide-react';
 import { T, NUTRITION_DB } from '../../data';
-import { resolveNutrition, addGroceryItem } from '../../lib/api';
+import { resolveNutrition, addGroceryItem, getTodaySummary, updateLatestMeal } from '../../lib/api';
 import { focusedNutrients, unitForNutrient, getEffectiveNutrition, getDynamicTargets } from '../../lib/personalize';
 import { checkDietConflicts, CLINICAL_DISCLAIMER_BN, CLINICAL_DISCLAIMER_EN } from '../../lib/dietConflict';
 import { generateDietaryPivots, generateDietaryPivotsAsync, type DietaryPivot } from '../../lib/pivotEngine';
 import { MOCK_TARGETS } from '../../mocks/fixtures';
-import type { DetectedItem, MacroTargets, NutrientContribution, NutritionFacts, UserProfile } from '../../types/schemas';
+import type { DetectedItem, MacroTargets, NutrientContribution, NutritionFacts, UserProfile, TodaySummary } from '../../types/schemas';
 import Bar from '../Bar';
 import RevenueCurveChart from '../RevenueCurveChart';
 import useCountUp from '../useCountUp';
@@ -657,6 +657,16 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
   const { foodName, language } = useLanguage();
   const [resolvedNutritionMap, setResolvedNutritionMap] = useState<Record<string, NutritionFacts>>({});
   const [contributions, setContributions] = useState<NutrientContribution[]>([]);
+  const [todaySummary, setTodaySummary] = useState<TodaySummary | null>(null);
+
+  // Load today summary on mount to reflect real daily meals count
+  useEffect(() => {
+    let cancelled = false;
+    getTodaySummary().then((s) => {
+      if (!cancelled) setTodaySummary(s);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Synchronously derive totals so count-up animations feel responsive,
   // enhanced by live resolved nutrition when available.
@@ -696,6 +706,38 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
             }
           }
           setResolvedNutritionMap(map);
+
+          // Synchronize the latest meal in history with exact resolved facts
+          if (detected.length > 0) {
+            let sumKcal = 0, sumProt = 0, sumCarb = 0, sumFat = 0, sumFib = 0, sumSod = 0, sumSug = 0;
+            for (const it of detected) {
+              const n = getEffectiveNutrition(it.name, map[it.name.toLowerCase().trim()]);
+              const f = it.grams / 100;
+              sumKcal += n.kcal * f;
+              sumProt += n.protein * f;
+              sumCarb += n.carbs * f;
+              sumFat  += n.fat * f;
+              sumFib  += n.fiber * f;
+              sumSod  += n.sodium * f;
+              sumSug  += n.sugar * f;
+            }
+            const mealCalcKcal = Math.round(sumKcal) || Math.round(sumProt * 4 + sumCarb * 4 + sumFat * 9);
+            void updateLatestMeal({
+              totals: {
+                kcal: mealCalcKcal,
+                protein: sumProt,
+                carbs: sumCarb,
+                fat: sumFat,
+                fiber: sumFib,
+                sodium: sumSod,
+                sugar: sumSug,
+              },
+            }).then(() => {
+              getTodaySummary().then((s) => {
+                if (!cancelled) setTodaySummary(s);
+              });
+            });
+          }
         }
       })
       .catch((err) => {
@@ -1031,13 +1073,18 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
         <RevenueCurveChart
           currentKcal={mealKcal}
           dailyTarget={targets.kcal || 2269}
-          mealsLogged={detected.length || 1}
+          mealsLogged={todaySummary?.mealsLogged || 1}
+          subtitle={
+            language === 'bn'
+              ? `এই খাবার: ${toBengaliDigits(mealKcal)} কিলোক্যালরি (${toBengaliDigits(detected.length)}টি উপাদান) · দৈনিক লক্ষ্য ${toBengaliDigits(targets.kcal || 2269)}`
+              : `This meal: ${mealKcal} kcal (${detected.length} items) · Daily target: ${targets.kcal || 2269}`
+          }
           macros={{
             protein: Math.round(protein),
             carbs: Math.round(carbs),
             fat: Math.round(fat),
           }}
-          title={language === 'bn' ? 'দৈনিক ক্যালরি গ্রহণ গতিপথ ও পূর্বাভাস' : 'Daily Calorie Intake Trajectory & Forecast'}
+          title={language === 'bn' ? 'এই খাবারের ক্যালরি প্রভাব ও পূর্বাভাস' : 'Meal Calorie Trajectory & Forecast'}
         />
       </div>
 

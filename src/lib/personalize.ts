@@ -365,6 +365,25 @@ export function getEffectiveNutrition(
     }
   }
   if (
+    lower.includes('pasta') ||
+    lower.includes('penne') ||
+    lower.includes('spaghetti') ||
+    lower.includes('macaroni') ||
+    lower.includes('noodle') ||
+    lower.includes('chowmein') ||
+    lower.includes('lasagna')
+  ) {
+    return { protein: 5.8, carbs: 31.0, fat: 1.0, kcal: 158, fiber: 1.8, sodium: 6, sugar: 0.8, glycemic: 0.49 };
+  }
+  if (
+    lower.includes('parsley') ||
+    lower.includes('coriander') ||
+    lower.includes('dhonia') ||
+    lower.includes('herb')
+  ) {
+    return { protein: 3.0, carbs: 6.3, fat: 0.8, kcal: 36, fiber: 3.3, sodium: 56, sugar: 0.8, glycemic: 0.10 };
+  }
+  if (
     lower.includes('rice') ||
     lower.includes('grain') ||
     lower.includes('khichuri') ||

@@ -83,39 +83,71 @@ export function generateDietaryPivots(
     profile?.medicalConditions?.includes('prediabetes');
   const isHypertension = profile?.medicalConditions?.includes('hypertension');
   const isHighProtein = profile?.goals.protein;
+  const mealTotals = calcTotals(detected.map((d) => ({ name: d.name, grams: d.grams })));
 
-  // ── Pivot 1: High White Rice / Starch Reduction ─────────────────────────
-  const riceItem = detected.find((d) => {
+  // ── Pivot 1: High Starch / Carbs / Refined Grain Optimization ────────────
+  const carbItem = detected.find((d) => {
     const lower = d.name.toLowerCase();
     return (
-      (lower.includes('rice') || lower.includes('bhat') || lower.includes('ভাত')) &&
-      !lower.includes('brown') &&
+      (lower.includes('rice') ||
+        lower.includes('bhat') ||
+        lower.includes('ভাত') ||
+        lower.includes('pasta') ||
+        lower.includes('penne') ||
+        lower.includes('spaghetti') ||
+        lower.includes('noodle') ||
+        lower.includes('macaroni') ||
+        lower.includes('bread') ||
+        lower.includes('roti') ||
+        lower.includes('paratha') ||
+        lower.includes('potato') ||
+        lower.includes('alu')) &&
       !lower.includes('cauliflower') &&
-      d.grams >= 180
+      d.grams >= 120
     );
+  }) || detected.find((d) => {
+    const facts = getEffectiveNutrition(d.name, resolvedFactsMap?.[d.name.toLowerCase().trim()]);
+    return facts.carbs * (d.grams / 100) >= 35;
   });
 
-  if (riceItem && (isDiabetic || riceItem.grams >= 220)) {
-    const origRiceGrams = riceItem.grams;
-    const origNutrition = calcTotals([{ name: riceItem.name, grams: origRiceGrams }]);
+  if (carbItem && (isDiabetic || carbItem.grams >= 160 || mealTotals.carbs >= 50)) {
+    const origGrams = carbItem.grams;
+    const origNutrition = calcTotals([{ name: carbItem.name, grams: origGrams }]);
+    const isPastaOrNoodle = /pasta|penne|spaghetti|noodle|macaroni/i.test(carbItem.name);
 
-    // Suggested: Reduce to 100g Brown Rice + 120g Steamed Mixed Sabzi
-    const suggested: PivotItem[] = [
-      {
-        name: 'Brown rice (Lal chal)',
-        name_bn: 'লাল চালের ভাত',
-        grams: Math.round(origRiceGrams * 0.45),
-        category: 'Grains & staples',
-        price_bdt: resolveMarketPrice('Brown rice (Lal chal)', origRiceGrams * 0.45).estimatedCost,
-      },
-      {
-        name: 'Steamed Mixed Sabzi (Palong & Papaya)',
-        name_bn: 'মিশ্র সবজি ও পালং শাক',
-        grams: 120,
-        category: 'Produce',
-        price_bdt: resolveMarketPrice('Palong shak (Spinach)', 120).estimatedCost,
-      },
-    ];
+    const suggested: PivotItem[] = isPastaOrNoodle
+      ? [
+          {
+            name: 'Penne / Pasta (Controlled Portion)',
+            name_bn: 'পাস্তা (পরিমিত অংশ)',
+            grams: Math.round(origGrams * 0.6),
+            category: 'Grains & staples',
+            price_bdt: resolveMarketPrice(carbItem.name, origGrams * 0.6).estimatedCost,
+          },
+          {
+            name: 'Steamed Broccoli & Zucchini',
+            name_bn: 'সিদ্ধ ব্রোকলি ও জুচিনি',
+            grams: 120,
+            category: 'Produce',
+            price_bdt: 45,
+          },
+        ]
+      : [
+          {
+            name: 'Brown rice (Lal chal)',
+            name_bn: 'লাল চালের ভাত',
+            grams: Math.round(origGrams * 0.45),
+            category: 'Grains & staples',
+            price_bdt: resolveMarketPrice('Brown rice (Lal chal)', origGrams * 0.45).estimatedCost,
+          },
+          {
+            name: 'Steamed Mixed Sabzi (Palong & Papaya)',
+            name_bn: 'মিশ্র সবজি ও পালং শাক',
+            grams: 120,
+            category: 'Produce',
+            price_bdt: resolveMarketPrice('Palong shak (Spinach)', 120).estimatedCost,
+          },
+        ];
 
     const pivotNutrition = calcTotals(
       suggested.map((s) => ({ name: s.name, grams: s.grams })),
@@ -132,22 +164,32 @@ export function generateDietaryPivots(
     };
 
     pivots.push({
-      id: 'pivot-rice-glycemic-optimization',
-      title_en: 'Low-GI Grain & Fiber Pivot',
-      title_bn: 'কম গ্লাইসেমিক লাল চাল ও সবজির সমন্বয়',
-      trigger_reason_en: `High white rice portion (${origRiceGrams}g) creates a sudden blood glucose surge.`,
-      trigger_reason_bn: `সাদা ভাতের উচ্চ পরিমাণ (${origRiceGrams} গ্রাম) রক্তে দ্রুত শর্করা বাড়ায়।`,
-      rationale_en: `Replacing half the white rice with unpolished brown rice and green produce cuts ${Math.abs(delta.carbs)}g net carbs and adds ${Math.abs(delta.fiber)}g fiber, preventing insulin spikes with negligible cost difference (৳${delta.cost_bdt > 0 ? '+' : ''}${delta.cost_bdt}).`,
-      rationale_bn: `সাদা ভাত কমিয়ে লাল চাল এবং শাকসবজি যুক্ত করলে ${Math.abs(delta.carbs)} গ্রাম শর্করা হ্রাস পায় এবং ${Math.abs(delta.fiber)} গ্রাম আঁশ বৃদ্ধি পায়। খরচের পার্থক্য মাত্র ৳${delta.cost_bdt > 0 ? '+' : ''}${delta.cost_bdt}।`,
-      original_items: [{ name: riceItem.name, name_bn: riceItem.name_bn || 'সাদা ভাত', grams: origRiceGrams }],
+      id: isPastaOrNoodle ? 'pivot-pasta-veggie-swap' : 'pivot-rice-glycemic-optimization',
+      title_en: isPastaOrNoodle ? 'High-Fiber Veggie & Controlled Starch Pivot' : 'Low-GI Grain & Fiber Pivot',
+      title_bn: isPastaOrNoodle ? 'আঁশযুক্ত সবজি ও পরিমিত শর্করার সমন্বয়' : 'কম গ্লাইসেমিক লাল চাল ও সবজির সমন্বয়',
+      trigger_reason_en: `High starch/carbohydrate load (${origGrams}g portion) creates a rapid blood sugar spike.`,
+      trigger_reason_bn: `উচ্চ শর্করাযুক্ত অংশ (${origGrams} গ্রাম) রক্তে দ্রুত গ্লুকোজের মাত্রা বাড়ায়।`,
+      rationale_en: isPastaOrNoodle
+        ? `Balancing pasta portion with steamed broccoli and zucchini cuts ~${Math.abs(delta.carbs)}g net carbs, boosts fiber by ${Math.abs(delta.fiber)}g, and maintains prolonged satiety.`
+        : `Replacing half the white rice with unpolished brown rice and green produce cuts ${Math.abs(delta.carbs)}g net carbs and adds ${Math.abs(delta.fiber)}g fiber, preventing insulin spikes with negligible cost difference (৳${delta.cost_bdt > 0 ? '+' : ''}${delta.cost_bdt}).`,
+      rationale_bn: isPastaOrNoodle
+        ? `পাস্তা পরিমিত করে ব্রোকলি ও জুচিনি যোগ করলে প্রায় ${Math.abs(delta.carbs)} গ্রাম শর্করা কমে এবং ${Math.abs(delta.fiber)} গ্রাম আঁশ বৃদ্ধি পায়।`
+        : `সাদা ভাত কমিয়ে লাল চাল এবং শাকসবজি যুক্ত করলে ${Math.abs(delta.carbs)} গ্রাম শর্করা হ্রাস পায় এবং ${Math.abs(delta.fiber)} গ্রাম আঁশ বৃদ্ধি পায়। খরচের পার্থক্য মাত্র ৳${delta.cost_bdt > 0 ? '+' : ''}${delta.cost_bdt}।`,
+      original_items: [{ name: carbItem.name, name_bn: carbItem.name_bn || carbItem.name, grams: origGrams }],
       suggested_items: suggested,
       delta,
-      glycemic_reduction_pct: 46,
-      grocery_items_to_add: [
-        { name: 'Brown rice (Lal chal)', name_bn: 'লাল চাল', price_bdt: 90, category: 'Grains & staples' },
-        { name: 'Palong shak (Spinach)', name_bn: 'পালং শাক', price_bdt: 25, category: 'Produce' },
-        { name: 'Green papaya (Kacha pepe)', name_bn: 'কাঁচা পেঁপে', price_bdt: 40, category: 'Produce' },
-      ],
+      glycemic_reduction_pct: isPastaOrNoodle ? 38 : 46,
+      grocery_items_to_add: isPastaOrNoodle
+        ? [
+            { name: 'Broccoli (সবুজ ব্রোকলি)', name_bn: 'সবুজ ব্রোকলি', price_bdt: 70, category: 'Produce' },
+            { name: 'Zucchini / Green Squash', name_bn: 'জুচিনি / ধুন্দুল', price_bdt: 45, category: 'Produce' },
+            { name: 'Fresh Mushrooms (মাশরুম)', name_bn: 'মাশরুম', price_bdt: 120, category: 'Produce' },
+          ]
+        : [
+            { name: 'Brown rice (Lal chal)', name_bn: 'লাল চাল', price_bdt: 90, category: 'Grains & staples' },
+            { name: 'Palong shak (Spinach)', name_bn: 'পালং শাক', price_bdt: 25, category: 'Produce' },
+            { name: 'Green papaya (Kacha pepe)', name_bn: 'কাঁচা পেঁপে', price_bdt: 40, category: 'Produce' },
+          ],
       is_live_price: false,
       price_source: 'TCB/DAM Benchmark',
     });
@@ -217,7 +259,6 @@ export function generateDietaryPivots(
   }
 
   // ── Pivot 3: Protein Density Enhancement ────────────────────────────────
-  const mealTotals = calcTotals(detected.map((d) => ({ name: d.name, grams: d.grams })));
   if (isHighProtein && mealTotals.protein < 20) {
     const suggested: PivotItem[] = [
       {
@@ -265,6 +306,46 @@ export function generateDietaryPivots(
       grocery_items_to_add: [
         { name: 'Eggs (Farm, brown)', name_bn: 'ফার্মের লাল ডিম', price_bdt: 140, category: 'Protein' },
         { name: 'Masoor dal (fine)', name_bn: 'চিকন মসুর ডাল', price_bdt: 150, category: 'Grains & staples' },
+      ],
+      is_live_price: false,
+      price_source: 'TCB/DAM Benchmark',
+    });
+  }
+
+  // ── Guaranteed Fallback Pivot: Fresh Produce & Micronutrient Salad Booster ──
+  if (pivots.length === 0 && detected.length > 0) {
+    pivots.push({
+      id: 'pivot-wholesome-produce-refresh',
+      title_en: 'Fresh Micronutrient & Antioxidant Salad Pivot',
+      title_bn: 'তাজা অ্যান্টিঅক্সিডেন্ট ও সালাদ সংযোজন',
+      trigger_reason_en: 'Enriching meals with raw greens and lemon boosts electrolyte balance and bioavailable vitamin C.',
+      trigger_reason_bn: 'তাজা শাকসবজি ও লেবুর সালাদ খাবারে ভিটামিন সি এবং পটাসিয়ামের ভারসাম্য রক্ষা করে।',
+      rationale_en: 'Adding fresh cucumber and lemon salad elevates fiber and aids digestion without adding excess calories.',
+      rationale_bn: 'শসা ও লেবুর সালাদ খাবারের আঁশ বাড়ায় এবং হজমে সাহায্য করে।',
+      original_items: [],
+      suggested_items: [
+        {
+          name: 'Cucumber & Lemon Salad',
+          name_bn: 'শসা ও লেবুর সালাদ',
+          grams: 100,
+          category: 'Produce',
+          price_bdt: 25,
+        },
+      ],
+      delta: {
+        kcal: 18,
+        carbs: 3,
+        protein: 1,
+        fat: 0,
+        fiber: 1.5,
+        sodium: 5,
+        cost_bdt: 25,
+      },
+      glycemic_reduction_pct: 10,
+      grocery_items_to_add: [
+        { name: 'Cucumber (Shosha)', name_bn: 'শসা', price_bdt: 50, category: 'Produce' },
+        { name: 'Tomato (টমেটো)', name_bn: 'টমেটো', price_bdt: 40, category: 'Produce' },
+        { name: 'Lemon (Kagoji lebu)', name_bn: 'কাগজি লেবু', price_bdt: 25, category: 'Produce' },
       ],
       is_live_price: false,
       price_source: 'TCB/DAM Benchmark',

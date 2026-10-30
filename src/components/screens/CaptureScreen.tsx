@@ -91,7 +91,6 @@ export default function CaptureScreen({
   const [recentMeals, setRecentMeals] = useState<MealEntry[]>([]);
   const [todayLoading, setTodayLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
-  const initialLoadRef = useRef(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -150,20 +149,31 @@ export default function CaptureScreen({
     });
   }, [phase, stopCamera]);
 
-  // Load today's summary and recent meals on mount
+  // Load today's summary and recent meals on mount & keep in sync with meal updates
   useEffect(() => {
-    if (initialLoadRef.current) return;
-    initialLoadRef.current = true;
     let cancelled = false;
-    Promise.all([getTodaySummary(), getMealHistory()]).then(([summary, history]) => {
-      if (!cancelled) {
-        setTodaySummary(summary);
-        setTodayLoading(false);
-        setRecentMeals(history.slice(0, 3));
-        setHistoryLoading(false);
-      }
-    });
-    return () => { cancelled = true; };
+    const refreshData = () => {
+      Promise.all([getTodaySummary(), getMealHistory()]).then(([summary, history]) => {
+        if (!cancelled) {
+          setTodaySummary(summary);
+          setTodayLoading(false);
+          setRecentMeals(history.slice(0, 3));
+          setHistoryLoading(false);
+        }
+      });
+    };
+
+    refreshData();
+
+    const handleUpdate = () => refreshData();
+    window.addEventListener('meal-history-updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('meal-history-updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, []);
 
   // Clean up camera on unmount or reset

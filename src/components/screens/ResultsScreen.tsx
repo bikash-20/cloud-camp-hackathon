@@ -302,6 +302,21 @@ export default function ResultsScreen({
     }
   };
 
+  const handleAddDetectedToGrocery = async () => {
+    try {
+      for (const item of detected) {
+        await addGroceryItem('Produce', item.name, 60);
+      }
+      triggerToast(
+        isBn
+          ? `${toBengaliDigits(detected.length)}টি উপাদান বাজারে যুক্ত হয়েছে!`
+          : `Added ${detected.length} items to Grocery List!`,
+      );
+    } catch {
+      triggerToast(isBn ? 'বাজারে যোগ করতে ব্যর্থ হয়েছে' : 'Failed to add items');
+    }
+  };
+
   const isNonFoodRejection = analysisResult?.is_food === false;
   const rejectionReason = (analysisResult?.rejection_reason_en || '').toLowerCase();
   const isServiceUnavailable =
@@ -1137,6 +1152,32 @@ export default function ResultsScreen({
             }}
           >
             <Share2 size={12} /> {isBn ? 'শেয়ার' : 'Share'}
+          </motion.button>
+          <motion.button
+            type="button"
+            onClick={handleAddDetectedToGrocery}
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+            aria-label={isBn ? 'বাজারের তালিকায় উপাদান যোগ করুন' : 'Add ingredients to Grocery List'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              background: 'rgba(74, 58, 52, 0.07)',
+              border: '1px solid rgba(74, 58, 52, 0.14)',
+              borderRadius: 8,
+              padding: '4px 8px',
+              fontFamily: 'Inter',
+              fontSize: 11,
+              fontWeight: 600,
+              color: T.ink,
+              cursor: 'pointer',
+              minHeight: 28,
+            }}
+          >
+            <ShoppingBag size={12} color={T.primary} />
+            <span>{isBn ? 'বাজারে যোগ' : 'Add to Grocery'}</span>
           </motion.button>
         </div>
 

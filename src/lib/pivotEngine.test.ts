@@ -76,5 +76,19 @@ describe('Dietary Pivot Engine', () => {
     expect(pivots[0].is_live_price).toBe(true);
     expect(pivots[0].price_source).toContain('Chaldal Live');
   });
+
+  it('generates high-fiber veggie swap with grocery items when Penne Pasta is detected', () => {
+    const detected: DetectedItem[] = [
+      { name: 'Penne Pasta', confidence: 95, grams: 220 },
+      { name: 'Tomato', confidence: 90, grams: 50 },
+      { name: 'Parsley', confidence: 85, grams: 10 },
+    ];
+    const pivots = generateDietaryPivots(detected, BASE_PROFILE);
+    expect(pivots.length).toBeGreaterThan(0);
+    const pastaPivot = pivots.find((p) => p.id === 'pivot-pasta-veggie-swap');
+    expect(pastaPivot).toBeDefined();
+    expect(pastaPivot?.grocery_items_to_add.length).toBeGreaterThan(0);
+    expect(pastaPivot?.grocery_items_to_add.some((g) => g.name.includes('Broccoli'))).toBe(true);
+  });
 });
 

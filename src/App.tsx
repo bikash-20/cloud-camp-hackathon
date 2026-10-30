@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { T, TABS } from './data';
-import { getProfile, saveMeal, analyzeMeal, resolveNutrition } from './lib/api';
+import { getProfile, saveMeal, updateLatestMeal, analyzeMeal, resolveNutrition } from './lib/api';
 import { getEffectiveNutrition } from './lib/personalize';
 import { getSession } from './lib/auth';
 import { ThemeProvider } from './theme/ThemeContext';
@@ -203,6 +203,31 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
     setAnalysisResult(null);
   };
 
+  const handleDetectedChange = (newItems: DetectedItem[]) => {
+    setDetected(newItems);
+    const totals = newItems.reduce(
+      (acc, it) => {
+        const n = getEffectiveNutrition(it.name);
+        const factor = it.grams / 100;
+        return {
+          kcal: acc.kcal + n.kcal * factor,
+          protein: acc.protein + n.protein * factor,
+          carbs: acc.carbs + n.carbs * factor,
+          fat: acc.fat + n.fat * factor,
+          fiber: acc.fiber + n.fiber * factor,
+          sodium: acc.sodium + n.sodium * factor,
+          sugar: acc.sugar + n.sugar * factor,
+        };
+      },
+      { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sodium: 0, sugar: 0 },
+    );
+    void updateLatestMeal({
+      label: newItems.map((i) => i.name).join(', ') || 'Meal',
+      items: newItems,
+      totals,
+    });
+  };
+
   if (!profile) {
     return (
       <div
@@ -265,7 +290,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
           {tab === 1 && (
             <ResultsScreen
               detected={detected}
-              onChangeDetected={setDetected}
+              onChangeDetected={handleDetectedChange}
               onViewNutrients={() => goToTab(2)}
               profile={profile}
               capturedImage={capturedImage}

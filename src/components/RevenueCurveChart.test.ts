@@ -25,3 +25,4 @@ describe('RevenueCurveChart Catmull-Rom spline calculations', () => {
     expect(segmentCount).toBe(3);
   });
 });
+

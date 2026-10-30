@@ -4607,6 +4607,64 @@ export const CANONICAL_FOODS: CanonicalFood[] = [
       "Eggs",
       "Chicken Breast"
     ]
+  },
+  {
+    "id": "penne-pasta",
+    "name_en": "Penne Pasta",
+    "name_bn": "পেনে পাস্তা",
+    "category": "grains",
+    "aliases": [
+      "pasta",
+      "penne",
+      "penne pasta",
+      "cooked pasta",
+      "italian pasta",
+      "spaghetti",
+      "macaroni"
+    ],
+    "emoji": "🍝",
+    "defaultGrams": 200,
+    "kcalPer100g": 158.0,
+    "proteinPer100g": 5.8,
+    "carbsPer100g": 30.9,
+    "fatPer100g": 0.9,
+    "fiberPer100g": 1.8,
+    "sodiumMgPer100g": 6.0,
+    "sugarPer100g": 0.8,
+    "glycemicIndex": 0.49,
+    "pairings": [
+      "Tomato Sauce",
+      "Parmesan",
+      "Olive Oil",
+      "Parsley"
+    ]
+  },
+  {
+    "id": "parsley",
+    "name_en": "Parsley",
+    "name_bn": "পার্সলে পাতা",
+    "category": "produce",
+    "aliases": [
+      "fresh parsley",
+      "parsley leaves",
+      "italian parsley",
+      "curly parsley"
+    ],
+    "emoji": "🌿",
+    "defaultGrams": 15,
+    "kcalPer100g": 36.0,
+    "proteinPer100g": 3.0,
+    "carbsPer100g": 6.3,
+    "fatPer100g": 0.8,
+    "fiberPer100g": 3.3,
+    "sodiumMgPer100g": 56.0,
+    "sugarPer100g": 0.8,
+    "glycemicIndex": 0.10,
+    "pairings": [
+      "Pasta",
+      "Salad",
+      "Garlic"
+    ]
   }
 ];
 
