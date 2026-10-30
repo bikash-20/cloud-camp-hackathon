@@ -617,7 +617,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
               {isBn ? 'ডেমো পার্সোনা সুইচ করুন (Demo Personas)' : 'Demo Personas'}
             </span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
             {DEMO_PERSONAS.map((persona) => {
               const isSelected = name.toLowerCase() === persona.profile.name.toLowerCase();
               return (

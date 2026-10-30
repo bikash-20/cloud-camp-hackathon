@@ -94,7 +94,7 @@ Guidelines:
    - Set "is_food": false ONLY if the image unambiguously contains NO food, edible ingredients, produce, drinks, cooked meals, or restaurant menus (e.g. shoes, laptop, car, pets, furniture, documents, people without food). In that case, set "overall_confidence": 0.95, "detected": [], "rejection_reason_en": "No food detected in this photo. Please take a photo of food or ingredients.", "rejection_reason_bn": "এই ছবিতে কোনো খাবার বা উপাদান শনাক্ত করা যায়নি। অনুগ্রহ করে কোনো খাবার বা রান্নার উপাদানের ছবি তুলুন।"
    - CRITICAL FOOD BIAS: If there is ANY edible item, bowl, plate, cup, cooked meal, rice, curry, lentil/dal, vegetable, fruit, fish, meat, bread/roti, snack, beverage, or grocery item present anywhere in the photo, you MUST set "is_food": true. Pay special attention to South Asian and Bangladeshi home dishes (such as steamed rice, biryani, khichuri, chicken/beef curry, fish jhol, dal, bhaji, bhorta, shak, paratha). Never reject food due to home plating or dim lighting.
 2. 3-WAY VISION MODES:
-   - If cooked food / plated meal: set "input_mode": "cooked_meal", "is_food": true, detect every item in "detected", and infer cooking media (e.g., "Mustard oil", "Soybean oil", "Ghee", "Salt", "Sugar") in "inferred_hidden_ingredients". Detect dishes like khichuri / খিচুড়ি, biryani, dal, curry, meat, fish, vegetables, or rice.
+   - If cooked food / plated meal: set "input_mode": "cooked_meal", "is_food": true, detect every item in "detected", and infer cooking media (e.g., "Mustard oil", "Soybean oil", "Ghee", "Salt", "Sugar") in "inferred_hidden_ingredients". Detect dishes like khichuri / খিচুড়ি, biryani, dal, curry, meat, fish, vegetables, or rice. Keep "recipe_suggestions": [] and "menu_analysis": [] empty for cooked meals.
    - If raw ingredients / groceries (raw chicken, vegetables, lentils, spices): set "input_mode": "raw_ingredients", "is_food": true, detect items in "detected", and provide 2 healthy South Asian / Bangladeshi recipes in "recipe_suggestions" with missing ingredients to buy.
    - If a restaurant menu or printed food list: set "input_mode": "restaurant_menu", "is_food": true, extract dishes into "menu_analysis", highlight healthy picks, and flag ultra-processed or deep-fried dishes.
 3. Keep `name` in concise English for database lookup; provide natural Bengali in `name_bn`.
@@ -110,7 +110,9 @@ class GeminiClient:
         model: str | None = None,
         base_url: str | None = None,
     ) -> None:
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY") or ""
+        self.api_key = (
+            api_key if api_key is not None else os.environ.get("GEMINI_API_KEY") or ""
+        ).strip()
         self.model = model or os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL
         self.base_url = (
             base_url or os.environ.get("GEMINI_BASE_URL") or DEFAULT_BASE_URL
@@ -121,7 +123,7 @@ class GeminiClient:
         if self._client is None:
             self._client = httpx.Client(
                 headers={"User-Agent": USER_AGENT},
-                timeout=httpx.Timeout(15.0, connect=5.0),
+                timeout=httpx.Timeout(7.0, connect=3.0),
             )
         return self._client
 
@@ -134,7 +136,7 @@ class GeminiClient:
         """True iff a key is set — the route uses this to select a provider."""
         return bool(self.api_key)
 
-    def detect_vision(self, image_ref: str) -> VisionDetectionResult | None:
+    def detect_vision(self, image_ref: str, model_override: str | None = None) -> VisionDetectionResult | None:
         """Run multimodal vision analysis returning rich 3-way mode results."""
         if not self.is_configured():
             return None
@@ -170,7 +172,8 @@ class GeminiClient:
             ],
         }
 
-        url = f"{self.base_url}/{self.model}:generateContent"
+        target_model = model_override or self.model
+        url = f"{self.base_url}/{target_model}:generateContent"
         try:
             resp = self._http().post(
                 url,
@@ -254,6 +257,19 @@ def _parse_vision_result(text: str) -> VisionDetectionResult:
                 parsed = json.loads(text[start_obj : end_obj + 1])
             except Exception:
                 pass
+
+    if parsed is None:
+        # Resilient recovery for network- or token-truncated JSON
+        recovered: list[dict[str, Any]] = []
+        for match in re.finditer(r'\{[^{}]*"(?:name|food|dish)"[^{}]*\}', text):
+            try:
+                obj = json.loads(match.group(0))
+                if isinstance(obj, dict):
+                    recovered.append(obj)
+            except Exception:
+                pass
+        if recovered:
+            parsed = recovered
 
     if parsed is None or isinstance(parsed, list):
         items = _parse_food_json(text)
@@ -381,6 +397,19 @@ def _parse_food_json(text: str) -> list[DetectedItem]:
                 parsed = json.loads(text[start_obj : end_obj + 1])
             except Exception:
                 pass
+
+    if parsed is None:
+        # Resilient recovery for network- or token-truncated JSON
+        recovered: list[dict[str, Any]] = []
+        for match in re.finditer(r'\{[^{}]*"(?:name|food|dish)"[^{}]*\}', text):
+            try:
+                obj = json.loads(match.group(0))
+                if isinstance(obj, dict):
+                    recovered.append(obj)
+            except Exception:
+                pass
+        if recovered:
+            parsed = recovered
 
     if parsed is None:
         return []

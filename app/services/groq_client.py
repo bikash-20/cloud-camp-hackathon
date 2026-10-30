@@ -34,7 +34,10 @@ from app.services.gemini_client import (
 
 log = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "llama-3.2-11b-vision-preview"
+DEFAULT_MODEL = "qwen/qwen3.8-27b"
+DEFAULT_GROQ_VISION_MODELS = [
+    "qwen/qwen3.8-27b",
+]
 DEFAULT_BASE_URL = "https://api.groq.com/openai/v1"
 USER_AGENT = "NutriVisionDemo/0.1 (hackathon demo)"
 
@@ -48,7 +51,9 @@ class GroqClient:
         model: str | None = None,
         base_url: str | None = None,
     ) -> None:
-        self.api_key = api_key or os.environ.get("GROQ_API_KEY") or ""
+        self.api_key = (
+            api_key if api_key is not None else os.environ.get("GROQ_API_KEY") or ""
+        ).strip()
         self.model = (
             model
             or os.environ.get("GROQ_MODEL")
@@ -67,7 +72,7 @@ class GroqClient:
                     "User-Agent": USER_AGENT,
                     "Authorization": f"Bearer {self.api_key}",
                 },
-                timeout=httpx.Timeout(15.0, connect=5.0),
+                timeout=httpx.Timeout(6.0, connect=3.0),
             )
         return self._client
 
@@ -107,7 +112,7 @@ class GroqClient:
                 }
             ],
             "temperature": 0.1,
-            "max_tokens": 1024,
+            "max_tokens": 480,
         }
 
         url = f"{self.base_url}/chat/completions"
@@ -117,10 +122,9 @@ class GroqClient:
         }
 
         candidate_models = [self.model]
-        if "llama-3.2-11b-vision-preview" not in candidate_models:
-            candidate_models.append("llama-3.2-11b-vision-preview")
-        if "llama-3.2-90b-vision-preview" not in candidate_models:
-            candidate_models.append("llama-3.2-90b-vision-preview")
+        for m in DEFAULT_GROQ_VISION_MODELS:
+            if m not in candidate_models:
+                candidate_models.append(m)
 
         payload = None
         for model_name in candidate_models:
@@ -131,7 +135,7 @@ class GroqClient:
                 payload = resp.json()
                 break
             except httpx.HTTPStatusError as exc:
-                if exc.response.status_code in (400, 404) and model_name != candidate_models[-1]:
+                if exc.response.status_code in (400, 404, 422, 429) and model_name != candidate_models[-1]:
                     log.info(
                         "Groq vision model %s failed (%d); attempting fallback candidate",
                         model_name,

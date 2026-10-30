@@ -343,6 +343,8 @@ def test_vision_pipeline_rejects_requests_when_no_provider_is_configured(
 
     import app.api.vision as vision_mod
     monkeypatch.setattr(vision_mod, "_get_gemini", lambda: _NotConfigured())
+    monkeypatch.setattr(vision_mod, "_get_groq", lambda: _NotConfigured())
+    monkeypatch.setattr(vision_mod, "_get_openrouter", lambda: _NotConfigured())
     monkeypatch.setattr(vision_mod, "_get_hf", lambda: _NotConfigured())
 
     resp = client.post(

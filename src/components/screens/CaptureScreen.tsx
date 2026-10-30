@@ -242,10 +242,10 @@ export default function CaptureScreen({
       reader.onload = () => {
         const rawDataUrl = reader.result as string;
         // Optimize and downscale large camera photos client-side to ensure
-        // fast transmission and stay safely within the 8 MB API cap.
+        // fast transmission (~250KB payload) and sub-second upload speeds.
         const img = new Image();
         img.onload = () => {
-          const maxDim = 1440;
+          const maxDim = 1080;
           let width = img.width;
           let height = img.height;
           if (width > maxDim || height > maxDim) {
@@ -263,7 +263,7 @@ export default function CaptureScreen({
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            const optimized = canvas.toDataURL('image/jpeg', 0.88);
+            const optimized = canvas.toDataURL('image/jpeg', 0.82);
             stopCamera();
             setPhase('captured');
             setAnalyzing(true);

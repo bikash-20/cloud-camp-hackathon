@@ -208,6 +208,19 @@ class CoachService:
         )
         user_msg = self._extract_latest_user_text(messages)
 
+        # 0. Fast-path for simple casual greetings: guarantees instant response and strict language alignment
+        if _is_greeting(user_msg):
+            reply_text = self._synthesize_local_response(
+                agent_type, user_msg, req.user_profile, "", lang=req.lang
+            )
+            prompts = self._generate_suggested_prompts(agent_type, user_msg, req.lang)
+            return CoachChatResponse(
+                reply=reply_text,
+                agent_type=agent_type,
+                suggested_prompts=prompts,
+                citations=[],
+            )
+
         # 1. RAG Enrichment
         rag_context, citations = self._retrieve_rag_context(user_msg, req.user_profile)
 

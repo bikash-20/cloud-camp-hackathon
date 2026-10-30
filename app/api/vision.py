@@ -20,6 +20,7 @@ shape is `AnalyzeResult`. Only the internals change vs. cut (a).
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 from pathlib import Path
 
@@ -36,6 +37,8 @@ from app.services.groq_client import GroqClient
 from app.services.hf_client import HFClient
 from app.services.openrouter_client import OpenRouterVisionClient
 from app.services.trace import make_trace
+
+log = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/api/vision", tags=["vision"])
@@ -174,7 +177,7 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
     ):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="No vision provider is configured. Set GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY.",
+            detail="No vision provider is configured. Set GROQ_API_KEY, GEMINI_API_KEY, or OPENROUTER_API_KEY.",
         )
 
     # 1. Vector cache (ChromaDB) — fast path, with SQLite TTL fallback
@@ -203,9 +206,9 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
         return AnalyzeResult(detected=cached, pipeline=pipeline)
     pipeline[0].status = "done"
 
-    # 2. Multi-Provider Cascade Pipeline: Gemini -> Groq -> OpenRouter -> HF validation.
+    # 2. Multi-Provider Cascade Pipeline: Groq (Fastest) -> Gemini (Primary) -> OpenRouter -> Gemini (Fallback) -> HF.
     detected_items: list[DetectedItem] = []
-    primary_stage_label = "Vision ID (Gemini)"
+    primary_stage_label = "Vision ID (Groq)"
     vision_meta: VisionDetectionResult | None = None
     explicit_rejection: VisionDetectionResult | None = None
 
@@ -235,39 +238,39 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
 
         return False
 
-    # Stage A: Google Gemini (Primary)
-    if gemini.is_configured():
-        try:
-            if hasattr(gemini, "detect_vision"):
-                res = gemini.detect_vision(body.image_ref)
-                _eval_provider_result(res, "Vision ID (Gemini)")
-            elif hasattr(gemini, "detect"):
-                items = gemini.detect(body.image_ref)
-                if items:
-                    detected_items = items
-                    vision_meta = VisionDetectionResult(detected=items, is_food=True, overall_confidence=0.85)
-                    primary_stage_label = "Vision ID (Gemini)"
-        except Exception as exc:
-            log.warning("Gemini vision stage failed: %s; cascading...", exc)
-
-    # Stage B: Groq Vision (cascade if Gemini didn't return detected items)
-    has_success = bool(detected_items or (vision_meta and vision_meta.input_mode == "restaurant_menu"))
-    if not has_success and groq.is_configured():
+    # Tier 1: Groq Vision (Fastest LPU inference)
+    if groq.is_configured():
         try:
             if hasattr(groq, "detect_vision"):
                 res = groq.detect_vision(body.image_ref)
-                _eval_provider_result(res, "Vision ID (Groq cascaded)")
+                _eval_provider_result(res, "Vision ID (Groq)")
             elif hasattr(groq, "detect"):
                 items = groq.detect(body.image_ref)
                 if items:
                     detected_items = items
                     vision_meta = VisionDetectionResult(detected=items, is_food=True, overall_confidence=0.85)
-                    explicit_rejection = None
-                    primary_stage_label = "Vision ID (Groq cascaded)"
+                    primary_stage_label = "Vision ID (Groq)"
         except Exception as exc:
             log.warning("Groq vision stage failed: %s; cascading...", exc)
 
-    # Stage C: OpenRouter Vision (cascade if Gemini and Groq didn't return detected items)
+    # Tier 2: Google Gemini (Primary 2.0 Flash)
+    has_success = bool(detected_items or (vision_meta and vision_meta.input_mode == "restaurant_menu"))
+    if not has_success and gemini.is_configured():
+        try:
+            if hasattr(gemini, "detect_vision"):
+                res = gemini.detect_vision(body.image_ref)
+                _eval_provider_result(res, "Vision ID (Gemini 2.0 Flash)")
+            elif hasattr(gemini, "detect"):
+                items = gemini.detect(body.image_ref)
+                if items:
+                    detected_items = items
+                    vision_meta = VisionDetectionResult(detected=items, is_food=True, overall_confidence=0.85)
+                    explicit_rejection = None
+                    primary_stage_label = "Vision ID (Gemini 2.0 Flash)"
+        except Exception as exc:
+            log.warning("Gemini primary vision stage failed: %s; cascading...", exc)
+
+    # Tier 3: OpenRouter Vision (Free Multimodal Cascade)
     has_success = bool(detected_items or (vision_meta and vision_meta.input_mode == "restaurant_menu"))
     if not has_success and openrouter.is_configured():
         try:
@@ -283,6 +286,18 @@ async def analyze_meal(request: Request, body: AnalyzeRequest) -> AnalyzeResult:
                     primary_stage_label = "Vision ID (OpenRouter cascaded)"
         except Exception as exc:
             log.warning("OpenRouter vision stage failed: %s; cascading...", exc)
+
+    # Tier 4: Google Gemini Secondary Fallback (1.5 Flash / 1.5 Flash-8B with separate quota)
+    has_success = bool(detected_items or (vision_meta and vision_meta.input_mode == "restaurant_menu"))
+    if not has_success and gemini.is_configured():
+        try:
+            if hasattr(gemini, "detect_vision"):
+                res = gemini.detect_vision(body.image_ref, model_override="gemini-1.5-flash-8b")
+                if res is None:
+                    res = gemini.detect_vision(body.image_ref, model_override="gemini-1.5-flash")
+                _eval_provider_result(res, "Vision ID (Gemini 1.5 Fallback)")
+        except Exception as exc:
+            log.warning("Gemini secondary fallback failed: %s; cascading to HF...", exc)
 
     # 3. Explicit Non-Food / Blurry Safety Gate (Pre-Cache Filter)
     has_success = bool(detected_items or (vision_meta and vision_meta.input_mode == "restaurant_menu"))

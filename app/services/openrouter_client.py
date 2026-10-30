@@ -25,12 +25,12 @@ log = logging.getLogger(__name__)
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_VISION_MODELS = [
-    # Free multimodal vision models (work with $0 balance on OpenRouter):
+    # Top free multimodal vision models on OpenRouter (work with $0 balance):
     "google/gemma-4-31b-it:free",
-    "google/gemma-4-26b-a4b-it:free",
     "nvidia/nemotron-3.5-super-vl:free",
     "openrouter/free",
-    # Standard vision models (used if credits are present):
+    "google/gemma-4-26b-a4b-it:free",
+    # Standard vision models (if paid balance exists):
     "google/gemini-2.0-flash-001",
     "meta-llama/llama-3.2-11b-vision-instruct",
     "openrouter/auto",
@@ -46,7 +46,9 @@ class OpenRouterVisionClient:
         api_key: str | None = None,
         model: str | None = None,
     ) -> None:
-        self.api_key = (api_key or os.environ.get("OPENROUTER_API_KEY") or "").strip()
+        self.api_key = (
+            api_key if api_key is not None else os.environ.get("OPENROUTER_API_KEY") or ""
+        ).strip()
         self.model = (model or os.environ.get("OPENROUTER_VISION_MODEL") or "").strip()
         self._client: httpx.Client | None = None
 
@@ -54,7 +56,7 @@ class OpenRouterVisionClient:
         if self._client is None:
             self._client = httpx.Client(
                 headers={"User-Agent": USER_AGENT},
-                timeout=httpx.Timeout(15.0, connect=5.0),
+                timeout=httpx.Timeout(6.5, connect=3.0),
             )
         return self._client
 
@@ -85,6 +87,8 @@ class OpenRouterVisionClient:
         for m in DEFAULT_VISION_MODELS:
             if m not in candidate_models:
                 candidate_models.append(m)
+        # Cap candidate attempts to the top 3 high-probability models to eliminate timeout stalls
+        candidate_models = candidate_models[:3]
 
         headers = {
             "Content-Type": "application/json",
@@ -120,7 +124,7 @@ class OpenRouterVisionClient:
                     choices = payload.get("choices") or []
                     if choices:
                         msg = choices[0].get("message") or {}
-                        text = msg.get("content") or ""
+                        text = msg.get("content") or msg.get("reasoning") or ""
                         if isinstance(text, str) and text.strip():
                             res = _parse_vision_result(text)
                             if res is not None:

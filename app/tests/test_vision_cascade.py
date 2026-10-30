@@ -55,37 +55,37 @@ def test_client(tmp_path: Path):
     vision_mod._reset_for_tests()
 
 
-def test_gemini_success_does_not_call_groq(test_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """When Gemini succeeds, Groq is not called (cascade stops)."""
-    gemini_item = DetectedItem(name="Steamed rice", confidence=95, grams=200)
-    gemini = _MockVisionProvider(configured=True, return_items=[gemini_item])
-    groq = _MockVisionProvider(configured=True, return_items=[])
+def test_groq_success_does_not_call_gemini(test_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When Groq succeeds, Gemini is not called (cascade stops)."""
+    groq_item = DetectedItem(name="Steamed rice", confidence=95, grams=200)
+    groq = _MockVisionProvider(configured=True, return_items=[groq_item])
+    gemini = _MockVisionProvider(configured=True, return_items=[])
     hf = _MockHFClassifier(configured=False)
 
-    monkeypatch.setattr(vision_mod, "_get_gemini", lambda: gemini)
     monkeypatch.setattr(vision_mod, "_get_groq", lambda: groq)
+    monkeypatch.setattr(vision_mod, "_get_gemini", lambda: gemini)
     monkeypatch.setattr(vision_mod, "_get_hf", lambda: hf)
 
     resp = test_client.post("/api/vision/analyze", json={"image_ref": "fresh-cascade-test-1.jpg"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["detected"][0]["name"] == "Steamed rice"
-    assert gemini.call_count == 1
-    assert groq.call_count == 0  # Groq should not be invoked!
+    assert groq.call_count == 1
+    assert gemini.call_count == 0  # Gemini should not be invoked!
     trace = {t["stage"]: t for t in body["pipeline"]}
     assert trace["vision-id"]["status"] == "done"
-    assert "Gemini" in trace["vision-id"]["label"]
+    assert "Groq" in trace["vision-id"]["label"]
 
 
-def test_gemini_failure_cascades_to_groq(test_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """When Gemini returns empty / fails, pipeline cascades to Groq."""
-    groq_item = DetectedItem(name="Chicken biryani", name_bn="চিকেন বিরিয়ানি", confidence=91, grams=300)
-    gemini = _MockVisionProvider(configured=True, return_items=[])  # Gemini misses
-    groq = _MockVisionProvider(configured=True, return_items=[groq_item])
+def test_groq_failure_cascades_to_gemini(test_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When Groq returns empty / fails, pipeline cascades to Gemini."""
+    gemini_item = DetectedItem(name="Chicken biryani", name_bn="চিকেন বিরিয়ানি", confidence=91, grams=300)
+    groq = _MockVisionProvider(configured=True, return_items=[])  # Groq misses
+    gemini = _MockVisionProvider(configured=True, return_items=[gemini_item])
     hf = _MockHFClassifier(configured=False)
 
-    monkeypatch.setattr(vision_mod, "_get_gemini", lambda: gemini)
     monkeypatch.setattr(vision_mod, "_get_groq", lambda: groq)
+    monkeypatch.setattr(vision_mod, "_get_gemini", lambda: gemini)
     monkeypatch.setattr(vision_mod, "_get_hf", lambda: hf)
 
     resp = test_client.post("/api/vision/analyze", json={"image_ref": "fresh-cascade-test-2.jpg"})
@@ -94,40 +94,42 @@ def test_gemini_failure_cascades_to_groq(test_client: TestClient, monkeypatch: p
     assert len(body["detected"]) == 1
     assert body["detected"][0]["name"] == "Chicken biryani"
     assert body["detected"][0]["name_bn"] == "চিকেন বিরিয়ানি"
-    assert gemini.call_count == 1
-    assert groq.call_count == 1  # Groq was called in cascade!
+    assert groq.call_count == 1
+    assert gemini.call_count == 1  # Gemini was called in cascade!
     trace = {t["stage"]: t for t in body["pipeline"]}
     assert trace["vision-id"]["status"] == "done"
-    assert "Groq" in trace["vision-id"]["label"]
+    assert "Gemini" in trace["vision-id"]["label"]
 
 
-def test_gemini_unconfigured_uses_groq_directly(test_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """When only Groq is configured, Groq handles detection directly."""
-    groq_item = DetectedItem(name="Lentil dal", confidence=88, grams=150)
-    gemini = _MockVisionProvider(configured=False)
-    groq = _MockVisionProvider(configured=True, return_items=[groq_item])
+def test_groq_unconfigured_uses_gemini_directly(test_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When only Gemini is configured, Gemini handles detection directly."""
+    gemini_item = DetectedItem(name="Lentil dal", confidence=88, grams=150)
+    groq = _MockVisionProvider(configured=False)
+    gemini = _MockVisionProvider(configured=True, return_items=[gemini_item])
     hf = _MockHFClassifier(configured=False)
 
-    monkeypatch.setattr(vision_mod, "_get_gemini", lambda: gemini)
     monkeypatch.setattr(vision_mod, "_get_groq", lambda: groq)
+    monkeypatch.setattr(vision_mod, "_get_gemini", lambda: gemini)
     monkeypatch.setattr(vision_mod, "_get_hf", lambda: hf)
 
     resp = test_client.post("/api/vision/analyze", json={"image_ref": "fresh-cascade-test-3.jpg"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["detected"][0]["name"] == "Lentil dal"
-    assert gemini.call_count == 0
-    assert groq.call_count == 1
+    assert groq.call_count == 0
+    assert gemini.call_count == 1
 
 
 def test_neither_gemini_nor_groq_nor_hf_returns_503(test_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """When no provider has a key configured, route returns 503."""
     gemini = _MockVisionProvider(configured=False)
     groq = _MockVisionProvider(configured=False)
+    openrouter = _MockVisionProvider(configured=False)
     hf = _MockHFClassifier(configured=False)
 
     monkeypatch.setattr(vision_mod, "_get_gemini", lambda: gemini)
     monkeypatch.setattr(vision_mod, "_get_groq", lambda: groq)
+    monkeypatch.setattr(vision_mod, "_get_openrouter", lambda: openrouter)
     monkeypatch.setattr(vision_mod, "_get_hf", lambda: hf)
 
     resp = test_client.post("/api/vision/analyze", json={"image_ref": "fresh-cascade-test-4.jpg"})
