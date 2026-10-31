@@ -528,6 +528,7 @@ class CoachChatResponse(BaseModel):
     audio_base64: str | None = None
     audio_mime_type: str = "audio/mpeg"
     use_browser_tts: bool = False
+    tts_diagnostic: str | None = None
 
 
 class CoachTTSRequest(BaseModel):
@@ -540,6 +541,7 @@ class CoachTTSResponse(BaseModel):
     audio_base64: str | None = None
     audio_mime_type: str = "audio/mpeg"
     use_browser_tts: bool = False
+    tts_diagnostic: str | None = None
 
 
 # ─────────────────────────────────────────────────────────────────────────

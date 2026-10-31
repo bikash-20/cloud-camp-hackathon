@@ -102,11 +102,44 @@ class TTSService:
         voice_id: str | None = None,
         model_id: str | None = None,
     ) -> None:
-        self.api_key = (api_key or os.environ.get("ELEVENLABS_API_KEY") or "").strip()
-        self.voice_id = (voice_id or os.environ.get("ELEVENLABS_VOICE_ID") or DEFAULT_VOICE_ID).strip()
-        self.model_id = (model_id or os.environ.get("ELEVENLABS_MODEL_ID") or DEFAULT_MODEL_ID).strip()
+        self._initial_api_key = api_key
+        self._initial_voice_id = voice_id
+        self._initial_model_id = model_id
         self._cache: dict[str, bytes] = {}
         self._lock = threading.Lock()
+
+    @property
+    def api_key(self) -> str:
+        """Dynamic resolution: constructor override -> os.environ -> empty string."""
+        if self._initial_api_key is not None:
+            return self._initial_api_key.strip()
+        return (os.environ.get("ELEVENLABS_API_KEY") or "").strip()
+
+    @api_key.setter
+    def api_key(self, val: str | None) -> None:
+        self._initial_api_key = val
+
+    @property
+    def voice_id(self) -> str:
+        """Dynamic resolution: constructor override -> os.environ -> DEFAULT_VOICE_ID."""
+        if self._initial_voice_id is not None:
+            return self._initial_voice_id.strip()
+        return (os.environ.get("ELEVENLABS_VOICE_ID") or DEFAULT_VOICE_ID).strip()
+
+    @voice_id.setter
+    def voice_id(self, val: str | None) -> None:
+        self._initial_voice_id = val
+
+    @property
+    def model_id(self) -> str:
+        """Dynamic resolution: constructor override -> os.environ -> DEFAULT_MODEL_ID."""
+        if self._initial_model_id is not None:
+            return self._initial_model_id.strip()
+        return (os.environ.get("ELEVENLABS_MODEL_ID") or DEFAULT_MODEL_ID).strip()
+
+    @model_id.setter
+    def model_id(self, val: str | None) -> None:
+        self._initial_model_id = val
 
     def _cache_key(self, text: str, voice_id: str, model_id: str) -> str:
         raw = f"{voice_id}:{model_id}:{text.strip().lower()}"
@@ -123,22 +156,22 @@ class TTSService:
         voice_id: str | None = None,
         model_id: str | None = None,
         timeout: float = 6.0,
-    ) -> Tuple[bytes | None, str, bool]:
+    ) -> Tuple[bytes | None, str, bool, str]:
         """Synthesize text into MP3 audio.
 
         Returns:
-            (audio_bytes, mime_type, use_browser_tts)
-            If synthesis succeeds: (bytes, "audio/mpeg", False)
-            If degraded/unconfigured: (None, "audio/mpeg", True)
+            (audio_bytes, mime_type, use_browser_tts, tts_diagnostic)
+            If synthesis succeeds: (bytes, "audio/mpeg", False, "ok")
+            If degraded/unconfigured: (None, "audio/mpeg", True, "<diagnostic>")
         """
         clean_text = sanitize_for_speech(text)
         if not clean_text:
-            return None, "audio/mpeg", True
+            return None, "audio/mpeg", True, "empty_text"
 
-        # Check configuration
+        # Check configuration dynamically at request time
         if not self.is_configured():
             log.debug("ElevenLabs API key not set; falling back to browser TTS.")
-            return None, "audio/mpeg", True
+            return None, "audio/mpeg", True, "missing_api_key"
 
         active_voice = voice_id or self.voice_id or DEFAULT_VOICE_ID
 
@@ -155,7 +188,7 @@ class TTSService:
         with self._lock:
             if ckey in self._cache:
                 log.debug("TTS cache hit for prompt hash %s", ckey[:8])
-                return self._cache[ckey], "audio/mpeg", False
+                return self._cache[ckey], "audio/mpeg", False, "ok (cache_hit)"
 
         url = f"{ELEVENLABS_API_URL}/{active_voice}?optimize_streaming_latency=3"
         headers = {
@@ -184,17 +217,30 @@ class TTSService:
                             # Pop oldest key
                             self._cache.pop(next(iter(self._cache)))
                         self._cache[ckey] = audio_bytes
-                    return audio_bytes, "audio/mpeg", False
+                    return audio_bytes, "audio/mpeg", False, "ok"
 
+                err_detail = ""
+                try:
+                    err_json = res.json()
+                    detail_val = err_json.get("detail", {})
+                    if isinstance(detail_val, dict):
+                        err_detail = detail_val.get("message") or str(detail_val)
+                    else:
+                        err_detail = str(detail_val)
+                except Exception:
+                    err_detail = res.text[:200]
+
+                diag = f"elevenlabs_http_{res.status_code}: {err_detail}".strip()
                 log.warning(
                     "ElevenLabs TTS returned HTTP %d: %s. Gracefully degrading to browser TTS.",
                     res.status_code,
-                    res.text[:200],
+                    err_detail,
                 )
+                return None, "audio/mpeg", True, diag
         except Exception as exc:
+            diag = f"elevenlabs_exception: {type(exc).__name__}: {exc}"
             log.warning("ElevenLabs TTS request failed (%s). Gracefully degrading to browser TTS.", exc)
-
-        return None, "audio/mpeg", True
+            return None, "audio/mpeg", True, diag
 
 
 # Global singleton instance

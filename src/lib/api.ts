@@ -37,13 +37,18 @@ import { buildContributions, mealTotals } from './personalize';
 
 /**
  * Base URL of the FastAPI backend. Set on Vercel as
- * `VITE_API_BASE=https://your-service.onrender.com` so the
- * production PWA hits the live backend.
+ * `VITE_API_BASE=https://cloud-camp-hackathon.onrender.com` or defaults to
+ * relative `/api` on production (proxied to Render via vercel.json rewrite)
+ * or `http://localhost:8000` in local dev.
  */
 const API_BASE: string = (
   typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE
     ? import.meta.env.VITE_API_BASE
-    : 'http://localhost:8000'
+    : typeof window !== 'undefined' &&
+        window.location.hostname !== 'localhost' &&
+        window.location.hostname !== '127.0.0.1'
+      ? ''
+      : 'http://localhost:8000'
 ).replace(/\/+$/, '');
 
 export class ApiError extends Error {
@@ -468,7 +473,8 @@ export async function sendCoachVoiceChat(req: CoachChatRequest): Promise<CoachCh
       method: 'POST',
       body: JSON.stringify({ ...req, include_audio: true }),
     });
-  } catch {
+  } catch (err) {
+    const diagMsg = err instanceof Error ? err.message : String(err);
     // Offline local fallback: run standard sendCoachChat and flag use_browser_tts
     const fallbackResp = await sendCoachChat(req);
     const plainText = fallbackResp.reply
@@ -481,6 +487,7 @@ export async function sendCoachVoiceChat(req: CoachChatRequest): Promise<CoachCh
       voice_summary: plainText.slice(0, 180),
       audio_base64: null,
       use_browser_tts: true,
+      tts_diagnostic: `client_network_fallback: ${diagMsg}`,
     };
   }
 }
@@ -494,11 +501,13 @@ export async function generateCoachTTS(req: CoachTTSRequest): Promise<CoachTTSRe
       method: 'POST',
       body: JSON.stringify(req),
     });
-  } catch {
+  } catch (err) {
+    const diagMsg = err instanceof Error ? err.message : String(err);
     return {
       audio_base64: null,
       audio_mime_type: 'audio/mpeg',
       use_browser_tts: true,
+      tts_diagnostic: `client_fetch_error: ${diagMsg}`,
     };
   }
 }

@@ -5,6 +5,10 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://cloud-camp-hackathon.onrender.com/api/:path*"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

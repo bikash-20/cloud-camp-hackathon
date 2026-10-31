@@ -108,16 +108,20 @@ async def lifespan(_app: FastAPI):
 
 def _cors_origins() -> list[str]:
     """Read CORS allow-list from `CORS_ALLOW_ORIGINS` (comma-separated).
-    Default keeps the local Vite dev server working. Set this env var
-    to add a production frontend URL (e.g. the Vercel deployment) once
-    the backend is reachable from the public internet."""
+    Default keeps local Vite dev and production Vercel frontend working."""
     raw = os.environ.get("CORS_ALLOW_ORIGINS", "").strip()
-    if raw:
-        return [o.strip() for o in raw.split(",") if o.strip()]
-    return [
+    origins = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:4173",
+        "https://cloud-camp-hackathon.vercel.app",
     ]
+    if raw:
+        for o in raw.split(","):
+            cleaned = o.strip()
+            if cleaned and cleaned not in origins:
+                origins.append(cleaned)
+    return origins
 
 
 def create_app() -> FastAPI:
@@ -134,11 +138,12 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS — env-driven so a production deploy can add the Vercel origin
-    # without a code change. Default keeps local Vite dev working.
+    # CORS — env-driven so a production deploy can add additional origins
+    # without a code change. Default includes local Vite dev and Vercel domains.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins(),
+        allow_origin_regex=r"^https://.*\.vercel\.app$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

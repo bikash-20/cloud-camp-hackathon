@@ -359,10 +359,11 @@ def test_tts_service_fallback_when_unconfigured() -> None:
     from app.services.tts_service import TTSService
 
     tts = TTSService(api_key="")
-    audio, mime, fallback = tts.synthesize("Hello there, how are you?")
+    audio, mime, fallback, diag = tts.synthesize("Hello there, how are you?")
     assert audio is None
     assert mime == "audio/mpeg"
     assert fallback is True
+    assert diag == "missing_api_key"
 
 
 def test_tts_service_mocked_synthesis_and_lru_cache(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -387,16 +388,58 @@ def test_tts_service_mocked_synthesis_and_lru_cache(monkeypatch: pytest.MonkeyPa
 
     tts = TTSService(api_key="test-eleven-key", voice_id="test-voice", model_id="eleven_flash_v2_5")
 
-    audio1, mime1, fb1 = tts.synthesize("Take a fifteen minute walk after dinner.", lang="en")
+    audio1, mime1, fb1, diag1 = tts.synthesize("Take a fifteen minute walk after dinner.", lang="en")
     assert audio1 == b"ID3\x03\x00\x00\x00FAKE_MP3_DATA_BUFFER"
     assert fb1 is False
+    assert diag1 == "ok"
     assert call_count == 1
 
     # Second call with identical text must hit memory cache (call_count stays 1)
-    audio2, mime2, fb2 = tts.synthesize("Take a fifteen minute walk after dinner.", lang="en")
+    audio2, mime2, fb2, diag2 = tts.synthesize("Take a fifteen minute walk after dinner.", lang="en")
     assert audio2 == audio1
     assert fb2 is False
+    assert diag2 == "ok (cache_hit)"
     assert call_count == 1
+
+
+def test_tts_service_dynamic_env_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify TTSService resolves ELEVENLABS_API_KEY dynamically at request time."""
+    from app.services.tts_service import TTSService
+
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    tts = TTSService()
+    assert tts.is_configured() is False
+
+    # Dynamically inject key at runtime (simulating Render env var injection)
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "dynamically-added-render-key")
+    assert tts.is_configured() is True
+    assert tts.api_key == "dynamically-added-render-key"
+
+
+def test_tts_service_surfaces_http_error_diagnostic(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify non-200 responses from ElevenLabs surface clear diagnostic messages."""
+    import httpx
+    from app.services.tts_service import TTSService
+
+    def mock_post(self: Any, url: str, headers: Any = None, json: Any = None) -> Any:
+        class MockErrorResp:
+            status_code = 401
+
+            def json(self) -> dict[str, Any]:
+                return {"detail": {"status": "quota_exceeded", "message": "Free tier quota exceeded or invalid key"}}
+
+            text = "Unauthorized"
+
+        return MockErrorResp()
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post)
+
+    tts = TTSService(api_key="expired-key", voice_id="test-voice")
+    audio, mime, fallback, diag = tts.synthesize("Test prompt")
+    assert audio is None
+    assert fallback is True
+    assert "elevenlabs_http_401" in diag
+    assert "quota_exceeded" in diag or "invalid key" in diag
 
 
 def test_tts_service_auto_routes_bengali_to_multilingual_model(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -448,6 +491,8 @@ def test_coach_voice_chat_endpoint_graceful_degradation(client: TestClient) -> N
     assert len(data["voice_summary"]) > 0
     # In test environment without ElevenLabs key, use_browser_tts is True and audio is None
     assert data["use_browser_tts"] is True
+    assert "tts_diagnostic" in data
+    assert data["tts_diagnostic"] == "missing_api_key"
 
 
 def test_coach_tts_endpoint(client: TestClient) -> None:
@@ -456,6 +501,7 @@ def test_coach_tts_endpoint(client: TestClient) -> None:
     assert res.status_code == 200
     data = res.json()
     assert "use_browser_tts" in data
+    assert "tts_diagnostic" in data
 
 
 

@@ -349,6 +349,7 @@ export interface CoachChatResponse {
   audio_base64?: string | null;
   audio_mime_type?: string;
   use_browser_tts?: boolean;
+  tts_diagnostic?: string | null;
 }
 
 export interface CoachTTSRequest {
@@ -361,6 +362,7 @@ export interface CoachTTSResponse {
   audio_base64?: string | null;
   audio_mime_type: string;
   use_browser_tts: boolean;
+  tts_diagnostic?: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

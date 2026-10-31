@@ -13,11 +13,12 @@ import {
   MicOff,
   Volume2,
   VolumeX,
+  Loader2,
 } from 'lucide-react';
 import katex from 'katex';
 import { T } from '../../data';
 import { useTokens } from '../../theme/useTokens';
-import { sendCoachVoiceChat } from '../../lib/api';
+import { sendCoachVoiceChat, generateCoachTTS } from '../../lib/api';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 import type {
   CoachAgentType,
@@ -30,6 +31,7 @@ interface DisplayCoachMessage extends CoachMessage {
   audio_base64?: string | null;
   audio_mime_type?: string;
   use_browser_tts?: boolean;
+  tts_diagnostic?: string | null;
 }
 
 interface CoachScreenProps {
@@ -253,6 +255,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
   // Voice Assistant Audio state
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [currentPlayingIndex, setCurrentPlayingIndex] = useState<number | null>(null);
+  const [fetchingAudioId, setFetchingAudioId] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Speech-to-Text state
@@ -305,13 +308,14 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
     window.speechSynthesis.speak(utterance);
   }, [language]);
 
-  const playAudioForMessage = useCallback((idx: number, msg: DisplayCoachMessage) => {
+  const playAudioForMessage = useCallback(async (idx: number, msg: DisplayCoachMessage) => {
     if (isPlayingAudio && currentPlayingIndex === idx) {
       stopAudio();
       return;
     }
     stopAudio();
 
+    // 1. If audio bytes are already attached to this message, play immediately
     if (msg.audio_base64) {
       const mime = msg.audio_mime_type || 'audio/mpeg';
       const audio = new Audio(`data:${mime};base64,${msg.audio_base64}`);
@@ -322,21 +326,82 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
         setIsPlayingAudio(false);
         setCurrentPlayingIndex(null);
       };
-      audio.onerror = () => {
+      audio.onerror = (e) => {
+        console.warn('Audio playback error, falling back to browser TTS:', e);
         setIsPlayingAudio(false);
         setCurrentPlayingIndex(null);
-        // Fall back to browser TTS if audio decoding fails
         speakWithBrowserTTS(msg.voice_summary || msg.content, idx);
       };
-      audio.play().catch(() => {
+      audio.play().catch((err) => {
+        console.warn('audio.play() failed, falling back to browser TTS:', err);
         setIsPlayingAudio(false);
         setCurrentPlayingIndex(null);
         speakWithBrowserTTS(msg.voice_summary || msg.content, idx);
       });
-    } else if (msg.voice_summary || msg.content) {
-      speakWithBrowserTTS(msg.voice_summary || msg.content, idx);
+      return;
     }
-  }, [isPlayingAudio, currentPlayingIndex, stopAudio, speakWithBrowserTTS]);
+
+    // 2. Audio not yet loaded: Request ElevenLabs TTS from backend
+    const textToSynthesize = msg.voice_summary || msg.content;
+    if (!textToSynthesize) return;
+
+    setFetchingAudioId(idx);
+    try {
+      const isBengaliText = /[\u0980-\u09FF]/.test(textToSynthesize) || language === 'bn';
+      const res = await generateCoachTTS({
+        text: textToSynthesize,
+        lang: isBengaliText ? 'bn' : 'en',
+      });
+
+      console.info('[AI Coach TTS]', {
+        index: idx,
+        diagnostic: res.tts_diagnostic,
+        useBrowserTTS: res.use_browser_tts,
+        hasAudio: Boolean(res.audio_base64),
+      });
+
+      if (res.audio_base64) {
+        // Cache audio on message in state so subsequent clicks don't re-fetch
+        setMessages((prev) => {
+          const next = [...prev];
+          if (next[idx]) {
+            next[idx] = {
+              ...next[idx],
+              audio_base64: res.audio_base64,
+              audio_mime_type: res.audio_mime_type || 'audio/mpeg',
+              use_browser_tts: false,
+              tts_diagnostic: res.tts_diagnostic,
+            };
+          }
+          return next;
+        });
+
+        const mime = res.audio_mime_type || 'audio/mpeg';
+        const audio = new Audio(`data:${mime};base64,${res.audio_base64}`);
+        audioRef.current = audio;
+        setCurrentPlayingIndex(idx);
+        setIsPlayingAudio(true);
+        audio.onended = () => {
+          setIsPlayingAudio(false);
+          setCurrentPlayingIndex(null);
+        };
+        audio.onerror = () => {
+          setIsPlayingAudio(false);
+          setCurrentPlayingIndex(null);
+          speakWithBrowserTTS(textToSynthesize, idx);
+        };
+        await audio.play();
+      } else {
+        // Audio generation was null (e.g. ElevenLabs error or browser fallback flag)
+        speakWithBrowserTTS(textToSynthesize, idx);
+      }
+    } catch (err) {
+      console.warn('generateCoachTTS call failed:', err);
+      speakWithBrowserTTS(textToSynthesize, idx);
+    } finally {
+      setFetchingAudioId(null);
+    }
+  }, [isPlayingAudio, currentPlayingIndex, stopAudio, speakWithBrowserTTS, language]);
 
   // Cleanup speech/audio on unmount
   useEffect(() => {
@@ -527,7 +592,14 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
         audio_base64: res.audio_base64,
         audio_mime_type: res.audio_mime_type,
         use_browser_tts: res.use_browser_tts,
+        tts_diagnostic: res.tts_diagnostic,
       };
+
+      console.info('[AI Coach Voice Chat Response]', {
+        diagnostic: res.tts_diagnostic,
+        useBrowserTTS: res.use_browser_tts,
+        hasAudio: Boolean(res.audio_base64),
+      });
 
       const newIndex = nextMessages.length;
       setMessages((prev) => [...prev, assistantMsg]);
@@ -841,6 +913,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                       <button
                         type="button"
                         onClick={() => playAudioForMessage(idx, m)}
+                        disabled={fetchingAudioId === idx}
                         aria-label={isSpeakingThis ? 'Stop voice' : 'Play voice'}
                         style={{
                           background: isSpeakingThis
@@ -848,7 +921,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                             : 'transparent',
                           border: 'none',
                           borderRadius: 6,
-                          cursor: 'pointer',
+                          cursor: fetchingAudioId === idx ? 'wait' : 'pointer',
                           padding: '4px 6px',
                           color: isDark ? '#E8C49A' : T.primary,
                           display: 'inline-flex',
@@ -856,9 +929,15 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                           gap: 4,
                           fontWeight: 600,
                           fontSize: 11,
+                          opacity: fetchingAudioId === idx ? 0.7 : 1,
                         }}
                       >
-                        {isSpeakingThis ? (
+                        {fetchingAudioId === idx ? (
+                          <>
+                            <Loader2 size={13} className="animate-spin" />
+                            <span>{isBn ? 'প্রস্তুত হচ্ছে...' : 'Loading...'}</span>
+                          </>
+                        ) : isSpeakingThis ? (
                           <>
                             <VolumeX size={13} />
                             <span>{isBn ? 'থামুন' : 'Stop'}</span>
@@ -874,6 +953,51 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                   )}
 
                   <FormattedMessage content={m.content} isUser={isUser} isDark={isDark} />
+
+                  {/* Fallback Listen action for assistant messages without voice_summary */}
+                  {!isUser && !m.voice_summary && m.content && (
+                    <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={() => playAudioForMessage(idx, m)}
+                        disabled={fetchingAudioId === idx}
+                        aria-label={isSpeakingThis ? 'Stop voice' : 'Play voice'}
+                        style={{
+                          background: isSpeakingThis
+                            ? (isDark ? 'rgba(240, 183, 154, 0.25)' : 'rgba(201, 98, 45, 0.15)')
+                            : 'transparent',
+                          border: isDark ? '1px solid rgba(208, 174, 146, 0.2)' : '1px solid rgba(201, 98, 45, 0.2)',
+                          borderRadius: 6,
+                          cursor: fetchingAudioId === idx ? 'wait' : 'pointer',
+                          padding: '3px 8px',
+                          color: isDark ? '#E8C49A' : T.primary,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontWeight: 600,
+                          fontSize: 11,
+                          opacity: fetchingAudioId === idx ? 0.7 : 1,
+                        }}
+                      >
+                        {fetchingAudioId === idx ? (
+                          <>
+                            <Loader2 size={12} className="animate-spin" />
+                            <span>{isBn ? 'প্রস্তুত হচ্ছে...' : 'Loading...'}</span>
+                          </>
+                        ) : isSpeakingThis ? (
+                          <>
+                            <VolumeX size={12} />
+                            <span>{isBn ? 'থামুন' : 'Stop'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Volume2 size={12} />
+                            <span>{isBn ? 'শুনুন' : 'Listen'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );

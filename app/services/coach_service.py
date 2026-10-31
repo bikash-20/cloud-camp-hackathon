@@ -227,10 +227,12 @@ class CoachService:
             audio_base64: str | None = None
             audio_mime_type = "audio/mpeg"
             use_browser_tts = False
+            tts_diagnostic: str | None = None
 
             if req.include_audio:
                 tts = get_tts_service()
-                audio_bytes, mime, fallback = tts.synthesize(voice_summary, lang=req.lang or "en")
+                audio_bytes, mime, fallback, diag = tts.synthesize(voice_summary, lang=req.lang or "en")
+                tts_diagnostic = diag
                 if audio_bytes:
                     audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
                     audio_mime_type = mime
@@ -246,6 +248,7 @@ class CoachService:
                 audio_base64=audio_base64,
                 audio_mime_type=audio_mime_type,
                 use_browser_tts=use_browser_tts,
+                tts_diagnostic=tts_diagnostic,
             )
 
         # 1. RAG Enrichment
@@ -304,13 +307,15 @@ class CoachService:
         audio_base64: str | None = None
         audio_mime_type = "audio/mpeg"
         use_browser_tts = False
+        tts_diagnostic: str | None = None
 
         if req.include_audio:
             tts = get_tts_service()
-            audio_bytes, mime, fallback = tts.synthesize(
+            audio_bytes, mime, fallback, diag = tts.synthesize(
                 voice_summary or detailed_markdown,
                 lang=req.lang or "en",
             )
+            tts_diagnostic = diag
             if audio_bytes:
                 audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
                 audio_mime_type = mime
@@ -328,6 +333,7 @@ class CoachService:
             audio_base64=audio_base64,
             audio_mime_type=audio_mime_type,
             use_browser_tts=use_browser_tts,
+            tts_diagnostic=tts_diagnostic,
         )
 
     def _extract_latest_user_text(self, messages: list[CoachMessage]) -> str:

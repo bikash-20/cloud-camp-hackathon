@@ -128,7 +128,7 @@ def coach_tts(req: CoachTTSRequest) -> CoachTTSResponse:
         )
     try:
         tts = get_tts_service()
-        audio_bytes, mime, fallback = tts.synthesize(
+        audio_bytes, mime, fallback, diag = tts.synthesize(
             text=req.text,
             lang=req.lang or "en",
             voice_id=req.voice_id,
@@ -138,6 +138,7 @@ def coach_tts(req: CoachTTSRequest) -> CoachTTSResponse:
             audio_base64=audio_b64,
             audio_mime_type=mime,
             use_browser_tts=fallback,
+            tts_diagnostic=diag,
         )
     except Exception as exc:
         log.warning("TTS generation encountered error: %s. Falling back to browser TTS.", exc)
@@ -145,4 +146,5 @@ def coach_tts(req: CoachTTSRequest) -> CoachTTSResponse:
             audio_base64=None,
             audio_mime_type="audio/mpeg",
             use_browser_tts=True,
+            tts_diagnostic=f"exception: {exc}",
         )
