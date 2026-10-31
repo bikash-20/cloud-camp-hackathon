@@ -242,6 +242,8 @@ MUST_MATCH = {
     "CoachMessage",
     "CoachChatRequest",
     "CoachChatResponse",
+    "CoachTTSRequest",
+    "CoachTTSResponse",
     # Profile + personalization
     "HealthGoals",
     "DietaryPreference",

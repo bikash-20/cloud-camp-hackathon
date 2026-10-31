@@ -1343,3 +1343,8 @@ def get_state() -> State:
             "State singleton not initialized — call init_state(path) during FastAPI startup."
         )
     return _state
+
+
+def get_state_optional() -> State | None:
+    """FastAPI dependency that returns the state singleton if initialized, or None."""
+    return _state

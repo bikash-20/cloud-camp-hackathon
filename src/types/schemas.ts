@@ -335,14 +335,32 @@ export interface CoachChatRequest {
   agent_type: CoachAgentType;
   user_profile?: UserProfile | null;
   recent_meals?: MealEntry[] | null;
+  grocery_items?: GroceryItem[] | null;
   lang?: string | null;
+  include_audio?: boolean;
 }
 
 export interface CoachChatResponse {
   reply: string;
+  voice_summary?: string | null;
   citations: string[];
   suggested_prompts: string[];
   agent_type: CoachAgentType;
+  audio_base64?: string | null;
+  audio_mime_type?: string;
+  use_browser_tts?: boolean;
+}
+
+export interface CoachTTSRequest {
+  text: string;
+  lang?: string | null;
+  voice_id?: string | null;
+}
+
+export interface CoachTTSResponse {
+  audio_base64?: string | null;
+  audio_mime_type: string;
+  use_browser_tts: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

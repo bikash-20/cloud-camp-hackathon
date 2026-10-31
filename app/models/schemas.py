@@ -514,14 +514,32 @@ class CoachChatRequest(BaseModel):
     agent_type: CoachAgentType = "scientist"
     user_profile: UserProfile | None = None
     recent_meals: list[MealEntry] | None = None
+    grocery_items: list[GroceryItem] | None = None
     lang: str | None = "en"
+    include_audio: bool = False
 
 
 class CoachChatResponse(BaseModel):
     reply: str
+    voice_summary: str | None = None
     citations: list[str] = Field(default_factory=list)
     suggested_prompts: list[str] = Field(default_factory=list)
     agent_type: CoachAgentType
+    audio_base64: str | None = None
+    audio_mime_type: str = "audio/mpeg"
+    use_browser_tts: bool = False
+
+
+class CoachTTSRequest(BaseModel):
+    text: str
+    lang: str | None = "en"
+    voice_id: str | None = None
+
+
+class CoachTTSResponse(BaseModel):
+    audio_base64: str | None = None
+    audio_mime_type: str = "audio/mpeg"
+    use_browser_tts: bool = False
 
 
 # ─────────────────────────────────────────────────────────────────────────

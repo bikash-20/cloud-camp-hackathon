@@ -233,9 +233,9 @@ export default function RevenueCurveChart({
         style={{
           borderRadius: 20,
           padding: '16px 18px',
-          background: T.cardBg,
-          border: `1px solid ${T.cardBorderSoft}`,
-          boxShadow: '0 8px 30px rgba(46, 37, 34, 0.08)',
+          background: isDark ? 'rgba(42, 32, 27, 0.94)' : T.cardBg,
+          border: isDark ? '1px solid rgba(255, 255, 255, 0.12)' : `1px solid ${T.cardBorderSoft}`,
+          boxShadow: isDark ? '0 8px 32px rgba(0, 0, 0, 0.45)' : '0 8px 30px rgba(46, 37, 34, 0.08)',
           cursor: onCardClick ? 'pointer' : 'default',
           position: 'relative',
         }}
@@ -257,8 +257,8 @@ export default function RevenueCurveChart({
                 width: 30,
                 height: 30,
                 borderRadius: '50%',
-                background: 'rgba(201, 98, 45, 0.12)',
-                color: T.primary,
+                background: isDark ? 'rgba(208, 174, 146, 0.18)' : 'rgba(201, 98, 45, 0.12)',
+                color: isDark ? '#E8C49A' : T.primary,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -273,7 +273,7 @@ export default function RevenueCurveChart({
                   fontFamily: 'Inter',
                   fontSize: 14,
                   fontWeight: 700,
-                  color: T.ink,
+                  color: isDark ? '#F9F2E4' : T.ink,
                   letterSpacing: '-0.01em',
                 }}
               >
@@ -285,7 +285,7 @@ export default function RevenueCurveChart({
                   fontFamily: 'Inter',
                   fontSize: 11,
                   fontWeight: 600,
-                  color: T.inkSoft,
+                  color: isDark ? 'rgba(249, 242, 228, 0.78)' : T.inkSoft,
                 }}
               >
                 {subtitle
@@ -305,11 +305,11 @@ export default function RevenueCurveChart({
                   width: 10,
                   height: 3,
                   borderRadius: 2,
-                  background: T.primary,
+                  background: isDark ? '#D0AE92' : T.primary,
                   display: 'inline-block',
                 }}
               />
-              <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: T.ink }}>
+              <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: isDark ? '#F9F2E4' : T.ink }}>
                 {isBn ? 'বর্তমান গ্রহণ' : 'Actual'}
               </span>
             </div>
@@ -319,11 +319,11 @@ export default function RevenueCurveChart({
                 style={{
                   width: 12,
                   height: 0,
-                  borderTop: `2px dashed ${T.accentAmber}`,
+                  borderTop: `2px dashed ${isDark ? '#E8C49A' : T.accentAmber}`,
                   display: 'inline-block',
                 }}
               />
-              <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: T.ink }}>
+              <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: isDark ? '#F9F2E4' : T.ink }}>
                 {isBn ? 'পূর্বাভাস' : 'Forecast'}
               </span>
             </div>

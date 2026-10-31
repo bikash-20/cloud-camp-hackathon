@@ -862,12 +862,12 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
             justifyContent: 'center',
             margin: '0 auto 16px',
           }}>
-            <AlertTriangle size={24} color={T.inkMuted} />
+            <AlertTriangle size={24} color={isDark ? '#E8C49A' : T.accentWarn} />
           </div>
-          <div style={{ fontFamily: 'Inter', fontSize: 16, fontWeight: 600, color: T.ink, marginBottom: 8 }}>
+          <div style={{ fontFamily: 'Inter', fontSize: 16, fontWeight: 700, color: isDark ? '#F9F2E4' : T.ink, marginBottom: 8 }}>
             No meal analyzed yet
           </div>
-          <div style={{ fontFamily: 'Inter', fontSize: 13, color: T.inkSoft, lineHeight: 1.4 }}>
+          <div style={{ fontFamily: 'Inter', fontSize: 13, color: isDark ? 'rgba(249, 242, 228, 0.78)' : T.inkSoft, lineHeight: 1.4 }}>
             Start by snapping a photo of your plate!
           </div>
         </motion.div>
@@ -891,7 +891,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
             fontFamily: 'Inter',
             fontSize: 12,
             fontWeight: 600,
-            color: T.inkSoft,
+            color: isDark ? 'rgba(249, 242, 228, 0.78)' : T.inkSoft,
             cursor: 'pointer',
             marginBottom: 8,
           }}
@@ -908,8 +908,8 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
           style={{
             fontFamily: 'Inter',
             fontSize: 24,
-            fontWeight: 600,
-            color: T.ink,
+            fontWeight: 700,
+            color: isDark ? '#F9F2E4' : T.ink,
             letterSpacing: '-0.02em',
           }}
         >

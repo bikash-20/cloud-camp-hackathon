@@ -524,8 +524,8 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
             style={{
               fontFamily: 'Inter',
               fontSize: 24,
-              fontWeight: 600,
-              color: T.ink,
+              fontWeight: 700,
+              color: isDark ? '#F9F2E4' : T.ink,
               letterSpacing: '-0.02em',
             }}
           >
@@ -551,7 +551,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 fontFamily: 'Inter',
                 fontSize: 11,
                 fontWeight: 700,
-                color: T.ink,
+                color: isDark ? '#F9F2E4' : T.ink,
                 cursor: 'pointer',
                 minHeight: 28,
               }}
@@ -593,7 +593,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           style={{
             fontFamily: 'Inter',
             fontSize: 13,
-            color: T.inkSoft,
+            color: isDark ? 'rgba(249, 242, 228, 0.78)' : T.inkSoft,
             margin: '4px 0 16px',
             lineHeight: 1.4,
           }}
@@ -775,40 +775,42 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
               marginBottom: 22,
               display: 'flex',
               gap: 12,
+              background: isDark ? 'rgba(42, 32, 27, 0.92)' : T.cardBg,
+              border: isDark ? '1px solid rgba(255, 255, 255, 0.12)' : `1px solid ${T.cardBorderSoft}`,
             }}
           >
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.ink }}>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: isDark ? '#F9F2E4' : T.ink }}>
                 {isBn ? toBengaliDigits(stats?.totalMeals ?? 0) : (stats?.totalMeals ?? 0)}
               </div>
-              <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
+              <div style={{ fontFamily: 'Inter', fontSize: 10, color: isDark ? 'rgba(249, 242, 228, 0.70)' : T.inkSoft, marginTop: 2 }}>
                 {isBn ? 'নথিভুক্ত খাবার' : 'meals logged'}
               </div>
             </div>
-            <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
+            <div style={{ width: 1, background: isDark ? 'rgba(255, 255, 255, 0.12)' : T.cardBorder, alignSelf: 'stretch' }} />
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.ink }}>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: isDark ? '#F9F2E4' : T.ink }}>
                 {isBn ? toBengaliDigits(stats?.totalDaysActive ?? 0) : (stats?.totalDaysActive ?? 0)}
               </div>
-              <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
+              <div style={{ fontFamily: 'Inter', fontSize: 10, color: isDark ? 'rgba(249, 242, 228, 0.70)' : T.inkSoft, marginTop: 2 }}>
                 {isBn ? 'সক্রিয় দিন' : 'days active'}
               </div>
             </div>
-            <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
+            <div style={{ width: 1, background: isDark ? 'rgba(255, 255, 255, 0.12)' : T.cardBorder, alignSelf: 'stretch' }} />
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.accentAmber }}>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: isDark ? '#E8C49A' : T.accentAmber }}>
                 {isBn ? toBengaliDigits(stats?.streakDays ?? 0) : (stats?.streakDays ?? 0)}
               </div>
-              <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
+              <div style={{ fontFamily: 'Inter', fontSize: 10, color: isDark ? 'rgba(249, 242, 228, 0.70)' : T.inkSoft, marginTop: 2 }}>
                 {isBn ? 'টানা ধারা (দিন)' : 'streak days'}
               </div>
             </div>
-            <div style={{ width: 1, background: T.cardBorder, alignSelf: 'stretch' }} />
+            <div style={{ width: 1, background: isDark ? 'rgba(255, 255, 255, 0.12)' : T.cardBorder, alignSelf: 'stretch' }} />
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.primary }}>
+              <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: isDark ? '#D0AE92' : T.primary }}>
                 {isBn ? toBengaliDigits(stats?.avgDailyKcal ?? 0) : (stats?.avgDailyKcal ?? 0)}
               </div>
-              <div style={{ fontFamily: 'Inter', fontSize: 10, color: T.inkSoft, marginTop: 2 }}>
+              <div style={{ fontFamily: 'Inter', fontSize: 10, color: isDark ? 'rgba(249, 242, 228, 0.70)' : T.inkSoft, marginTop: 2 }}>
                 {isBn ? 'গড় ক্যালরি/দিন' : 'avg kcal/day'}
               </div>
             </div>
@@ -1270,6 +1272,8 @@ interface StepperRowProps {
 
 function StepperRow({ valueLabel, onDec, onInc, decLabel, incLabel, hint }: StepperRowProps) {
   const reduceMotion = useReducedMotion();
+  const { theme } = useTokens();
+  const isDark = theme === 'dark';
   return (
     <LocalizedContent>
       <>
@@ -1284,6 +1288,8 @@ function StepperRow({ valueLabel, onDec, onInc, decLabel, incLabel, hint }: Step
             gap: 14,
             borderRadius: 18,
             padding: '12px 16px',
+            background: isDark ? 'rgba(42, 32, 27, 0.92)' : T.cardBg,
+            border: isDark ? '1px solid rgba(255, 255, 255, 0.12)' : `1px solid ${T.cardBorderSoft}`,
           }}
         >
           <motion.button
@@ -1297,8 +1303,8 @@ function StepperRow({ valueLabel, onDec, onInc, decLabel, incLabel, hint }: Step
               width: 36,
               height: 36,
               borderRadius: '50%',
-              border: `1px solid ${T.cardBorderSoft}`,
-              background: T.cardBg,
+              border: isDark ? '1px solid rgba(255, 255, 255, 0.16)' : `1px solid ${T.cardBorderSoft}`,
+              background: isDark ? 'rgba(255, 255, 255, 0.08)' : T.cardBg,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1308,7 +1314,7 @@ function StepperRow({ valueLabel, onDec, onInc, decLabel, incLabel, hint }: Step
               WebkitBackdropFilter: 'blur(8px)',
             }}
           >
-            <Minus size={14} color={T.ink} strokeWidth={2.2} />
+            <Minus size={14} color={isDark ? '#F9F2E4' : T.ink} strokeWidth={2.2} />
           </motion.button>
 
           <div
@@ -1318,7 +1324,7 @@ function StepperRow({ valueLabel, onDec, onInc, decLabel, incLabel, hint }: Step
               fontFamily: "'Inter', sans-serif",
               fontSize: 18,
               fontWeight: 700,
-              color: T.ink,
+              color: isDark ? '#F9F2E4' : T.ink,
               overflow: 'hidden',
               minHeight: 28,
               position: 'relative',
@@ -1352,8 +1358,8 @@ function StepperRow({ valueLabel, onDec, onInc, decLabel, incLabel, hint }: Step
               width: 36,
               height: 36,
               borderRadius: '50%',
-              border: `1px solid ${T.cardBorderSoft}`,
-              background: T.cardBg,
+              border: isDark ? '1px solid rgba(255, 255, 255, 0.16)' : `1px solid ${T.cardBorderSoft}`,
+              background: isDark ? 'rgba(255, 255, 255, 0.08)' : T.cardBg,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1363,14 +1369,14 @@ function StepperRow({ valueLabel, onDec, onInc, decLabel, incLabel, hint }: Step
               WebkitBackdropFilter: 'blur(8px)',
             }}
           >
-            <Plus size={14} color={T.ink} strokeWidth={2.2} />
+            <Plus size={14} color={isDark ? '#F9F2E4' : T.ink} strokeWidth={2.2} />
           </motion.button>
         </motion.div>
         <div
           style={{
             fontFamily: 'Inter',
             fontSize: 11,
-            color: T.inkSoft,
+            color: isDark ? 'rgba(249, 242, 228, 0.70)' : T.inkSoft,
             marginTop: 6,
             textAlign: 'center',
           }}

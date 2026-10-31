@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sendCoachChat } from '../../lib/api';
+import { sendCoachChat, sendCoachVoiceChat, generateCoachTTS } from '../../lib/api';
 import type { CoachChatRequest } from '../../types/schemas';
 
 describe('sendCoachChat', () => {
@@ -54,6 +54,25 @@ describe('sendCoachChat', () => {
     expect(res.reply.toLowerCase()).toContain('hello');
     expect(res.reply).not.toContain('হ্যালো');
     expect(res.suggested_prompts.some((p) => /[\u0980-\u09FF]/.test(p))).toBe(false);
+  });
+
+  it('sendCoachVoiceChat provides dual-channel voice summary and speech fallback', async () => {
+    const req: CoachChatRequest = {
+      message: 'বাজেট ফ্রেন্ডলি ডায়েট কী?',
+      agent_type: 'scientist',
+      include_audio: true,
+    };
+    const res = await sendCoachVoiceChat(req);
+    expect(res.reply).toBeDefined();
+    expect(res.voice_summary).toBeDefined();
+    expect(typeof res.voice_summary).toBe('string');
+    expect(res.use_browser_tts).toBe(true);
+  });
+
+  it('generateCoachTTS gracefully degrades with fallback flags', async () => {
+    const res = await generateCoachTTS({ text: 'Hello, this is NutriVision AI Coach' });
+    expect(res.audio_mime_type).toBe('audio/mpeg');
+    expect(res.use_browser_tts).toBe(true);
   });
 });
 

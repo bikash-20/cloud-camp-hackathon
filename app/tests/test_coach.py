@@ -6,14 +6,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import create_app
 from app.models.schemas import CoachAgentType, CoachChatRequest, CoachMessage, UserProfile
-
-
-@pytest.fixture
-def client() -> TestClient:
-    app = create_app()
-    return TestClient(app)
 
 
 def test_coach_chat_validation_empty_messages(client: TestClient) -> None:
@@ -261,6 +254,174 @@ def test_fetch_active_openrouter_models_live_or_cache() -> None:
     assert "vision_models" in discovered
     # If network is reachable, we get models; if not, graceful fallback dict is returned
     assert isinstance(discovered["all_models"], list)
+
+
+def test_coach_grocery_and_meals_database_grounding() -> None:
+    """Verify that grocery, meal, and user biometrics are assembled into the system prompt."""
+    from app.models.schemas import GroceryItem, HealthGoals, MealEntry, MealTotals
+    from app.services.coach_service import CoachService
+
+    service = CoachService()
+    profile = UserProfile(
+        name="Rafi",
+        age=28,
+        sex="male",
+        height_cm=172,
+        weight_kg=70,
+        budget=450.0,
+        daily_kcal_target=1900.0,
+        medical_conditions=["prediabetes"],
+        allergens=["Peanuts"],
+    )
+    grocery = [
+        GroceryItem(id="g1", name="Palong Shak", price=40.0, checked=False),
+        GroceryItem(id="g2", name="Moshoor Dal", price=120.0, checked=False),
+    ]
+    meals = [
+        MealEntry(
+            id="m1",
+            date="2026-10-31T08:00:00Z",
+            label="Breakfast",
+            items=[],
+            totals=MealTotals(
+                kcal=450.0,
+                protein=15.0,
+                carbs=50.0,
+                fat=12.0,
+                fiber=5.0,
+                sodium=200.0,
+                sugar=2.0,
+            ),
+            active_goals=HealthGoals(diabetic=True),
+        )
+    ]
+
+    prompt = service._build_system_prompt(
+        agent_type="scientist",
+        user_profile=profile,
+        recent_meals=meals,
+        rag_context="Evidence from BIRDEM",
+        grocery_items=grocery,
+    )
+
+    assert "[ACTIVE USER DATABASE SNAPSHOT]" in prompt
+    assert "Name: Rafi" in prompt
+    assert "Target Kcal: 1900" in prompt
+    assert "Palong Shak (৳40)" in prompt
+    assert "Moshoor Dal (৳120)" in prompt
+    assert "===VOICE_SUMMARY===" in prompt
+
+
+def test_coach_grocery_empty_null_safe() -> None:
+    """Verify null-safe prompt construction when user has 0 grocery items and 0 logged meals."""
+    from app.services.coach_service import CoachService
+
+    service = CoachService()
+    profile = UserProfile(name="Amina", daily_kcal_target=1800.0)
+
+    prompt = service._build_system_prompt(
+        agent_type="scientist",
+        user_profile=profile,
+        recent_meals=[],
+        rag_context="",
+        grocery_items=[],
+    )
+
+    assert "Available pantry/grocery: None logged" in prompt
+    assert "0 meals logged so far today (Full daily budget of 1800 kcal remaining)" in prompt
+
+
+def test_tts_sanitizer_removes_markdown_and_katex() -> None:
+    """Verify speech sanitizer strips markdown, KaTeX math, and extracts voice summary."""
+    from app.services.tts_service import sanitize_for_speech
+
+    raw_text = (
+        "## Analysis\n"
+        "Here is the plan: **Eat healthy** with [App link](https://nutrivision.ai). "
+        "Formula: $\\text{BMR} = 10W + 6.25H$ 🍎\n\n"
+        "===VOICE_SUMMARY===\n"
+        "You have 600 calories left today! Cook your spinach with one egg for a balanced dinner. 🥗"
+    )
+
+    clean = sanitize_for_speech(raw_text)
+    assert "##" not in clean
+    assert "**" not in clean
+    assert "https://" not in clean
+    assert "BMR" not in clean
+    assert "🍎" not in clean
+    assert "🥗" not in clean
+    assert "You have 600 calories left today!" in clean
+    assert "Cook your spinach with one egg for a balanced dinner." in clean
+
+
+def test_tts_service_fallback_when_unconfigured() -> None:
+    """Verify TTS gracefully degrades without crashing when ELEVENLABS_API_KEY is unset."""
+    from app.services.tts_service import TTSService
+
+    tts = TTSService(api_key="")
+    audio, mime, fallback = tts.synthesize("Hello there, how are you?")
+    assert audio is None
+    assert mime == "audio/mpeg"
+    assert fallback is True
+
+
+def test_tts_service_mocked_synthesis_and_lru_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify ElevenLabs API synthesis and LRU cache hit."""
+    import httpx
+    from app.services.tts_service import TTSService
+
+    call_count = 0
+
+    def mock_post(self: Any, url: str, headers: Any = None, json: Any = None) -> Any:
+        nonlocal call_count
+        call_count += 1
+
+        class MockResp:
+            status_code = 200
+            content = b"ID3\x03\x00\x00\x00FAKE_MP3_DATA_BUFFER"
+            text = "ok"
+
+        return MockResp()
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post)
+
+    tts = TTSService(api_key="test-eleven-key", voice_id="test-voice", model_id="eleven_flash_v2_5")
+
+    audio1, mime1, fb1 = tts.synthesize("Take a fifteen minute walk after dinner.", lang="en")
+    assert audio1 == b"ID3\x03\x00\x00\x00FAKE_MP3_DATA_BUFFER"
+    assert fb1 is False
+    assert call_count == 1
+
+    # Second call with identical text must hit memory cache (call_count stays 1)
+    audio2, mime2, fb2 = tts.synthesize("Take a fifteen minute walk after dinner.", lang="en")
+    assert audio2 == audio1
+    assert fb2 is False
+    assert call_count == 1
+
+
+def test_coach_voice_chat_endpoint_graceful_degradation(client: TestClient) -> None:
+    """Verify POST /api/coach/voice-chat returns dual-channel response and falls back to browser TTS cleanly."""
+    payload = {
+        "messages": [{"role": "user", "content": "hello"}],
+        "agent_type": "scientist",
+    }
+    res = client.post("/api/coach/voice-chat", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert "reply" in data
+    assert "voice_summary" in data
+    assert len(data["voice_summary"]) > 0
+    # In test environment without ElevenLabs key, use_browser_tts is True and audio is None
+    assert data["use_browser_tts"] is True
+
+
+def test_coach_tts_endpoint(client: TestClient) -> None:
+    """Verify POST /api/coach/tts accepts text and returns 200 OK."""
+    res = client.post("/api/coach/tts", json={"text": "Here is your nutrition advice."})
+    assert res.status_code == 200
+    data = res.json()
+    assert "use_browser_tts" in data
+
 
 
 

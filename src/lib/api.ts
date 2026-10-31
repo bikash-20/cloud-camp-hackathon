@@ -14,6 +14,8 @@ import type {
   AnalyzeResult,
   CoachChatRequest,
   CoachChatResponse,
+  CoachTTSRequest,
+  CoachTTSResponse,
   DetectedItem,
   GroceryItem,
   GroceryList,
@@ -451,6 +453,52 @@ export async function sendCoachChat(req: CoachChatRequest): Promise<CoachChatRes
         ? ['দাওয়াতে অতিরিক্ত খাওয়ার পর কী করব?', 'ব্যস্ত দিনে হেলদি ডায়েট ধরে রাখার সহজ রুটিন কী?']
         : ['How to bounce back after a heavy feast?', 'Easy routines for healthy habits on busy days?'],
       agent_type: req.agent_type === 'behavioral' ? 'behavioral' : 'coach',
+    };
+  }
+}
+
+/**
+ * Send voice chat query to the multi-agent AI Coach.
+ * Includes audio generation (ElevenLabs ultra-low latency or browser fallback)
+ * and auto-enriches context from PostgreSQL nv_users, nv_meals, and nv_grocery.
+ */
+export async function sendCoachVoiceChat(req: CoachChatRequest): Promise<CoachChatResponse> {
+  try {
+    return await apiFetch<CoachChatResponse>('/api/coach/voice-chat', {
+      method: 'POST',
+      body: JSON.stringify({ ...req, include_audio: true }),
+    });
+  } catch {
+    // Offline local fallback: run standard sendCoachChat and flag use_browser_tts
+    const fallbackResp = await sendCoachChat(req);
+    const plainText = fallbackResp.reply
+      .replace(/\[(?:উৎস|Source):[^\]]+\]/g, '')
+      .replace(/[*#_`>]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return {
+      ...fallbackResp,
+      voice_summary: plainText.slice(0, 180),
+      audio_base64: null,
+      use_browser_tts: true,
+    };
+  }
+}
+
+/**
+ * Synthesize speech on-demand for a given text snippet.
+ */
+export async function generateCoachTTS(req: CoachTTSRequest): Promise<CoachTTSResponse> {
+  try {
+    return await apiFetch<CoachTTSResponse>('/api/coach/tts', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  } catch {
+    return {
+      audio_base64: null,
+      audio_mime_type: 'audio/mpeg',
+      use_browser_tts: true,
     };
   }
 }

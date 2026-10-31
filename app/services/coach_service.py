@@ -30,10 +30,12 @@ from app.models.schemas import (
     CoachChatRequest,
     CoachChatResponse,
     CoachMessage,
+    GroceryItem,
     MealEntry,
     UserProfile,
 )
 from app.services.rag_service import get_rag_service
+from app.services.tts_service import get_tts_service, sanitize_for_speech
 
 
 log = logging.getLogger(__name__)
@@ -189,7 +191,11 @@ class CoachService:
         ).strip()
         self.groq_key = groq_api_key or os.environ.get("GROQ_API_KEY", "").strip()
 
-    def chat(self, req: CoachChatRequest) -> CoachChatResponse:
+    def chat(
+        self,
+        req: CoachChatRequest,
+        grocery_items: list[GroceryItem] | None = None,
+    ) -> CoachChatResponse:
         """Route coach chat through RAG enrichment, provider cascade, and response synthesis."""
         # Normalize messages list from request
         messages = list(req.messages or [])
@@ -208,17 +214,38 @@ class CoachService:
         )
         user_msg = self._extract_latest_user_text(messages)
 
+        # Merge grocery items from request or explicit argument
+        effective_grocery = grocery_items if grocery_items is not None else req.grocery_items
+
         # 0. Fast-path for simple casual greetings: guarantees instant response and strict language alignment
         if _is_greeting(user_msg):
             reply_text = self._synthesize_local_response(
                 agent_type, user_msg, req.user_profile, "", lang=req.lang
             )
             prompts = self._generate_suggested_prompts(agent_type, user_msg, req.lang)
+            voice_summary = sanitize_for_speech(reply_text)
+            audio_base64: str | None = None
+            audio_mime_type = "audio/mpeg"
+            use_browser_tts = False
+
+            if req.include_audio:
+                tts = get_tts_service()
+                audio_bytes, mime, fallback = tts.synthesize(voice_summary, lang=req.lang or "en")
+                if audio_bytes:
+                    audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+                    audio_mime_type = mime
+                else:
+                    use_browser_tts = fallback
+
             return CoachChatResponse(
                 reply=reply_text,
+                voice_summary=voice_summary,
                 agent_type=agent_type,
                 suggested_prompts=prompts,
                 citations=[],
+                audio_base64=audio_base64,
+                audio_mime_type=audio_mime_type,
+                use_browser_tts=use_browser_tts,
             )
 
         # 1. RAG Enrichment
@@ -230,6 +257,7 @@ class CoachService:
             user_profile=req.user_profile,
             recent_meals=req.recent_meals,
             rag_context=rag_context,
+            grocery_items=effective_grocery,
         )
 
         # 3. Provider Cascade: Gemini -> OpenRouter -> Groq -> Local RAG fallback
@@ -254,19 +282,52 @@ class CoachService:
                 agent_type, user_msg, req.user_profile, rag_context, lang=req.lang
             )
 
+        # Single-pass Dual-channel parsing: UI markdown vs. spoken voice summary
+        detailed_markdown = reply_text
+        voice_summary = ""
+        if "===VOICE_SUMMARY===" in reply_text:
+            parts = reply_text.split("===VOICE_SUMMARY===", 1)
+            detailed_markdown = parts[0].strip()
+            voice_summary = sanitize_for_speech(parts[1].strip())
+        else:
+            voice_summary = sanitize_for_speech(reply_text)
+
         # 4. Generate contextual follow-up prompt chips (matching language mode)
         suggested_prompts = self._generate_suggested_prompts(
-            agent_type, user_msg, reply_text, lang=req.lang
+            agent_type, user_msg, detailed_markdown, lang=req.lang
         )
 
         # 5. Extract or preserve citations
-        final_citations = self._resolve_citations(reply_text, citations)
+        final_citations = self._resolve_citations(detailed_markdown, citations)
+
+        # 6. Optional TTS audio synthesis
+        audio_base64: str | None = None
+        audio_mime_type = "audio/mpeg"
+        use_browser_tts = False
+
+        if req.include_audio:
+            tts = get_tts_service()
+            audio_bytes, mime, fallback = tts.synthesize(
+                voice_summary or detailed_markdown,
+                lang=req.lang or "en",
+            )
+            if audio_bytes:
+                audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+                audio_mime_type = mime
+                use_browser_tts = False
+            else:
+                audio_base64 = None
+                use_browser_tts = fallback
 
         return CoachChatResponse(
-            reply=reply_text,
+            reply=detailed_markdown,
+            voice_summary=voice_summary,
             citations=final_citations,
             suggested_prompts=suggested_prompts,
             agent_type=agent_type,
+            audio_base64=audio_base64,
+            audio_mime_type=audio_mime_type,
+            use_browser_tts=use_browser_tts,
         )
 
     def _extract_latest_user_text(self, messages: list[CoachMessage]) -> str:
@@ -319,36 +380,66 @@ class CoachService:
         user_profile: UserProfile | None,
         recent_meals: list[MealEntry] | None,
         rag_context: str,
+        grocery_items: list[GroceryItem] | None = None,
     ) -> str:
         base = SCIENTIST_SYSTEM_PROMPT if agent_type == "scientist" else BEHAVIORAL_SYSTEM_PROMPT
         sections: list[str] = [base]
 
+        target_kcal = 2000
         if user_profile:
             conds = ", ".join(user_profile.medical_conditions) or "none"
             allergens = ", ".join(user_profile.allergens) or "none"
+            target_kcal = int(user_profile.daily_kcal_target or 2000)
+            budget_str = f"৳{int(user_profile.budget)} BDT" if (user_profile.budget and user_profile.budget > 0) else "Not set"
             sections.append(
-                f"\n[USER HEALTH CONTEXT]\n"
+                f"\n[ACTIVE USER DATABASE SNAPSHOT]\n"
                 f"- Name: {user_profile.name or 'User'}\n"
-                f"- Age: {user_profile.age}, Sex: {user_profile.sex}\n"
-                f"- Weight: {user_profile.weight_kg} kg, Height: {user_profile.height_cm} cm\n"
-                f"- Goal: {user_profile.goal}, Activity: {user_profile.activity_level}\n"
-                f"- Target Kcal: {user_profile.daily_kcal_target or 2000} kcal/day\n"
-                f"- Diet: {user_profile.diet_type}\n"
+                f"- Age: {user_profile.age or 28}, Sex: {user_profile.sex or 'male'}\n"
+                f"- Weight: {user_profile.weight_kg or 70} kg, Height: {user_profile.height_cm or 172} cm\n"
+                f"- Goal: {user_profile.goal or 'maintain'}, Activity: {user_profile.activity_level or 'moderate'}\n"
+                f"- Target Kcal: {target_kcal} kcal/day\n"
+                f"- Diet: {user_profile.diet_type or 'Not set'}\n"
                 f"- Medical conditions: {conds}\n"
                 f"- Allergens: {allergens}\n"
-                f"- Daily Food Budget: ৳{user_profile.budget} BDT\n"
+                f"- Daily Food Budget: {budget_str}\n"
             )
 
-        if recent_meals:
+        if recent_meals and len(recent_meals) > 0:
             meal_lines = []
             for m in recent_meals[-3:]:
                 items_str = ", ".join([f"{it.name} ({it.grams}g)" for it in m.items[:4]])
                 meal_lines.append(f"- {m.date[:10]} {m.label}: {items_str} [Total: {int(m.totals.kcal)} kcal]")
-            if meal_lines:
-                sections.append(f"\n[RECENT LOGGED MEALS]\n" + "\n".join(meal_lines))
+            sections.append(f"\n[RECENT LOGGED MEALS]\n" + "\n".join(meal_lines))
+        else:
+            sections.append(
+                f"\n[RECENT LOGGED MEALS]\n"
+                f"- Today's logged meals: 0 meals logged so far today (Full daily budget of {target_kcal} kcal remaining)."
+            )
+
+        if grocery_items and len(grocery_items) > 0:
+            active_items = [g for g in grocery_items if not g.checked] or grocery_items
+            g_lines = [f"{g.name} (৳{int(g.price)})" for g in active_items[:10]]
+            sections.append(
+                f"\n[AVAILABLE PANTRY & GROCERY ITEMS]\n"
+                f"- Current grocery/pantry items: {', '.join(g_lines)}\n"
+                f"- CRITICAL INSTRUCTION: Prioritize suggesting dishes, meal ideas, or swaps using these ingredients whenever user asks what to cook or eat."
+            )
+        else:
+            sections.append(
+                "\n[AVAILABLE PANTRY & GROCERY ITEMS]\n"
+                "- Available pantry/grocery: None logged (suggest affordable local Bangladeshi staples within remaining BDT budget)."
+            )
 
         if rag_context:
             sections.append(f"\n[AUTHORITATIVE DOMAIN EVIDENCE & RAG CITATIONS]\n{rag_context}")
+
+        sections.append(
+            "\n[DUAL-CHANNEL OUTPUT DIRECTIVE]\n"
+            "Structure your reply with two sections separated by `===VOICE_SUMMARY===`:\n"
+            "1. Complete, detailed advice formatted in Markdown for the chat UI (headings, bullet points, citations, and KaTeX math if relevant).\n"
+            "2. Output the exact delimiter `===VOICE_SUMMARY===` followed by a concise 2-3 sentence conversational spoken summary (strictly under 60 words, in the requested language).\n"
+            "CRITICAL FOR VOICE_SUMMARY: No asterisks (**), no markdown syntax, no emojis, no URLs, no KaTeX math notation, no bullet points — write plain, fluent spoken prose that sounds natural when read aloud."
+        )
 
         return "\n".join(sections)
 
