@@ -41,7 +41,7 @@ def _jwt_secret() -> bytes:
 
 
 def _admin_emails() -> set[str]:
-    raw = os.environ.get("ADMIN_EMAILS", "admin@nutrivision.ai")
+    raw = os.environ.get("ADMIN_EMAILS", "")
     return {e.strip().lower() for e in raw.split(",") if e.strip()}
 
 
@@ -158,14 +158,32 @@ def get_current_user_optional(
     if not payload:
         return None
 
-    email = payload.get("email", "").lower()
+    email = payload.get("email", "").lower().strip()
+    if not email:
+        return None
+
     role: Role = "admin" if email in _admin_emails() or payload.get("role") == "admin" else "user"
+    name = payload.get("name")
+    avatar_url = payload.get("picture") or payload.get("avatar_url")
+
+    # Robustness: Recreate user record if missing from store (e.g. after DB reset or redeploy)
+    if not state.has_user(email):
+        try:
+            state.get_or_create_user(
+                email=email,
+                name=name,
+                avatar_url=avatar_url,
+                role=role,
+            )
+        except Exception as exc:
+            log.warning("Could not automatically recreate user %s from token: %s", email, exc)
+
     return AuthSession(
         email=email,
         role=role,
         login_at=payload.get("login_at", datetime.now(timezone.utc).isoformat()),
-        name=payload.get("name"),
-        avatar_url=payload.get("picture"),
+        name=name,
+        avatar_url=avatar_url,
         token=token,
         sub=payload.get("sub"),
     )

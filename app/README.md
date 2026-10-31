@@ -88,7 +88,7 @@ Create `.env` in the repository root or export variables:
 export DATABASE_URL="postgresql://user:pass@ep-pooler.neon.tech/neondb?sslmode=require&channel_binding=require"
 export GOOGLE_CLIENT_ID="<your-oauth-client-id>.apps.googleusercontent.com"
 export JWT_SECRET="<random-64-character-hex-string>"
-export ADMIN_EMAILS="bikashtalukder040@gmail.com,admin@nutrivision.ai"
+export ADMIN_EMAILS="bikashtalukder040@gmail.com,lead@domain.com"
 export GROQ_API_KEY="gsk_..."
 export GEMINI_API_KEY="AIzaSy..."
 ```
@@ -114,7 +114,7 @@ python3 -m pytest app/tests/ -v
 | `DATABASE_URL` | Recommended | _None_ | PostgreSQL connection URI (Neon, Supabase, Render). Falls back to JSON if unset. |
 | `GOOGLE_CLIENT_ID` | Yes (for Auth)| _None_ | Google Cloud OAuth 2.0 Web Client ID. |
 | `JWT_SECRET` | Yes (for Auth)| _None_ | Secret string for HS256 JWT signature generation and verification. |
-| `ADMIN_EMAILS` | No | `admin@nutrivision.ai` | Comma-separated list of emails granted administrative privileges. |
+| `ADMIN_EMAILS` | No | _Empty_ | Comma-separated list of Google account emails granted administrative privileges. |
 | `CORS_ALLOW_ORIGINS` | No | `localhost:5173` | Comma-separated allowed frontend origins (e.g. `https://cloud-camp-hackathon.vercel.app`). |
 | `GROQ_API_KEY` | Recommended | _None_ | Tier 1 LPU vision inference. |
 | `GEMINI_API_KEY` | Recommended | _None_ | Tier 2 Google Gemini vision inference. |

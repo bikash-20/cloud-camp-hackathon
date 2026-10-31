@@ -957,7 +957,7 @@ export default function CaptureScreen({
                 gap: 6,
                 padding: '8px 14px',
                 borderRadius: 14,
-                background: 'rgba(249, 242, 228, 0.75)',
+                background: T.cardBg,
                 border: '1px solid rgba(74, 58, 52, 0.15)',
                 fontFamily: 'Inter',
                 fontSize: 12,

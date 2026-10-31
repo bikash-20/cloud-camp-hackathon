@@ -197,7 +197,7 @@ The system operates on an asynchronous, decoupled client-server architecture:
 | `DATABASE_URL` | PostgreSQL connection URI (e.g., Neon connection string: `postgresql://user:pass@ep-pooler.neon.tech/neondb?sslmode=require&channel_binding=require`) |
 | `GOOGLE_CLIENT_ID` | Google Cloud OAuth 2.0 Web Client ID (matches frontend) |
 | `JWT_SECRET` | 64-char random hex string used to sign backend session JWTs |
-| `ADMIN_EMAILS` | Comma-separated list of admin emails (e.g., `bikashtalukder040@gmail.com,admin@nutrivision.ai`) |
+| `ADMIN_EMAILS` | Comma-separated list of admin Google emails (e.g., `bikashtalukder040@gmail.com,lead@domain.com`) |
 | `CORS_ALLOW_ORIGINS` | `https://cloud-camp-hackathon.vercel.app` (or comma-separated allowed origins) |
 | `GROQ_API_KEY` | Groq API key for Tier 1 ultra-fast vision inference |
 | `GEMINI_API_KEY` | Google Gemini API key for Tier 2 vision cascade |

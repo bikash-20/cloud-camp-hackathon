@@ -85,7 +85,7 @@ NutriVision AI uses `psycopg 3` with automatic DDL table migrations on startup.
 | `DATABASE_URL` | `postgresql://user:pass@ep-pooler.neon.tech/neondb?sslmode=require&channel_binding=require` | Persistent PostgreSQL store |
 | `GOOGLE_CLIENT_ID` | `xxxxxxxx.apps.googleusercontent.com` | Matches Google Console |
 | `JWT_SECRET` | `openssl rand -hex 32` | 64-char random hex string |
-| `ADMIN_EMAILS` | `bikashtalukder040@gmail.com,admin@nutrivision.ai` | Admin permissions grant |
+| `ADMIN_EMAILS` | `bikashtalukder040@gmail.com,lead@domain.com` | Admin permissions grant (comma-separated Google emails) |
 | `CORS_ALLOW_ORIGINS` | `https://cloud-camp-hackathon.vercel.app` | Allow frontend origin |
 | `GROQ_API_KEY` | `gsk_...` | Tier 1 Fast Vision |
 | `GEMINI_API_KEY` | `AIzaSy...` | Tier 2 High-Accuracy Vision |

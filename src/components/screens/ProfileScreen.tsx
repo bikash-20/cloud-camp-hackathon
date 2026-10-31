@@ -173,7 +173,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>(profile.activityLevel ?? 'moderate');
   const [goal, setGoal] = useState<GoalType>(profile.goal ?? 'maintain');
   const [targetRate, setTargetRate] = useState<number>(profile.targetRateKgPerWeek ?? 0.5);
-  const [dietType, setDietType] = useState<DietType>(profile.dietType ?? 'halal');
+  const [dietType, setDietType] = useState<DietType | null>(profile.dietType ?? null);
   const [medicalConditions, setMedicalConditions] = useState<MedicalCondition[]>(
     profile.medicalConditions && profile.medicalConditions.length > 0 ? profile.medicalConditions : ['none'],
   );
@@ -192,7 +192,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
       ]),
     ),
   );
-  const [budget, setBudget] = useState(profile.budget);
+  const [budget, setBudget] = useState<number | null>(profile.budget ?? null);
   const [serving, setServing] = useState(profile.serving);
   const [dailyKcalTarget, setDailyKcalTarget] = useState<number>(
     typeof profile.dailyKcalTarget === 'number' && profile.dailyKcalTarget > 0
@@ -244,7 +244,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
     }
     lastCommittedJsonRef.current = incomingJson;
     setGoals(profile.goals);
-    setBudget(profile.budget);
+    setBudget(profile.budget ?? null);
     setServing(profile.serving);
     setName(profile.name);
     if (profile.sex) setSex(profile.sex);
@@ -256,7 +256,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
     if (profile.activityLevel) setActivityLevel(profile.activityLevel);
     if (profile.goal) setGoal(profile.goal);
     if (typeof profile.targetRateKgPerWeek === 'number') setTargetRate(profile.targetRateKgPerWeek);
-    if (profile.dietType) setDietType(profile.dietType);
+    setDietType(profile.dietType ?? null);
     if (profile.medicalConditions && profile.medicalConditions.length > 0) {
       setMedicalConditions(profile.medicalConditions);
     } else {
@@ -315,7 +315,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
   };
 
   const adjustBudget = (delta: number) => {
-    setBudget((b) => Math.min(2000, Math.max(100, b + delta)));
+    setBudget((b) => Math.min(2000, Math.max(100, (b ?? 500) + delta)));
   };
 
   const adjustServing = (delta: number) => {
@@ -330,7 +330,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
   const resetAll = async () => {
     const fresh = structuredClone(DEFAULT_PROFILE);
     setGoals(fresh.goals);
-    setBudget(fresh.budget);
+    setBudget(fresh.budget ?? null);
     setServing(fresh.serving);
     setName(fresh.name);
     setDailyKcalTarget(DAILY_KCAL_TARGET_DEFAULT);
@@ -345,7 +345,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
     setActivityLevel(fresh.activityLevel ?? 'moderate');
     setGoal(fresh.goal ?? 'maintain');
     setTargetRate(fresh.targetRateKgPerWeek ?? 0.5);
-    setDietType(fresh.dietType ?? 'halal');
+    setDietType(fresh.dietType ?? null);
     setMedicalConditions(fresh.medicalConditions ?? ['none']);
     setMealsPerDay(fresh.mealsPerDay ?? 3);
     lastCommittedJsonRef.current = JSON.stringify(fresh);
@@ -689,7 +689,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                       fontSize: 14,
                       fontWeight: 600,
                       color: T.ink,
-                      background: 'rgba(249, 242, 228, 0.7)',
+                      background: T.cardBg,
                       border: `1px solid ${T.primary}`,
                       borderRadius: 8,
                       padding: '4px 8px',
@@ -990,8 +990,8 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                       fontWeight: 700,
                       padding: '5px 10px',
                       borderRadius: 8,
-                      border: targetRate === rate.value ? `1px solid ${T.primary}` : '1px solid rgba(74, 58, 52, 0.15)',
-                      background: targetRate === rate.value ? T.primary : 'rgba(249, 242, 228, 0.7)',
+                      border: targetRate === rate.value ? `1px solid ${T.primary}` : `1px solid ${T.cardBorderSoft}`,
+                      background: targetRate === rate.value ? T.primary : T.cardBg,
                       color: targetRate === rate.value ? '#FFFFFF' : T.ink,
                       cursor: 'pointer',
                     }}
@@ -1029,7 +1029,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
           </div>
 
           <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-            <div style={{ flex: 1, textAlign: 'center', padding: '10px 6px', borderRadius: 12, background: 'rgba(249, 242, 228, 0.7)' }}>
+            <div style={{ flex: 1, textAlign: 'center', padding: '10px 6px', borderRadius: 12, background: T.cardBg, border: `1px solid ${T.cardBorderSoft}` }}>
               <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.ink }}>
                 {isBn ? toBengaliDigits(breakdown.bmr) : breakdown.bmr}
               </div>
@@ -1037,7 +1037,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 {isBn ? 'বিশ্রামরত ব্যয় (বিএমআর)' : 'Resting burn (BMR)'}
               </div>
             </div>
-            <div style={{ flex: 1, textAlign: 'center', padding: '10px 6px', borderRadius: 12, background: 'rgba(249, 242, 228, 0.7)' }}>
+            <div style={{ flex: 1, textAlign: 'center', padding: '10px 6px', borderRadius: 12, background: T.cardBg, border: `1px solid ${T.cardBorderSoft}` }}>
               <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.accentAmber }}>
                 {isBn ? toBengaliDigits(breakdown.tdee) : breakdown.tdee}
               </div>
@@ -1045,7 +1045,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 {isBn ? 'দৈনিক মোট ব্যয় (টিডিইই)' : 'Daily burn (TDEE)'}
               </div>
             </div>
-            <div style={{ flex: 1, textAlign: 'center', padding: '10px 6px', borderRadius: 12, background: 'rgba(249, 242, 228, 0.7)' }}>
+            <div style={{ flex: 1, textAlign: 'center', padding: '10px 6px', borderRadius: 12, background: T.cardBg, border: `1px solid ${T.cardBorderSoft}` }}>
               <div className="tnum" style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: T.primary }}>
                 {isBn ? toBengaliDigits(breakdown.recommendedKcal) : breakdown.recommendedKcal}
               </div>
@@ -1107,8 +1107,12 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                   key={rule.key}
                   active={dietType === rule.key}
                   onClick={() => {
-                    setDietType(rule.key);
-                    setPrefs((prev) => ({ ...prev, [rule.prefKey]: true }));
+                    if (dietType === rule.key) {
+                      setDietType(null);
+                    } else {
+                      setDietType(rule.key);
+                      setPrefs((prev) => ({ ...prev, [rule.prefKey]: true }));
+                    }
                   }}
                   ariaLabel={`Select ${rule.label} diet`}
                 >
@@ -1170,24 +1174,36 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
         {/* ── 14. Daily kcal target ─────────────────────────────── */}
         <SectionLabel>{isBn ? 'দৈনিক ক্যালরি লক্ষ্য' : 'Daily kcal target'}</SectionLabel>
         <StepperRow
-          valueLabel={`${isBn ? toBengaliDigits(dailyKcalTarget) : dailyKcalTarget} ${isBn ? 'কিলোক্যালরি' : 'kcal'}`}
+          valueLabel={`${isBn ? toBengaliDigits(dailyKcalTarget) : dailyKcalTarget} ${isBn ? 'কিলোক্যালরি' : 'kcal'}${!profile.age || !profile.weightKg ? (isBn ? ' (ডিফল্ট)' : ' (Default)') : ''}`}
           onDec={() => adjustDailyKcal(-50)}
           onInc={() => adjustDailyKcal(50)}
           decLabel={isBn ? 'দৈনিক ক্যালরির লক্ষ্য ৫০ কমান' : 'Decrease daily kcal target by 50'}
           incLabel={isBn ? 'দৈনিক ক্যালরির লক্ষ্য ৫০ বাড়ান' : 'Increase daily kcal target by 50'}
-          hint={isBn ? 'হোমের অগ্রগতি বার চালায়—নিজে অথবা উপরের ক্যালকুলেটর দিয়ে নির্ধারণ করুন' : 'Powers the Home progress bar — can be set manually or via the calculator above'}
+          hint={
+            !profile.age || !profile.weightKg
+              ? (isBn ? 'ডিফল্ট মান—উপরে আপনার বয়স ও ওজন পূরণ করে সুনির্দিষ্ট লক্ষ্য হিসাব করুন' : 'Default estimate — fill in age & weight above to calculate a personalized target')
+              : (isBn ? 'হোমের অগ্রগতি বার চালায়—নিজে অথবা উপরের ক্যালকুলেটর দিয়ে নির্ধারণ করুন' : 'Powers the Home progress bar — can be set manually or via the calculator above')
+          }
         />
 
         {/* ── 15. Daily grocery budget ──────────────────────────── */}
         <div style={{ marginTop: 16 }}>
           <SectionLabel>{isBn ? 'দৈনিক বাজারের বাজেট' : 'Daily grocery budget'}</SectionLabel>
           <StepperRow
-            valueLabel={`৳${isBn ? toBengaliDigits(budget) : budget}`}
+            valueLabel={
+              budget != null && budget > 0
+                ? `৳${isBn ? toBengaliDigits(budget) : budget}`
+                : (isBn ? 'নির্ধারিত নয়' : 'Not set')
+            }
             onDec={() => adjustBudget(-50)}
             onInc={() => adjustBudget(50)}
             decLabel={isBn ? 'বাজেট ৫০ টাকা কমান' : 'Decrease budget by 50 taka'}
             incLabel={isBn ? 'বাজেট ৫০ টাকা বাড়ান' : 'Increase budget by 50 taka'}
-            hint={isBn ? `প্রতিদিন—বাজারের পর্দায় এটি সাপ্তাহিক সীমা হিসেবে প্রয়োগ হয়: ৳${toBengaliDigits(budget * 7)} (×৭ দিন)` : `per day — the Grocery screen applies this as a weekly cap of ৳${budget * 7} (×7 days)`}
+            hint={
+              budget != null && budget > 0
+                ? (isBn ? `প্রতিদিন—বাজারের পর্দায় এটি সাপ্তাহিক সীমা হিসেবে প্রয়োগ হয়: ৳${toBengaliDigits(budget * 7)} (×৭ দিন)` : `per day — the Grocery screen applies this as a weekly cap of ৳${budget * 7} (×7 days)`)
+                : (isBn ? 'দৈনিক বাজারের বাজেট এখনো নির্ধারিত হয়নি' : 'Daily grocery budget not set yet')
+            }
           />
         </div>
 
@@ -1278,8 +1294,8 @@ function StepperRow({ valueLabel, onDec, onInc, decLabel, incLabel, hint }: Step
               width: 36,
               height: 36,
               borderRadius: '50%',
-              border: '1px solid rgba(74, 58, 52, 0.15)',
-              background: 'rgba(249, 242, 228, 0.7)',
+              border: `1px solid ${T.cardBorderSoft}`,
+              background: T.cardBg,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1333,8 +1349,8 @@ function StepperRow({ valueLabel, onDec, onInc, decLabel, incLabel, hint }: Step
               width: 36,
               height: 36,
               borderRadius: '50%',
-              border: '1px solid rgba(74, 58, 52, 0.15)',
-              background: 'rgba(249, 242, 228, 0.7)',
+              border: `1px solid ${T.cardBorderSoft}`,
+              background: T.cardBg,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

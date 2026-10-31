@@ -51,7 +51,10 @@ def _load_env() -> None:
                 pass
 
 
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 _load_env()
+# Ensure ChromaDB telemetry is disabled even if loaded after .env
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
 
 def _state_path() -> Path:
@@ -82,12 +85,25 @@ async def lifespan(_app: FastAPI):
     """Initialize the state singleton and ensure RAG collections on startup."""
     path = _state_path()
     init_state(path)
+
+    # Warmup RAG lazily in a background task after yield so uvicorn binds $PORT immediately
+    async def _lazy_rag_warmup() -> None:
+        try:
+            import asyncio
+            await asyncio.sleep(0.1)
+            from app.services.rag_service import get_rag_service
+            get_rag_service().ensure_collections()
+        except Exception as exc:
+            import logging
+            logging.getLogger("app.main").warning("Async RAG warmup encountered error: %s", exc)
+
+    import asyncio
+    warmup_task = asyncio.create_task(_lazy_rag_warmup())
     try:
-        from app.services.rag_service import get_rag_service
-        get_rag_service().ensure_collections()
-    except Exception:
-        pass
-    yield
+        yield
+    finally:
+        if not warmup_task.done():
+            warmup_task.cancel()
 
 
 def _cors_origins() -> list[str]:
@@ -150,7 +166,23 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["meta"])
     def health() -> dict[str, str]:
         """Liveness endpoint used by the hosting platform."""
+        from fastapi.responses import JSONResponse
+        from app.services.state import get_state
+        state = get_state()
+        if not state.is_healthy:
+            return JSONResponse(status_code=503, content={"status": "degraded"})
         return {"status": "ok"}
+
+    @app.get("/api/health", tags=["meta"])
+    def api_health():
+        """Public health endpoint reporting storage backend and DB connection health."""
+        from fastapi.responses import JSONResponse
+        from app.services.state import get_state
+        state = get_state()
+        info = state.get_health_status()
+        if info.get("status") != "ok":
+            return JSONResponse(status_code=503, content=info)
+        return info
 
     return app
 

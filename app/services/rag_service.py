@@ -373,7 +373,11 @@ class RAGService:
             return self._client
         try:
             import chromadb
-            self._client = chromadb.PersistentClient(path=str(self.path))
+            from chromadb.config import Settings
+            self._client = chromadb.PersistentClient(
+                path=str(self.path),
+                settings=Settings(anonymized_telemetry=False),
+            )
             return self._client
         except Exception as exc:  # noqa: BLE001
             log.warning("ChromaDB client initialization failed: %s", exc)

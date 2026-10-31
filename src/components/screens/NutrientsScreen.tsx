@@ -1359,7 +1359,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
             marginBottom: 20,
             borderRadius: 22,
             padding: '18px 20px',
-            background: 'rgba(255, 255, 255, 0.85)',
+            background: T.cardBg,
             border: '1.5px solid rgba(201, 98, 45, 0.3)',
             boxShadow: '0 8px 30px rgba(46, 37, 34, 0.08)',
           }}
@@ -1399,7 +1399,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
                   style={{
                     padding: '14px 16px',
                     borderRadius: 16,
-                    background: 'rgba(249, 242, 228, 0.65)',
+                    background: T.cardBg,
                     border: '1px solid rgba(74, 58, 52, 0.1)',
                   }}
                 >

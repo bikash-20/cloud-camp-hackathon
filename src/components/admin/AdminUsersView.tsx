@@ -522,18 +522,26 @@ export default function AdminUsersView() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(249, 242, 228, 0.7)' }}>
                         <span>{isBn ? 'দৈনিক ক্যালরি লক্ষ্য:' : 'Daily Kcal Target:'}</span>
                         <strong style={{ color: '#F9F2E4' }}>
-                          {isBn ? toBengaliDigits(Math.round(detail.profile.dailyKcalTarget ?? 2000)) : Math.round(detail.profile.dailyKcalTarget ?? 2000)} kcal
+                          {detail.profile.dailyKcalTarget != null && detail.profile.dailyKcalTarget > 0
+                            ? `${isBn ? toBengaliDigits(Math.round(detail.profile.dailyKcalTarget)) : Math.round(detail.profile.dailyKcalTarget)} kcal`
+                            : (isBn ? 'ডিফল্ট (২০০০ ক্যালরি)' : 'Default (2000 kcal)')}
                         </strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(249, 242, 228, 0.7)' }}>
                         <span>{isBn ? 'দৈনিক বাজার বাজেট:' : 'Daily Grocery Budget:'}</span>
                         <strong style={{ color: '#F9F2E4' }}>
-                          ৳{isBn ? toBengaliDigits(detail.profile.budget) : detail.profile.budget}
+                          {detail.profile.budget != null && detail.profile.budget > 0
+                            ? `৳${isBn ? toBengaliDigits(detail.profile.budget) : detail.profile.budget}`
+                            : (isBn ? 'নির্ধারিত নয়' : 'Not set')}
                         </strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(249, 242, 228, 0.7)' }}>
                         <span>{isBn ? 'ডায়েট ধরন:' : 'Diet Type:'}</span>
-                        <strong style={{ color: '#F9F2E4' }}>{detail.profile.dietType || 'Default'}</strong>
+                        <strong style={{ color: '#F9F2E4' }}>
+                          {detail.profile.dietType
+                            ? detail.profile.dietType.charAt(0).toUpperCase() + detail.profile.dietType.slice(1)
+                            : (isBn ? 'নির্ধারিত নয়' : 'Not set')}
+                        </strong>
                       </div>
                     </div>
                   </div>

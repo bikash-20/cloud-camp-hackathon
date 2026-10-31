@@ -42,7 +42,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
   const { foodName, language } = useLanguage();
   const isBn = language === 'bn';
   const [groups, setGroups] = useState<DisplayGroup[]>([]);
-  const [budget, setBudget] = useState(profile.budget);
+  const [budget, setBudget] = useState(profile.budget ?? 500);
   const [toast, setToast] = useState<string | null>(null);
   const [addingAt, setAddingAt] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -116,18 +116,18 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
 
   // React to budget changes only — keeps the ring in sync without wiping items.
   useEffect(() => {
-    setBudget(profile.budget);
+    setBudget(profile.budget ?? 500);
   }, [profile.budget]);
 
   const totalSpent = groups.reduce(
     (sum, g) => sum + g.items.filter((i) => i.checked).reduce((s, i) => s + i.price, 0),
     0,
   );
-  // The Profile screen stores a *daily* grocery budget (৳500 default). The
+  // The Profile screen stores a *daily* grocery budget (৳500 default fallback). The
   // Grocery view is a *weekly* list, so the cap the user is shopping against
   // is daily × 7. We compute this once per render so the ring, remaining,
   // and over-budget toast all agree on the same number.
-  const weeklyCap = budget * 7;
+  const weeklyCap = (budget ?? 500) * 7;
   const remaining = Math.max(0, weeklyCap - totalSpent);
   const pct = Math.min(100, Math.round((totalSpent / weeklyCap) * 100));
   const overBudget = totalSpent > weeklyCap;
@@ -342,7 +342,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
           marginBottom: 14,
           padding: 10,
           borderRadius: 16,
-          background: 'rgba(249, 242, 228, 0.55)',
+          background: T.cardBg,
           border: '1px solid rgba(74, 58, 52, 0.12)',
         }}
       >
@@ -563,7 +563,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                           width: 22,
                           height: 22,
                           borderRadius: 6,
-                          background: item.checked ? T.primary : 'rgba(249, 242, 228, 0.7)',
+                          background: item.checked ? T.primary : T.cardBg,
                           border: item.checked
                             ? `1px solid ${T.primary}`
                             : '1px solid rgba(74, 58, 52, 0.25)',
@@ -632,7 +632,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                             fontSize: 12,
                             fontWeight: 600,
                             color: T.ink,
-                            background: 'rgba(249, 242, 228, 0.7)',
+                            background: T.cardBg,
                             border: `1px solid ${T.primary}`,
                             borderRadius: 8,
                             padding: '4px 8px',
@@ -873,7 +873,7 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
           fontSize: 12,
           fontWeight: 600,
           color: T.ink,
-          background: 'rgba(249, 242, 228, 0.7)',
+          background: T.cardBg,
           border: '1px solid rgba(74, 58, 52, 0.15)',
           borderRadius: 8,
           padding: '4px 6px',

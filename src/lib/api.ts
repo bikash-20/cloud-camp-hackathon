@@ -119,9 +119,9 @@ export const DEFAULT_PROFILE: UserProfile = {
   },
   preferences: [],
   allergens: [],
-  budget: 500,
+  budget: null,
   serving: 1,
-  dailyKcalTarget: 2000,
+  dailyKcalTarget: null,
 };
 
 // ── Vision pipeline ─────────────────────────────────────────────────────
@@ -510,4 +510,35 @@ export async function updateReviewQueue(
     method: 'PATCH',
     body: JSON.stringify(req),
   });
+}
+
+export interface StorageHealthInfo {
+  status: string;
+  storage_backend: 'postgres' | 'json';
+  db_connected: boolean;
+  host: string | null;
+  error?: string | null;
+}
+
+/** Get storage backend type & DB connection status for health visibility. */
+export async function getStorageHealth(): Promise<StorageHealthInfo> {
+  try {
+    return await apiFetch<StorageHealthInfo>('/api/health');
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      try {
+        const resp = await fetch(`${API_BASE}/api/health`);
+        return await resp.json();
+      } catch {
+        // Fallback
+      }
+    }
+    return {
+      status: 'error',
+      storage_backend: 'json',
+      db_connected: false,
+      host: null,
+      error: err instanceof Error ? err.message : 'Storage check failed',
+    };
+  }
 }

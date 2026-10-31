@@ -45,6 +45,7 @@ class VectorCache:
             return self._collection
         try:
             import chromadb  # type: ignore[import-not-found]
+            from chromadb.config import Settings
         except ImportError:
             self._available = False
             log.warning(
@@ -53,7 +54,10 @@ class VectorCache:
             )
             return None
         try:
-            client = chromadb.PersistentClient(path=str(self.path))
+            client = chromadb.PersistentClient(
+                path=str(self.path),
+                settings=Settings(anonymized_telemetry=False),
+            )
             self._collection = client.get_or_create_collection(
                 name=COLLECTION_NAME,
                 metadata={"hnsw:space": "cosine"},

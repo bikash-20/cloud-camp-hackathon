@@ -229,13 +229,13 @@ export interface UserProfile {
   allergens: Allergen[];
   /** Daily grocery budget ceiling, in local currency (BDT).
    *  The Grocery screen applies a 7× multiplier to get the weekly cap. */
-  budget: number;
+  budget?: number | null;
   /** Number of people the meal serves */
   serving: number;
   /** Daily kcal target for the Home progress bar. Optional for backward
    *  compatibility — older profiles stored before this shipped will fall
    *  back to `DAILY_KCAL_TARGET_DEFAULT` (2000) at read time. */
-  dailyKcalTarget?: number;
+  dailyKcalTarget?: number | null;
 }
 
 /** Universal fallback daily kcal target. Roughly the adult average used by

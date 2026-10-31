@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { LogOut, LayoutDashboard, Users as UsersIcon, Trophy, AlertTriangle, ChevronDown } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users as UsersIcon, Trophy, AlertTriangle, ChevronDown, Database } from 'lucide-react';
 import type { AuthSession } from '../../types/schemas';
 import { logout } from '../../lib/auth';
+import { getStorageHealth, type StorageHealthInfo } from '../../lib/api';
 import LanguageToggle from '../../i18n/LanguageToggle';
 import ThemeToggle from '../ThemeToggle';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
@@ -30,6 +31,11 @@ export default function AdminLayout({ session }: AdminLayoutProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [storageHealth, setStorageHealth] = useState<StorageHealthInfo | null>(null);
+
+  useEffect(() => {
+    getStorageHealth().then(setStorageHealth).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -244,6 +250,30 @@ export default function AdminLayout({ session }: AdminLayoutProps) {
                     >
                       Admin
                     </div>
+                    {storageHealth && (
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          fontSize: 10,
+                          color: 'rgba(249, 242, 228, 0.75)',
+                          marginTop: 4,
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            backgroundColor: storageHealth.db_connected ? '#22C55E' : '#F59E0B',
+                            display: 'inline-block',
+                          }}
+                        />
+                        <Database size={10} style={{ flexShrink: 0 }} />
+                        <span>{storageHealth.storage_backend === 'postgres' ? (storageHealth.host ? `Postgres (${storageHealth.host})` : 'Postgres') : 'JSON Store'}</span>
+                      </div>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -430,6 +460,44 @@ export default function AdminLayout({ session }: AdminLayoutProps) {
             >
               Admin Verified
             </div>
+
+            {/* Storage Backend Badge */}
+            {storageHealth && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 8px',
+                  borderRadius: 8,
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  fontSize: 10,
+                  fontFamily: 'Inter',
+                  color: 'rgba(249, 242, 228, 0.75)',
+                  marginTop: 8,
+                  width: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    backgroundColor: storageHealth.db_connected ? '#22C55E' : '#F59E0B',
+                    display: 'inline-block',
+                    flexShrink: 0,
+                  }}
+                />
+                <Database size={11} style={{ flexShrink: 0 }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {storageHealth.storage_backend === 'postgres'
+                    ? (storageHealth.host ? `Postgres (${storageHealth.host})` : 'Postgres')
+                    : 'JSON Store'}
+                </span>
+              </div>
+            )}
             <motion.button
               type="button"
               onClick={handleLogout}

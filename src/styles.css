@@ -832,3 +832,25 @@ p { margin: 0; }
   background-color: #5C4838 !important;
   color: #F9F2E4 !important;
 }
+
+/* Dark theme global contrast guarantees — prevents invisible text on hardcoded cream/light cards */
+[data-theme="dark"] [style*="rgba(249, 242, 228"] {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #F9F2E4 !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
+}
+
+[data-theme="dark"] [style*="rgba(255, 255, 255, 0.85)"],
+[data-theme="dark"] [style*="rgba(255, 255, 255, 0.65)"] {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #F9F2E4 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Theme toggle button styling & hover */
+.theme-toggle-btn {
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.theme-toggle-btn:hover {
+  filter: brightness(1.15);
+}

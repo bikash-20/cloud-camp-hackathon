@@ -173,7 +173,7 @@ export default function ExpandableRow({
       style={{
         position: 'relative',
         borderRadius: 18,
-        background: 'rgba(249, 242, 228, 0.78)',
+        background: T.cardBg,
         border: isSelected
           ? `1.5px solid ${T.primary}`
           : `1px solid rgba(74, 58, 52, 0.10)`,
@@ -243,7 +243,7 @@ export default function ExpandableRow({
                 fontSize: 15,
                 fontWeight: 600,
                 color: T.ink,
-                background: 'rgba(249, 242, 228, 0.9)',
+                background: T.cardBg,
                 border: `1px solid ${T.primary}`,
                 borderRadius: 8,
                 padding: '4px 8px',
@@ -503,7 +503,7 @@ export default function ExpandableRow({
                     height: 36,
                     borderRadius: '50%',
                     border: '1px solid rgba(74, 58, 52, 0.18)',
-                    background: 'rgba(249, 242, 228, 0.8)',
+                    background: T.cardBg,
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -574,7 +574,7 @@ export default function ExpandableRow({
                       marginBottom: 12,
                       padding: 10,
                       borderRadius: 12,
-                      background: 'rgba(249, 242, 228, 0.9)',
+                      background: T.cardBg,
                       border: `1px solid ${T.primary}`,
                     }}
                   >

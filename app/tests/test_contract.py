@@ -77,6 +77,42 @@ def test_health_endpoint_returns_ok(client: TestClient) -> None:
     assert resp.json() == {"status": "ok"}
 
 
+def test_api_health_endpoint_storage_json(client: TestClient) -> None:
+    resp = client.get("/api/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert data["storage_backend"] == "json"
+    assert data["db_connected"] is True
+
+
+def test_database_url_loud_failure_returns_503(tmp_path, monkeypatch) -> None:
+    import app.services.state as state_mod
+    state_mod._state = None
+    secret_pass = "super_secret_neon_password_123"
+    fake_url = f"postgresql://neondb_owner:{secret_pass}@ep-fake-pooler-99999.us-east-2.aws.neon.tech/neondb"
+    monkeypatch.setenv("DATABASE_URL", fake_url)
+    monkeypatch.setenv("STATE_PATH", str(tmp_path / "fail_state.json"))
+
+    from app.services.state import init_state
+    from app.main import create_app
+    st = init_state(tmp_path / "fail_state.json")
+    assert st.storage_type == "postgres"
+    assert not st.is_healthy
+    assert secret_pass not in str(st.init_error)
+
+    with TestClient(create_app()) as test_client:
+        # /api/health should return 503 and not expose password
+        resp = test_client.get("/api/health")
+        assert resp.status_code == 503
+        payload = resp.json()
+        assert payload["storage_backend"] == "postgres"
+        assert payload["db_connected"] is False
+        assert secret_pass not in str(payload)
+        assert "ep-fake-pooler-99999.us-east-2.aws.neon.tech" in str(payload.get("host", ""))
+    state_mod._state = None
+
+
 # ── Nutrition ───────────────────────────────────────────────────────────
 
 

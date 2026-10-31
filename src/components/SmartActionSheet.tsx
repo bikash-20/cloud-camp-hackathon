@@ -185,7 +185,7 @@ export default function SmartActionSheet({
                 gap: 8,
                 padding: '10px 14px',
                 borderRadius: 14,
-                background: 'rgba(249, 242, 228, 0.85)',
+                background: T.cardBg,
                 border: '1px solid rgba(74, 58, 52, 0.18)',
                 color: T.ink,
                 fontFamily: 'Inter',

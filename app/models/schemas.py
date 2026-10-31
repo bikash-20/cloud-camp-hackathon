@@ -274,7 +274,7 @@ class UserProfile(BaseModel):
     preferences: list[DietaryPreference] = Field(default_factory=list)
     allergens: list[Allergen] = Field(default_factory=list)
     """Daily grocery budget ceiling, in local currency (BDT)."""
-    budget: float = 500.0
+    budget: float | None = Field(default=None)
     """Number of people the meal serves."""
     serving: int = 1
     """Daily kcal target for the Home progress bar. Optional — older
