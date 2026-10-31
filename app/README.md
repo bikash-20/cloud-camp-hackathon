@@ -117,7 +117,7 @@ Interactive API docs are available at [http://localhost:8000/docs](http://localh
 
 ### 4. Run Test Suite
 ```bash
-# Run all 177 backend contract, service, coach, and TTS tests
+# Run all 178 backend contract, service, coach, and TTS tests
 python3 -m pytest app/tests/ -v
 ```
 

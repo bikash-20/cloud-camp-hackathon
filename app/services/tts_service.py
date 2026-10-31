@@ -225,13 +225,30 @@ class TTSService:
         model_id: str,
         persona: str | None = None,
     ) -> str:
-        norm_persona = (persona or "").strip().lower()
-        raw = f"{voice_id}:{model_id}:{norm_persona}:{text.strip().lower()}"
-        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        norm_persona = (persona or "scientist").strip().lower()
+        norm_voice = (voice_id or "").strip()
+        norm_model = (model_id or "").strip()
+        text_hash = hashlib.md5(text.strip().encode("utf-8")).hexdigest()
+        return f"{norm_persona}:{norm_voice}:{norm_model}:{text_hash}"
 
     def is_configured(self) -> bool:
         """Return True if an ElevenLabs API key is configured."""
         return bool(self.api_key)
+
+    def _resolve_edge_voice(
+        self,
+        text: str,
+        lang: str = "en",
+        persona: str | None = None,
+    ) -> str:
+        """Resolve Microsoft edge-tts neural voice based on persona gender and script/language."""
+        p = (persona or "").strip().lower()
+        is_female = any(k in p for k in ("farhana", "habit", "behavioral", "female"))
+        has_bengali_script = bool(re.search(r"[\u0980-\u09FF]", text))
+
+        if has_bengali_script or lang == "bn":
+            return "bn-BD-NabanitaNeural" if is_female else "bn-BD-PradeepNeural"
+        return "en-US-AvaNeural" if is_female else "en-US-AndrewNeural"
 
     def _synthesize_edge_tts(
         self,
@@ -254,14 +271,8 @@ class TTSService:
             log.warning("edge-tts is not installed; cannot perform server-side neural TTS fallback.")
             return None
 
-        p = (persona or "").strip().lower()
-        is_female = any(k in p for k in ("farhana", "habit", "behavioral", "female"))
-        has_bengali_script = bool(re.search(r"[\u0980-\u09FF]", text))
-
-        if has_bengali_script or lang == "bn":
-            voice = "bn-BD-NabanitaNeural" if is_female else "bn-BD-PradeepNeural"
-        else:
-            voice = "en-US-AvaNeural" if is_female else "en-US-AndrewNeural"
+        effective_p = persona or agent_type or "scientist"
+        voice = self._resolve_edge_voice(text, lang=lang, persona=effective_p)
 
         async def _generate() -> bytes:
             comm = edge_tts.Communicate(text, voice)
@@ -386,9 +397,11 @@ class TTSService:
                         retry_res = client.post(retry_url, headers=headers, json=payload)
                         if retry_res.status_code == 200 and len(retry_res.content) > 0:
                             audio_bytes = retry_res.content
+                            retry_ckey = self._cache_key(clean_text, fallback_premade, active_model, persona=effective_persona)
                             with self._lock:
                                 if len(self._cache) >= MAX_CACHE_SIZE:
                                     self._cache.pop(next(iter(self._cache)))
+                                self._cache[retry_ckey] = audio_bytes
                                 self._cache[ckey] = audio_bytes
                             return audio_bytes, "audio/mpeg", False, "ok (premade_voice_retry)"
 
@@ -413,10 +426,16 @@ class TTSService:
                 log.warning("ElevenLabs TTS request failed (%s). Proceeding to server edge-tts fallback.", exc)
 
         # ── Level 2: Server-side Neural TTS Fallback (edge-tts) ───────────────
+        edge_voice = self._resolve_edge_voice(clean_text, lang=lang, persona=effective_persona)
+        edge_ckey = self._cache_key(clean_text, edge_voice, "edge_tts", persona=effective_persona)
+        with self._lock:
+            if edge_ckey in self._cache:
+                log.debug("TTS edge-tts cache hit for key %s", edge_ckey)
+                return self._cache[edge_ckey], "audio/mpeg", False, "ok (cache_hit)"
+
         edge_audio = self._synthesize_edge_tts(clean_text, lang=lang, persona=effective_persona, timeout=timeout)
         if edge_audio and len(edge_audio) > 0:
             with self._lock:
-                edge_ckey = self._cache_key(clean_text, "edge_tts", lang, persona=effective_persona)
                 if len(self._cache) >= MAX_CACHE_SIZE:
                     self._cache.pop(next(iter(self._cache)))
                 self._cache[edge_ckey] = edge_audio

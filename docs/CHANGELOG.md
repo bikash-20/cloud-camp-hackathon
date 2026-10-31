@@ -31,7 +31,7 @@ This release upgrades NutriVision AI's speech engine into an enterprise-grade 3-
 - Relative API requests from the frontend resolve cleanly to the Render backend, preventing SPA 404 router traps and eliminating unnecessary CORS preflight delays.
 
 ### 6. Test Suite Expansion
-- 177 Pytest backend unit, coach, RAG, and TTS tests passing (`python3 -m pytest app/tests/ -v`).
+- 178 Pytest backend unit, coach, RAG, and TTS tests passing (`python3 -m pytest app/tests/ -v`).
 - 74 Vitest frontend unit tests passing (`npm test -- --run`).
 - 0 TypeScript type errors under strict checking (`npm run typecheck`).
 

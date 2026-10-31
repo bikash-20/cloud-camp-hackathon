@@ -153,6 +153,6 @@ npm run typecheck
 # 3. Frontend Production Build
 npm run build
 
-# 4. Backend Unit & Contract Tests (177 Pytest tests)
+# 4. Backend Unit & Contract Tests (178 Pytest tests)
 python3 -m pytest app/tests/ -v
 ```

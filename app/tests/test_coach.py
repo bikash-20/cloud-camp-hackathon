@@ -408,6 +408,86 @@ def test_tts_service_mocked_synthesis_and_lru_cache(monkeypatch: pytest.MonkeyPa
     assert call_count == 1
 
 
+def test_tts_service_cache_isolation_between_personas(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify LRU cache key isolation between Dr. Susmit (Scientist) and Farhana (Behavioral).
+
+    Ensures that identical greeting text does not collide or serve the male voice's cached audio
+    to the female behavioral coach persona.
+    """
+    import hashlib
+    import httpx
+    from app.services.tts_service import (
+        TTSService,
+        PREMADE_MALE_VOICE_ID,
+        PREMADE_FEMALE_VOICE_ID,
+    )
+
+    calls: list[dict[str, Any]] = []
+
+    def mock_post(self: Any, url: str, headers: Any = None, json: Any = None) -> Any:
+        calls.append({"url": url, "json": json})
+        if PREMADE_FEMALE_VOICE_ID in url:
+            class FemaleResp:
+                status_code = 200
+                content = b"ID3\x03\x00FEMALE_FARHANA_AUDIO"
+                text = "ok"
+
+            return FemaleResp()
+        else:
+            class MaleResp:
+                status_code = 200
+                content = b"ID3\x03\x00MALE_SUSMIT_AUDIO"
+                text = "ok"
+
+            return MaleResp()
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post)
+
+    tts = TTSService(api_key="test-eleven-key")
+    greeting = "Hello! What would you like to know about nutrition today?"
+
+    # 1. Synthesize greeting for Dr. Susmit (scientist / male)
+    audio_male, _, fb1, diag1 = tts.synthesize(greeting, persona="scientist")
+    assert audio_male == b"ID3\x03\x00MALE_SUSMIT_AUDIO"
+    assert fb1 is False
+    assert diag1 == "ok"
+    assert len(calls) == 1
+    assert PREMADE_MALE_VOICE_ID in calls[0]["url"]
+
+    # 2. Synthesize identical greeting for Farhana (behavioral / female)
+    # Must NOT hit cache from scientist persona!
+    audio_female, _, fb2, diag2 = tts.synthesize(greeting, persona="behavioral")
+    assert audio_female == b"ID3\x03\x00FEMALE_FARHANA_AUDIO"
+    assert fb2 is False
+    assert diag2 == "ok"  # Fresh synthesis, NOT cache_hit
+    assert len(calls) == 2
+    assert PREMADE_FEMALE_VOICE_ID in calls[1]["url"]
+
+    # 3. Repeat call for Dr. Susmit -> Must hit scientist cache
+    audio_male_cached, _, fb3, diag3 = tts.synthesize(greeting, persona="scientist")
+    assert audio_male_cached == b"ID3\x03\x00MALE_SUSMIT_AUDIO"
+    assert fb3 is False
+    assert diag3 == "ok (cache_hit)"
+    assert len(calls) == 2  # No extra HTTP call
+
+    # 4. Repeat call for Farhana -> Must hit behavioral cache
+    audio_female_cached, _, fb4, diag4 = tts.synthesize(greeting, persona="behavioral")
+    assert audio_female_cached == b"ID3\x03\x00FEMALE_FARHANA_AUDIO"
+    assert fb4 is False
+    assert diag4 == "ok (cache_hit)"
+    assert len(calls) == 2  # No extra HTTP call
+
+    # 5. Verify cache key format
+    clean = greeting.strip()
+    text_hash = hashlib.md5(clean.encode("utf-8")).hexdigest()
+    expected_male_key = f"scientist:{PREMADE_MALE_VOICE_ID}:eleven_flash_v2_5:{text_hash}"
+    expected_female_key = f"behavioral:{PREMADE_FEMALE_VOICE_ID}:eleven_flash_v2_5:{text_hash}"
+    assert expected_male_key in tts._cache
+    assert expected_female_key in tts._cache
+    assert tts._cache[expected_male_key] == b"ID3\x03\x00MALE_SUSMIT_AUDIO"
+    assert tts._cache[expected_female_key] == b"ID3\x03\x00FEMALE_FARHANA_AUDIO"
+
+
 def test_tts_service_dynamic_env_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify TTSService resolves ELEVENLABS_API_KEY dynamically at request time."""
     from app.services.tts_service import TTSService

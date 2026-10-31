@@ -207,6 +207,18 @@ Synthesizes speech on-demand for any text bubble, welcome message, or historical
                                   • audio_base64: null
 ```
 
+### In-Memory LRU Cache Isolation
+
+To prevent voice bleed and cache collisions when switching between coaches (e.g. Dr. Susmit vs Farhana speaking similar or identical greeting text), the in-memory LRU cache indexes entries with full persona and voice namespace isolation:
+
+```python
+cache_key = f"{persona}:{voice_id}:{model_id}:{hashlib.md5(clean_text.encode()).hexdigest()}"
+```
+
+- **Dr. Susmit (Scientist):** `scientist:JBFqnCBsd6RMkjVDRZzb:eleven_flash_v2_5:<hash>`
+- **Farhana (Behavioral / Habit Coach):** `behavioral:EXAVITQu4vr4xnSDxMaL:eleven_flash_v2_5:<hash>`
+- Identical greetings spoken by different personas never collide or serve the opposite gender's cached audio.
+
 ---
 
 ## 5. Diagnostics & Observability
