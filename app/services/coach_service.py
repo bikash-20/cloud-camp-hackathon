@@ -232,7 +232,9 @@ class CoachService:
             if req.include_audio:
                 tts = get_tts_service()
                 audio_bytes, mime, fallback, diag = tts.synthesize(
-                    voice_summary, lang=req.lang or "en", agent_type=agent_type
+                    voice_summary,
+                    lang=req.lang or "en",
+                    persona=req.persona or agent_type,
                 )
                 tts_diagnostic = diag
                 if audio_bytes:
@@ -316,7 +318,7 @@ class CoachService:
             audio_bytes, mime, fallback, diag = tts.synthesize(
                 voice_summary or detailed_markdown,
                 lang=req.lang or "en",
-                agent_type=agent_type,
+                persona=req.persona or agent_type,
             )
             tts_diagnostic = diag
             if audio_bytes:

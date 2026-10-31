@@ -163,11 +163,45 @@ class TTSService:
         self._initial_api_key = val
 
     @property
+    def male_voice_id(self) -> str:
+        """Male premade voice for Dr. Susmit (George). Can be overridden via ELEVENLABS_VOICE_ID_MALE."""
+        return (os.environ.get("ELEVENLABS_VOICE_ID_MALE") or PREMADE_MALE_VOICE_ID).strip()
+
+    @property
+    def female_voice_id(self) -> str:
+        """Female premade voice for Farhana (Sarah). Can be overridden via ELEVENLABS_VOICE_ID_FEMALE."""
+        return (os.environ.get("ELEVENLABS_VOICE_ID_FEMALE") or PREMADE_FEMALE_VOICE_ID).strip()
+
+    def resolve_voice_id(
+        self,
+        persona: str | None = None,
+        requested_voice_id: str | None = None,
+    ) -> str:
+        """Resolve ElevenLabs voice ID based on persona gender, strictly ignoring legacy library voice IDs."""
+        # 1. Explicitly requested custom voice ID (if not legacy library voice)
+        if requested_voice_id and requested_voice_id not in LEGACY_LIBRARY_VOICE_IDS:
+            return requested_voice_id
+
+        # 2. Check persona gender
+        p = (persona or "").strip().lower()
+        is_female = any(k in p for k in ("farhana", "habit", "behavioral", "female"))
+        if is_female:
+            return self.female_voice_id
+
+        # 3. Default Dr. Susmit (Male). Ignore legacy library voice in ELEVENLABS_VOICE_ID
+        env_voice = (self._initial_voice_id or os.environ.get("ELEVENLABS_VOICE_ID") or "").strip()
+        if env_voice and env_voice not in LEGACY_LIBRARY_VOICE_IDS:
+            return env_voice
+
+        return self.male_voice_id
+
+    @property
     def voice_id(self) -> str:
-        """Dynamic resolution: constructor override -> os.environ -> DEFAULT_VOICE_ID."""
-        if self._initial_voice_id is not None:
-            return self._initial_voice_id.strip()
-        return (os.environ.get("ELEVENLABS_VOICE_ID") or DEFAULT_VOICE_ID).strip()
+        """Default voice ID, falling back to male premade voice."""
+        env_voice = (self._initial_voice_id or os.environ.get("ELEVENLABS_VOICE_ID") or "").strip()
+        if env_voice and env_voice not in LEGACY_LIBRARY_VOICE_IDS:
+            return env_voice
+        return self.male_voice_id
 
     @voice_id.setter
     def voice_id(self, val: str | None) -> None:
@@ -184,8 +218,15 @@ class TTSService:
     def model_id(self, val: str | None) -> None:
         self._initial_model_id = val
 
-    def _cache_key(self, text: str, voice_id: str, model_id: str) -> str:
-        raw = f"{voice_id}:{model_id}:{text.strip().lower()}"
+    def _cache_key(
+        self,
+        text: str,
+        voice_id: str,
+        model_id: str,
+        persona: str | None = None,
+    ) -> str:
+        norm_persona = (persona or "").strip().lower()
+        raw = f"{voice_id}:{model_id}:{norm_persona}:{text.strip().lower()}"
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def is_configured(self) -> bool:
@@ -196,21 +237,31 @@ class TTSService:
         self,
         text: str,
         lang: str = "en",
-        agent_type: str = "scientist",
+        persona: str | None = None,
+        agent_type: str | None = None,
         timeout: float = 6.0,
+        **kwargs: Any,
     ) -> bytes | None:
-        """Synthesize neural speech using Microsoft Azure Edge voices (zero API key requirement)."""
+        """Synthesize neural speech using Microsoft Azure Edge voices (zero API key requirement).
+
+        Persona-gender and language matched:
+        - Dr. Susmit (Male): Bengali: bn-BD-PradeepNeural, English: en-US-AndrewNeural
+        - Farhana (Female): Bengali: bn-BD-NabanitaNeural, English: en-US-AvaNeural
+        """
         try:
             import edge_tts
         except ImportError:
             log.warning("edge-tts is not installed; cannot perform server-side neural TTS fallback.")
             return None
 
+        p = (persona or "").strip().lower()
+        is_female = any(k in p for k in ("farhana", "habit", "behavioral", "female"))
         has_bengali_script = bool(re.search(r"[\u0980-\u09FF]", text))
+
         if has_bengali_script or lang == "bn":
-            voice = "bn-BD-NabanitaNeural" if agent_type == "behavioral" else "bn-BD-PradeepNeural"
+            voice = "bn-BD-NabanitaNeural" if is_female else "bn-BD-PradeepNeural"
         else:
-            voice = "en-US-AriaNeural" if agent_type == "behavioral" else "en-US-AndrewNeural"
+            voice = "en-US-AvaNeural" if is_female else "en-US-AndrewNeural"
 
         async def _generate() -> bytes:
             comm = edge_tts.Communicate(text, voice)
@@ -236,13 +287,15 @@ class TTSService:
         lang: str = "en",
         voice_id: str | None = None,
         model_id: str | None = None,
-        agent_type: str = "scientist",
+        agent_type: str | None = None,
+        persona: str | None = None,
         timeout: float = 6.0,
     ) -> Tuple[bytes | None, str, bool, str]:
-        """Synthesize text into MP3 audio with multi-tier resilience.
+        """Synthesize text into MP3 audio with persona-aware dual-voice resilience.
 
-        Tier 1: ElevenLabs (with auto-retry on HTTP 402/400 using guaranteed premade voices).
-        Tier 2: Server-side Neural TTS (edge-tts) for authentic Bengali/English neural speech.
+        Tier 1: ElevenLabs (Male George for Dr. Susmit, Female Sarah for Farhana).
+                Auto-retries on HTTP 402/400 using guaranteed premade voices.
+        Tier 2: Server-side Neural TTS (edge-tts) matched to Persona gender and Language.
         Tier 3: Graceful browser speech synthesis fallback.
 
         Returns:
@@ -252,6 +305,7 @@ class TTSService:
         if not clean_text:
             return None, "audio/mpeg", True, "empty_text"
 
+        effective_persona = persona or agent_type or "scientist"
         elevenlabs_diag: str = ""
 
         # Check configuration dynamically at request time
@@ -259,7 +313,7 @@ class TTSService:
             log.debug("ElevenLabs API key not set; proceeding to server-side neural edge-tts fallback.")
             elevenlabs_diag = "missing_api_key"
         else:
-            active_voice = voice_id or self.voice_id or DEFAULT_VOICE_ID
+            active_voice = self.resolve_voice_id(persona=effective_persona, requested_voice_id=voice_id)
 
             # Automatic language-aware model selection:
             # ElevenLabs Flash v2.5 delivers ultra-low ~75ms TTFA for English, but Bengali script
@@ -270,7 +324,7 @@ class TTSService:
                 if active_model not in (MULTILINGUAL_MODEL_ID, "eleven_v3"):
                     active_model = MULTILINGUAL_MODEL_ID
 
-            ckey = self._cache_key(clean_text, active_voice, active_model)
+            ckey = self._cache_key(clean_text, active_voice, active_model, persona=effective_persona)
             with self._lock:
                 if ckey in self._cache:
                     log.debug("TTS cache hit for prompt hash %s", ckey[:8])
@@ -316,14 +370,13 @@ class TTSService:
                         err_detail = res.text[:200]
 
                     # Auto-retry on HTTP 402/400 (e.g. Free users cannot use library voices)
-                    fallback_premade = (
-                        PREMADE_FEMALE_VOICE_ID
-                        if (active_voice == PREMADE_FEMALE_VOICE_ID or agent_type == "behavioral")
-                        else PREMADE_MALE_VOICE_ID
-                    )
+                    p_lower = effective_persona.lower()
+                    is_female = any(k in p_lower for k in ("farhana", "habit", "behavioral", "female"))
+                    fallback_premade = self.female_voice_id if is_female else self.male_voice_id
+
                     if _is_library_voice_error(res.status_code, err_detail, active_voice) and active_voice != fallback_premade:
                         log.warning(
-                            "ElevenLabs voice '%s' rejected with HTTP %d: %s. Auto-retrying with guaranteed premade voice '%s'.",
+                            "ElevenLabs voice '%s' rejected with HTTP %d: %s. Auto-retrying with persona premade voice '%s'.",
                             active_voice,
                             res.status_code,
                             err_detail,
@@ -360,10 +413,10 @@ class TTSService:
                 log.warning("ElevenLabs TTS request failed (%s). Proceeding to server edge-tts fallback.", exc)
 
         # ── Level 2: Server-side Neural TTS Fallback (edge-tts) ───────────────
-        edge_audio = self._synthesize_edge_tts(clean_text, lang=lang, agent_type=agent_type, timeout=timeout)
+        edge_audio = self._synthesize_edge_tts(clean_text, lang=lang, persona=effective_persona, timeout=timeout)
         if edge_audio and len(edge_audio) > 0:
             with self._lock:
-                edge_ckey = self._cache_key(clean_text, "edge_tts", lang)
+                edge_ckey = self._cache_key(clean_text, "edge_tts", lang, persona=effective_persona)
                 if len(self._cache) >= MAX_CACHE_SIZE:
                     self._cache.pop(next(iter(self._cache)))
                 self._cache[edge_ckey] = edge_audio

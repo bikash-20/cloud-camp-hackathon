@@ -512,6 +512,7 @@ class CoachChatRequest(BaseModel):
     message: str | None = None
     history: list[CoachMessage] | None = None
     agent_type: CoachAgentType = "scientist"
+    persona: str | None = None
     user_profile: UserProfile | None = None
     recent_meals: list[MealEntry] | None = None
     grocery_items: list[GroceryItem] | None = None
@@ -535,6 +536,7 @@ class CoachTTSRequest(BaseModel):
     text: str
     lang: str | None = "en"
     voice_id: str | None = None
+    persona: str | None = None
 
 
 class CoachTTSResponse(BaseModel):

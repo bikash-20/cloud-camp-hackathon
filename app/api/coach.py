@@ -132,6 +132,7 @@ def coach_tts(req: CoachTTSRequest) -> CoachTTSResponse:
             text=req.text,
             lang=req.lang or "en",
             voice_id=req.voice_id,
+            persona=req.persona,
         )
         audio_b64 = base64.b64encode(audio_bytes).decode("utf-8") if audio_bytes else None
         return CoachTTSResponse(

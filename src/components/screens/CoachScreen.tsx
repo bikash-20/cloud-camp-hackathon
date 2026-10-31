@@ -351,6 +351,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
       const res = await generateCoachTTS({
         text: textToSynthesize,
         lang: isBengaliText ? 'bn' : 'en',
+        persona: agentType,
       });
 
       console.info('[AI Coach TTS]', {
@@ -580,6 +581,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
         history: historyToSend,
         messages: nextMessages,
         agent_type: agentType,
+        persona: agentType,
         user_profile: profile,
         lang: language,
         include_audio: true,

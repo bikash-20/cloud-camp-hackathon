@@ -333,6 +333,7 @@ export interface CoachChatRequest {
   message?: string | null;
   history?: CoachMessage[] | null;
   agent_type: CoachAgentType;
+  persona?: string | null;
   user_profile?: UserProfile | null;
   recent_meals?: MealEntry[] | null;
   grocery_items?: GroceryItem[] | null;
@@ -356,6 +357,7 @@ export interface CoachTTSRequest {
   text: string;
   lang?: string | null;
   voice_id?: string | null;
+  persona?: string | null;
 }
 
 export interface CoachTTSResponse {

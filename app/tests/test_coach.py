@@ -361,7 +361,7 @@ def test_tts_service_fallback_when_unconfigured(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(
         TTSService,
         "_synthesize_edge_tts",
-        lambda self, text, lang="en", agent_type="scientist", timeout=6.0: None,
+        lambda self, text, *args, **kwargs: None,
     )
 
     tts = TTSService(api_key="")
@@ -431,7 +431,7 @@ def test_tts_service_auto_retries_on_http_402_library_voice(monkeypatch: pytest.
 
     def mock_post(self: Any, url: str, headers: Any = None, json: Any = None) -> Any:
         requested_urls.append(url)
-        if "21m00Tcm4TlvDq8ikWAM" in url:
+        if "custom-unauthorized-voice" in url:
             class Mock402:
                 status_code = 402
 
@@ -451,13 +451,13 @@ def test_tts_service_auto_retries_on_http_402_library_voice(monkeypatch: pytest.
 
     monkeypatch.setattr(httpx.Client, "post", mock_post)
 
-    tts = TTSService(api_key="valid-free-tier-key", voice_id="21m00Tcm4TlvDq8ikWAM")
-    audio, mime, fallback, diag = tts.synthesize("Welcome to NutriVision")
+    tts = TTSService(api_key="valid-free-tier-key")
+    audio, mime, fallback, diag = tts.synthesize("Welcome to NutriVision", voice_id="custom-unauthorized-voice")
     assert audio == b"ID3\x03\x00PREMADE_AUDIO_BYTES"
     assert fallback is False
     assert diag == "ok (premade_voice_retry)"
     assert len(requested_urls) == 2
-    assert "21m00Tcm4TlvDq8ikWAM" in requested_urls[0]
+    assert "custom-unauthorized-voice" in requested_urls[0]
     assert PREMADE_MALE_VOICE_ID in requested_urls[1]
 
 
@@ -481,7 +481,7 @@ def test_tts_service_edge_tts_fallback_when_elevenlabs_fails(monkeypatch: pytest
     monkeypatch.setattr(
         TTSService,
         "_synthesize_edge_tts",
-        lambda self, text, lang="en", agent_type="scientist", timeout=6.0: b"ID3\x03\x00EDGE_NEURAL_AUDIO",
+        lambda self, text, *args, **kwargs: b"ID3\x03\x00EDGE_NEURAL_AUDIO",
     )
 
     tts = TTSService(api_key="rate-limited-key", voice_id="test-voice")
@@ -512,7 +512,7 @@ def test_tts_service_surfaces_http_error_diagnostic(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(
         TTSService,
         "_synthesize_edge_tts",
-        lambda self, text, lang="en", agent_type="scientist", timeout=6.0: None,
+        lambda self, text, *args, **kwargs: None,
     )
 
     tts = TTSService(api_key="expired-key", voice_id="test-voice")
@@ -576,11 +576,98 @@ def test_coach_voice_chat_endpoint_graceful_degradation(client: TestClient) -> N
 
 def test_coach_tts_endpoint(client: TestClient) -> None:
     """Verify POST /api/coach/tts accepts text and returns 200 OK."""
-    res = client.post("/api/coach/tts", json={"text": "Here is your nutrition advice."})
+    res = client.post("/api/coach/tts", json={"text": "Here is your nutrition advice.", "persona": "scientist"})
     assert res.status_code == 200
     data = res.json()
     assert "use_browser_tts" in data
     assert "tts_diagnostic" in data
+
+
+def test_tts_service_persona_aware_voice_routing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify Dr. Susmit routes to George (Male) and Farhana routes to Sarah (Female), ignoring legacy IDs."""
+    import httpx
+    from app.services.tts_service import (
+        TTSService,
+        PREMADE_MALE_VOICE_ID,
+        PREMADE_FEMALE_VOICE_ID,
+    )
+
+    requested_urls: list[str] = []
+
+    def mock_post(self: Any, url: str, headers: Any = None, json: Any = None) -> Any:
+        requested_urls.append(url)
+
+        class MockResp:
+            status_code = 200
+            content = b"ID3\x03\x00MOCK_AUDIO"
+            text = "ok"
+
+        return MockResp()
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post)
+
+    # 1. Simulating Render env having legacy library voice 21m00Tcm4TlvDq8ikWAM
+    monkeypatch.setenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+    tts = TTSService(api_key="valid-key")
+
+    # Dr. Susmit must ignore legacy voice and use George
+    requested_urls.clear()
+    tts.synthesize("Clinical nutrition analysis", persona="scientist")
+    assert PREMADE_MALE_VOICE_ID in requested_urls[-1]
+    assert "21m00Tcm4TlvDq8ikWAM" not in requested_urls[-1]
+
+    # Farhana must route to Sarah
+    requested_urls.clear()
+    tts.synthesize("Habit coaching advice", persona="behavioral")
+    assert PREMADE_FEMALE_VOICE_ID in requested_urls[-1]
+
+    # 2. Test optional env overrides
+    monkeypatch.setenv("ELEVENLABS_VOICE_ID_MALE", "custom-male-voice")
+    monkeypatch.setenv("ELEVENLABS_VOICE_ID_FEMALE", "custom-female-voice")
+
+    requested_urls.clear()
+    tts.synthesize("Male override prompt", persona="dr_susmit")
+    assert "custom-male-voice" in requested_urls[-1]
+
+    requested_urls.clear()
+    tts.synthesize("Female override prompt", persona="farhana")
+    assert "custom-female-voice" in requested_urls[-1]
+
+
+def test_edge_tts_persona_and_lang_voice_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify edge-tts selects Pradeep/Andrew for Dr. Susmit and Nabanita/Ava for Farhana."""
+    from app.services.tts_service import TTSService
+
+    mock_captured_voice = None
+
+    class MockCommunicate:
+        def __init__(self, text: str, voice: str) -> None:
+            nonlocal mock_captured_voice
+            mock_captured_voice = voice
+
+        async def stream(self) -> Any:
+            yield {"type": "audio", "data": b"EDGE_CHUNK"}
+
+    import edge_tts
+    monkeypatch.setattr(edge_tts, "Communicate", MockCommunicate)
+
+    tts = TTSService(api_key="")  # Unconfigured so it uses edge-tts
+
+    # 1. Dr. Susmit (Male) - English
+    tts.synthesize("Drink plenty of water.", lang="en", persona="scientist")
+    assert mock_captured_voice == "en-US-AndrewNeural"
+
+    # 2. Dr. Susmit (Male) - Bengali
+    tts.synthesize("পানি পান করুন।", lang="en", persona="scientist")
+    assert mock_captured_voice == "bn-BD-PradeepNeural"
+
+    # 3. Farhana (Female) - English
+    tts.synthesize("Building healthy habits takes time.", lang="en", persona="behavioral")
+    assert mock_captured_voice == "en-US-AvaNeural"
+
+    # 4. Farhana (Female) - Bengali
+    tts.synthesize("প্রতিদিনের অভ্যাস ধীরে ধীরে গড়ে তুলুন।", lang="bn", persona="farhana")
+    assert mock_captured_voice == "bn-BD-NabanitaNeural"
 
 
 
