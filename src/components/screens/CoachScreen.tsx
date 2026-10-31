@@ -27,6 +27,7 @@ import type {
 } from '../../types/schemas';
 
 interface DisplayCoachMessage extends CoachMessage {
+  persona?: string;
   voice_summary?: string | null;
   audio_base64?: string | null;
   audio_mime_type?: string;
@@ -348,10 +349,11 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
     setFetchingAudioId(idx);
     try {
       const isBengaliText = /[\u0980-\u09FF]/.test(textToSynthesize) || language === 'bn';
+      const targetPersona = msg.persona || agentType;
       const res = await generateCoachTTS({
         text: textToSynthesize,
         lang: isBengaliText ? 'bn' : 'en',
-        persona: agentType,
+        persona: targetPersona,
       });
 
       console.info('[AI Coach TTS]', {
@@ -402,7 +404,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
     } finally {
       setFetchingAudioId(null);
     }
-  }, [isPlayingAudio, currentPlayingIndex, stopAudio, speakWithBrowserTTS, language]);
+  }, [isPlayingAudio, currentPlayingIndex, stopAudio, speakWithBrowserTTS, language, agentType]);
 
   // Cleanup speech/audio on unmount
   useEffect(() => {
@@ -420,6 +422,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
     if (agentType === 'scientist') {
       const welcome: DisplayCoachMessage = {
         role: 'assistant',
+        persona: 'scientist',
         content: isBn
           ? '🔬 **স্বাগতম! আমি ড. সুস্মিত (Dr. Susmit - পুষ্টি বিজ্ঞানী)।**\n\n' +
             'আপনার প্রোফাইল, আজকের খাদ্যতালিকা ও প্যান্ট্রির তথ্যের ভিত্তিতে গ্লাইসেমিক সূচক (GI/GL), রান্নার তেলের প্রভাব এবং বিপি/ডায়াবেটিসের বৈজ্ঞানিক বিশ্লেষণ জানাতে আমি প্রস্তুত। যেকোনো প্রশ্ন জিজ্ঞাসা করুন!'
@@ -447,14 +450,15 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
     } else {
       const welcome: DisplayCoachMessage = {
         role: 'assistant',
+        persona: 'coach',
         content: isBn
-          ? '🧠 **হ্যালো! আমি ফারহানা আহমেদ (আচরণ ও অভ্যাস কোচ)।**\n\n' +
+          ? '🧠 **হ্যালো! আমি ফারহান আহমেদ (আচরণ ও অভ্যাস কোচ)।**\n\n' +
             'সুস্থ জীবনযাপন কোনো চাপ বা কড়া ডায়েট নয়, বরং ভালো লাগার অভ্যাস। পারিবারিক দাওয়াত, মিষ্টির ক্রেভিং বা রুটিন ধরে রাখার সহজ মনস্তাত্ত্বিক পরামর্শ পেতে আমাকে জানাতে পারেন। কোনো অপরাধবোধ ছাড়াই আমরা এগিয়ে যাব! 💚'
-          : '🧠 **Hello! I am Farhana Ahmed (Behavioral & Habit Coach).**\n\n' +
+          : '🧠 **Hello! I am Farhan Ahmed (Behavioral & Habit Coach).**\n\n' +
             'Healthy living isn\'t about rigid restrictions or guilt—it\'s about building compassionate, lasting habits. Let\'s navigate family feasts, sweet cravings, and daily routines together! 💚',
         voice_summary: isBn
-          ? 'হ্যালো! আমি আপনার আচরণ ও অভ্যাস কোচ ফারহানা। দাওয়াত ও খাদ্যাভ্যাসের মনস্তাত্ত্বিক নির্দেশনায় আমি সাথে আছি।'
-          : 'Hello! I am Farhana, your habit coach. Let us build sustainable, guilt-free nutrition habits together.',
+          ? 'হ্যালো! আমি আপনার আচরণ ও অভ্যাস কোচ ফারহান আহমেদ। দাওয়াত ও খাদ্যাভ্যাসের মনস্তাত্ত্বিক নির্দেশনায় আমি সাথে আছি।'
+          : 'Hello! I am Farhan Ahmed, your habit coach. Let us build sustainable, guilt-free nutrition habits together.',
       };
       setMessages([welcome]);
       setSuggestedPrompts(
@@ -589,6 +593,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
 
       const assistantMsg: DisplayCoachMessage = {
         role: 'assistant',
+        persona: agentType,
         content: res.reply,
         voice_summary: res.voice_summary,
         audio_base64: res.audio_base64,
@@ -755,7 +760,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
               }}
             >
               <span>🧠</span>
-              <span>{isBn ? 'ফারহানা (আচরণ কোচ)' : 'Farhana (Habit Coach)'}</span>
+              <span>{isBn ? 'ফারহান (আচরণ কোচ)' : 'Farhan (Habit Coach)'}</span>
             </motion.button>
           </div>
         </div>
@@ -837,7 +842,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
                   ) : (
                     <>
                       <span style={{ fontWeight: 600, color: isDark ? '#86EFAC' : '#2E6333' }}>
-                        🧠 {isBn ? 'ফারহানা আহমেদ (আচরণ কোচ)' : 'Habit Coach (Behavioral)'}
+                        🧠 {isBn ? 'ফারহান আহমেদ (আচরণ কোচ)' : 'Farhan Ahmed (Habit Coach)'}
                       </span>
                       <span style={{ opacity: 0.7 }}>• CBT & Habits</span>
                     </>

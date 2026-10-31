@@ -5,8 +5,8 @@
 This release upgrades NutriVision AI's speech engine into an enterprise-grade 3-tier synthesis pipeline featuring persona-aware voice routing, automated ElevenLabs Free-Tier 402 error protection, server-side neural speech fallback via `edge-tts`, on-demand `🔊 Listen` button playback, and transparent Vercel edge proxying.
 
 ### 1. Persona-Aware Dual-Voice Routing (`tts_service.py` & `CoachScreen.tsx`)
-- **🔬 Dr. Susmit (Scientist / Male):** Voiced by ElevenLabs premade voice `JBFqnCBsd6RMkjVDRZzb` (George). Overridable via `ELEVENLABS_VOICE_ID_MALE`.
-- **🧠 Farhana Ahmed (Habit Coach / Female):** Voiced by ElevenLabs premade voice `EXAVITQu4vr4xnSDxMaL` (Sarah). Overridable via `ELEVENLABS_VOICE_ID_FEMALE`.
+- **🔬 Dr. Susmit (Scientist):** Voiced by ElevenLabs premade voice `JBFqnCBsd6RMkjVDRZzb` (George). Overridable via `ELEVENLABS_VOICE_ID_MALE`.
+- **🧠 Farhan Ahmed (Habit Coach):** Voiced by ElevenLabs premade voice `JBFqnCBsd6RMkjVDRZzb` (George). Overridable via `ELEVENLABS_VOICE_ID_FARHAN`.
 - **Persona Context Propagation:** `persona` is passed in both `/api/coach/voice-chat` and `/api/coach/tts` payloads and incorporated into client audio cache keys.
 
 ### 2. Free-Tier Premade Voice Selection & HTTP 402 Protection
@@ -16,9 +16,9 @@ This release upgrades NutriVision AI's speech engine into an enterprise-grade 3-
 ### 3. Server-Side Neural TTS Fallback (`edge-tts` / Zero-Key)
 - Added `edge-tts` to `requirements.txt`.
 - When ElevenLabs is unconfigured, rate-limited, or fails, the server synthesizes crystal-clear neural MP3 audio via Microsoft Azure Speech endpoints with **zero API key requirement**.
-- **Gender & Language Matched:**
+- **Persona & Language Matched:**
   - Dr. Susmit: `en-US-AndrewNeural` (EN) / `bn-BD-PradeepNeural` (BN)
-  - Farhana: `en-US-AvaNeural` (EN) / `bn-BD-NabanitaNeural` (BN)
+  - Farhan: `en-US-BrianNeural` (EN) / `bn-BD-PradeepNeural` (BN)
 - Executed inside an isolated thread event loop (`_run_async_in_thread`) to prevent blocking or conflicting with uvicorn's main loop.
 
 ### 4. On-Demand `🔊 Listen` Button & Audio Observability

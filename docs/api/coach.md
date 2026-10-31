@@ -42,21 +42,21 @@ Comprehensive documentation for NutriVision AI's Multi-Agent Conversational AI C
 │ Tiered Speech Synthesis Engine — app/services/tts_service.py           │
 │                                                                        │
 │  [Tier 1: ElevenLabs Premade Voices (~75ms TTFA)]                      │
-│  • Dr. Susmit (Scientist): JBFqnCBsd6RMkjVDRZzb (George - Premade Male)│
-│  • Farhana (Habit Coach):  EXAVITQu4vr4xnSDxMaL (Sarah - Premade Female│
+│  • Dr. Susmit (Scientist):  JBFqnCBsd6RMkjVDRZzb (George - Premade Male│
+│  • Farhan (Habit Coach):   JBFqnCBsd6RMkjVDRZzb (George - Premade Male│
 │  • English: eleven_flash_v2_5 | Bengali: eleven_multilingual_v2        │
 │  • Strictly ignores legacy library voice IDs (e.g. 21m00Tcm4TlvDq8ikWAM│
-│  • Auto-retry on HTTP 400/402 with persona default premade voice       │
+│  • Auto-retry on HTTP 400/402 with default premade voice               │
 │                                   │                                    │
 │                     (If Tier 1 fails or unconfigured)                  │
 │                                   ▼                                    │
 │  [Tier 2: Server-Side Neural TTS (edge-tts / Zero API Key)]            │
-│  • Dr. Susmit (Male):                                                  │
+│  • Dr. Susmit (Scientist):                                             │
 │      - Bengali: bn-BD-PradeepNeural                                    │
 │      - English: en-US-AndrewNeural                                     │
-│  • Farhana (Female):                                                   │
-│      - Bengali: bn-BD-NabanitaNeural                                   │
-│      - English: en-US-AvaNeural                                        │
+│  • Farhan (Habit Coach):                                               │
+│      - Bengali: bn-BD-PradeepNeural                                    │
+│      - English: en-US-BrianNeural                                      │
 │  • Thread-isolated async event loop execution (non-blocking)           │
 │                                   │                                    │
 │                     (If Tier 2 fails or offline)                       │
@@ -75,7 +75,7 @@ NutriVision AI features two specialized AI coaches, selectable by the user:
 | Persona | Role | Core Expertise | Voice (ElevenLabs) | Voice (edge-tts) |
 |---|---|---|---|---|
 | **🔬 Dr. Susmit** | Nutritional Biochemist | Glycemic load ($GL$), cooking oil absorption rates, clinical macronutrient partitioning per BIRDEM/ADA protocols | `JBFqnCBsd6RMkjVDRZzb` (George, Premade Male) | `en-US-AndrewNeural` / `bn-BD-PradeepNeural` |
-| **🧠 Farhana Ahmed** | Behavioral & Habit Coach | CBT-based habit science, evening cravings, guilt-free family feast (*dawat*) recovery, small sustainable routines | `EXAVITQu4vr4xnSDxMaL` (Sarah, Premade Female) | `en-US-AvaNeural` / `bn-BD-NabanitaNeural` |
+| **🧠 Farhan Ahmed** | Behavioral & Habit Coach | CBT-based habit science, evening cravings, guilt-free family feast (*dawat*) recovery, small sustainable routines | `JBFqnCBsd6RMkjVDRZzb` (George, Premade Male) | `en-US-BrianNeural` / `bn-BD-PradeepNeural` |
 
 ---
 
@@ -173,7 +173,7 @@ Synthesizes speech on-demand for any text bubble, welcome message, or historical
            ▼
 [Check ElevenLabs Config & Model]
    • Is ELEVENLABS_API_KEY set?
-   • Resolve Persona Voice ID (Male George vs Female Sarah)
+   • Resolve Persona Voice ID (Premade George default)
    • Auto-select model (eleven_flash_v2_5 vs eleven_multilingual_v2)
    • Check in-memory LRU cache (128 slots)
            │
@@ -186,13 +186,13 @@ Synthesizes speech on-demand for any text bubble, welcome message, or historical
      │                                       │
      └─► HTTP 400/402 (Library voice error): │
          Auto-retry with Premade Voice ID ───┤
-         (George or Sarah)                   │
+         (George JBFqnCBsd6RMkjVDRZzb)       │
          If retry fails / 429 quota:         │
                                              │
                                              ▼
                           [Tier 2: edge-tts Neural Synthesis]
                           • Dr. Susmit: Andrew (EN) / Pradeep (BN)
-                          • Farhana: Ava (EN) / Nabanita (BN)
+                          • Farhan: Brian (EN) / Pradeep (BN)
                           • Microsoft Azure Neural Network (zero-key)
                                              │
                                              ├─► Success: Return MP3 Audio
@@ -209,15 +209,15 @@ Synthesizes speech on-demand for any text bubble, welcome message, or historical
 
 ### In-Memory LRU Cache Isolation
 
-To prevent voice bleed and cache collisions when switching between coaches (e.g. Dr. Susmit vs Farhana speaking similar or identical greeting text), the in-memory LRU cache indexes entries with full persona and voice namespace isolation:
+To prevent voice bleed and cache collisions when switching between coaches (e.g. Dr. Susmit vs Farhan speaking similar or identical greeting text), the in-memory LRU cache indexes entries with full persona and voice namespace isolation:
 
 ```python
 cache_key = f"{persona}:{voice_id}:{model_id}:{hashlib.md5(clean_text.encode()).hexdigest()}"
 ```
 
 - **Dr. Susmit (Scientist):** `scientist:JBFqnCBsd6RMkjVDRZzb:eleven_flash_v2_5:<hash>`
-- **Farhana (Behavioral / Habit Coach):** `behavioral:EXAVITQu4vr4xnSDxMaL:eleven_flash_v2_5:<hash>`
-- Identical greetings spoken by different personas never collide or serve the opposite gender's cached audio.
+- **Farhan (Behavioral / Habit Coach):** `behavioral:JBFqnCBsd6RMkjVDRZzb:eleven_flash_v2_5:<hash>`
+- Identical greetings spoken by different personas never collide or overwrite each other.
 
 ---
 

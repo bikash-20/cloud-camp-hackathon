@@ -24,8 +24,8 @@ log = logging.getLogger(__name__)
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 
 # Guaranteed Premade ElevenLabs Voice IDs (available on Free Tier API keys)
-PREMADE_MALE_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"   # George (warm, authoritative, clinical / Dr. Susmit)
-PREMADE_FEMALE_VOICE_ID = "EXAVITQu4vr4xnSDxMaL" # Sarah (empathetic, friendly / Farhana)
+PREMADE_MALE_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"   # George (warm, authoritative, clinical / Dr. Susmit & Farhan)
+PREMADE_FEMALE_VOICE_ID = "EXAVITQu4vr4xnSDxMaL" # Sarah (optional female override)
 DEFAULT_VOICE_ID = PREMADE_MALE_VOICE_ID
 
 # Known legacy library voice IDs blocked on Free Tier with HTTP 402 ("Free users cannot use library voices")
@@ -164,31 +164,33 @@ class TTSService:
 
     @property
     def male_voice_id(self) -> str:
-        """Male premade voice for Dr. Susmit (George). Can be overridden via ELEVENLABS_VOICE_ID_MALE."""
+        """Male premade voice for Dr. Susmit & Farhan (George). Can be overridden via ELEVENLABS_VOICE_ID_MALE."""
         return (os.environ.get("ELEVENLABS_VOICE_ID_MALE") or PREMADE_MALE_VOICE_ID).strip()
 
     @property
-    def female_voice_id(self) -> str:
-        """Female premade voice for Farhana (Sarah). Can be overridden via ELEVENLABS_VOICE_ID_FEMALE."""
-        return (os.environ.get("ELEVENLABS_VOICE_ID_FEMALE") or PREMADE_FEMALE_VOICE_ID).strip()
+    def farhan_voice_id(self) -> str:
+        """Voice for Farhan (Habit Coach). Can be overridden via ELEVENLABS_VOICE_ID_FARHAN or defaults to George."""
+        return (os.environ.get("ELEVENLABS_VOICE_ID_FARHAN") or os.environ.get("ELEVENLABS_VOICE_ID_MALE") or PREMADE_MALE_VOICE_ID).strip()
 
     def resolve_voice_id(
         self,
         persona: str | None = None,
         requested_voice_id: str | None = None,
     ) -> str:
-        """Resolve ElevenLabs voice ID based on persona gender, strictly ignoring legacy library voice IDs."""
+        """Resolve ElevenLabs voice ID based on persona, strictly ignoring legacy library voice IDs."""
         # 1. Explicitly requested custom voice ID (if not legacy library voice)
         if requested_voice_id and requested_voice_id not in LEGACY_LIBRARY_VOICE_IDS:
             return requested_voice_id
 
-        # 2. Check persona gender
         p = (persona or "").strip().lower()
-        is_female = any(k in p for k in ("farhana", "habit", "behavioral", "female"))
-        if is_female:
-            return self.female_voice_id
+        # Farhan (Habit / Behavioral Coach)
+        if any(k in p for k in ("farhan", "farhana", "habit", "behavioral", "coach")):
+            env_farhan = (os.environ.get("ELEVENLABS_VOICE_ID_FARHAN") or os.environ.get("ELEVENLABS_VOICE_ID_FEMALE") or "").strip()
+            if env_farhan and env_farhan not in LEGACY_LIBRARY_VOICE_IDS:
+                return env_farhan
+            return self.farhan_voice_id
 
-        # 3. Default Dr. Susmit (Male). Ignore legacy library voice in ELEVENLABS_VOICE_ID
+        # Dr. Susmit (Scientist)
         env_voice = (self._initial_voice_id or os.environ.get("ELEVENLABS_VOICE_ID") or "").strip()
         if env_voice and env_voice not in LEGACY_LIBRARY_VOICE_IDS:
             return env_voice
@@ -241,14 +243,18 @@ class TTSService:
         lang: str = "en",
         persona: str | None = None,
     ) -> str:
-        """Resolve Microsoft edge-tts neural voice based on persona gender and script/language."""
+        """Resolve Microsoft edge-tts neural voice based on persona and script/language.
+
+        - Dr. Susmit (Scientist): Andrew (EN) / Pradeep (BN)
+        - Farhan (Habit Coach): Brian (EN) / Pradeep (BN)
+        """
         p = (persona or "").strip().lower()
-        is_female = any(k in p for k in ("farhana", "habit", "behavioral", "female"))
+        is_habit = any(k in p for k in ("farhan", "farhana", "habit", "behavioral", "coach"))
         has_bengali_script = bool(re.search(r"[\u0980-\u09FF]", text))
 
         if has_bengali_script or lang == "bn":
-            return "bn-BD-NabanitaNeural" if is_female else "bn-BD-PradeepNeural"
-        return "en-US-AvaNeural" if is_female else "en-US-AndrewNeural"
+            return "bn-BD-PradeepNeural"
+        return "en-US-BrianNeural" if is_habit else "en-US-AndrewNeural"
 
     def _synthesize_edge_tts(
         self,
@@ -261,9 +267,9 @@ class TTSService:
     ) -> bytes | None:
         """Synthesize neural speech using Microsoft Azure Edge voices (zero API key requirement).
 
-        Persona-gender and language matched:
-        - Dr. Susmit (Male): Bengali: bn-BD-PradeepNeural, English: en-US-AndrewNeural
-        - Farhana (Female): Bengali: bn-BD-NabanitaNeural, English: en-US-AvaNeural
+        Persona and language matched:
+        - Dr. Susmit (Scientist): Bengali: bn-BD-PradeepNeural, English: en-US-AndrewNeural
+        - Farhan (Habit Coach): Bengali: bn-BD-PradeepNeural, English: en-US-BrianNeural
         """
         try:
             import edge_tts
@@ -381,9 +387,7 @@ class TTSService:
                         err_detail = res.text[:200]
 
                     # Auto-retry on HTTP 402/400 (e.g. Free users cannot use library voices)
-                    p_lower = effective_persona.lower()
-                    is_female = any(k in p_lower for k in ("farhana", "habit", "behavioral", "female"))
-                    fallback_premade = self.female_voice_id if is_female else self.male_voice_id
+                    fallback_premade = self.male_voice_id
 
                     if _is_library_voice_error(res.status_code, err_detail, active_voice) and active_voice != fallback_premade:
                         log.warning(

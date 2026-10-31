@@ -409,44 +409,43 @@ def test_tts_service_mocked_synthesis_and_lru_cache(monkeypatch: pytest.MonkeyPa
 
 
 def test_tts_service_cache_isolation_between_personas(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify LRU cache key isolation between Dr. Susmit (Scientist) and Farhana (Behavioral).
+    """Verify LRU cache key isolation between Dr. Susmit (Scientist) and Farhan (Behavioral).
 
-    Ensures that identical greeting text does not collide or serve the male voice's cached audio
-    to the female behavioral coach persona.
+    Ensures that identical greeting text does not collide or serve one coach's cached audio
+    to the other persona, even when using the same underlying audio model.
     """
     import hashlib
     import httpx
     from app.services.tts_service import (
         TTSService,
         PREMADE_MALE_VOICE_ID,
-        PREMADE_FEMALE_VOICE_ID,
     )
 
     calls: list[dict[str, Any]] = []
 
     def mock_post(self: Any, url: str, headers: Any = None, json: Any = None) -> Any:
         calls.append({"url": url, "json": json})
-        if PREMADE_FEMALE_VOICE_ID in url:
-            class FemaleResp:
-                status_code = 200
-                content = b"ID3\x03\x00FEMALE_FARHANA_AUDIO"
-                text = "ok"
-
-            return FemaleResp()
-        else:
-            class MaleResp:
+        if len(calls) == 1:
+            class SusmitResp:
                 status_code = 200
                 content = b"ID3\x03\x00MALE_SUSMIT_AUDIO"
                 text = "ok"
 
-            return MaleResp()
+            return SusmitResp()
+        else:
+            class FarhanResp:
+                status_code = 200
+                content = b"ID3\x03\x00FARHAN_AUDIO"
+                text = "ok"
+
+            return FarhanResp()
 
     monkeypatch.setattr(httpx.Client, "post", mock_post)
 
     tts = TTSService(api_key="test-eleven-key")
     greeting = "Hello! What would you like to know about nutrition today?"
 
-    # 1. Synthesize greeting for Dr. Susmit (scientist / male)
+    # 1. Synthesize greeting for Dr. Susmit (scientist)
     audio_male, _, fb1, diag1 = tts.synthesize(greeting, persona="scientist")
     assert audio_male == b"ID3\x03\x00MALE_SUSMIT_AUDIO"
     assert fb1 is False
@@ -454,14 +453,13 @@ def test_tts_service_cache_isolation_between_personas(monkeypatch: pytest.Monkey
     assert len(calls) == 1
     assert PREMADE_MALE_VOICE_ID in calls[0]["url"]
 
-    # 2. Synthesize identical greeting for Farhana (behavioral / female)
+    # 2. Synthesize identical greeting for Farhan (behavioral)
     # Must NOT hit cache from scientist persona!
-    audio_female, _, fb2, diag2 = tts.synthesize(greeting, persona="behavioral")
-    assert audio_female == b"ID3\x03\x00FEMALE_FARHANA_AUDIO"
+    audio_farhan, _, fb2, diag2 = tts.synthesize(greeting, persona="behavioral")
+    assert audio_farhan == b"ID3\x03\x00FARHAN_AUDIO"
     assert fb2 is False
     assert diag2 == "ok"  # Fresh synthesis, NOT cache_hit
     assert len(calls) == 2
-    assert PREMADE_FEMALE_VOICE_ID in calls[1]["url"]
 
     # 3. Repeat call for Dr. Susmit -> Must hit scientist cache
     audio_male_cached, _, fb3, diag3 = tts.synthesize(greeting, persona="scientist")
@@ -470,9 +468,9 @@ def test_tts_service_cache_isolation_between_personas(monkeypatch: pytest.Monkey
     assert diag3 == "ok (cache_hit)"
     assert len(calls) == 2  # No extra HTTP call
 
-    # 4. Repeat call for Farhana -> Must hit behavioral cache
-    audio_female_cached, _, fb4, diag4 = tts.synthesize(greeting, persona="behavioral")
-    assert audio_female_cached == b"ID3\x03\x00FEMALE_FARHANA_AUDIO"
+    # 4. Repeat call for Farhan -> Must hit behavioral cache
+    audio_farhan_cached, _, fb4, diag4 = tts.synthesize(greeting, persona="behavioral")
+    assert audio_farhan_cached == b"ID3\x03\x00FARHAN_AUDIO"
     assert fb4 is False
     assert diag4 == "ok (cache_hit)"
     assert len(calls) == 2  # No extra HTTP call
@@ -480,12 +478,13 @@ def test_tts_service_cache_isolation_between_personas(monkeypatch: pytest.Monkey
     # 5. Verify cache key format
     clean = greeting.strip()
     text_hash = hashlib.md5(clean.encode("utf-8")).hexdigest()
-    expected_male_key = f"scientist:{PREMADE_MALE_VOICE_ID}:eleven_flash_v2_5:{text_hash}"
-    expected_female_key = f"behavioral:{PREMADE_FEMALE_VOICE_ID}:eleven_flash_v2_5:{text_hash}"
-    assert expected_male_key in tts._cache
-    assert expected_female_key in tts._cache
-    assert tts._cache[expected_male_key] == b"ID3\x03\x00MALE_SUSMIT_AUDIO"
-    assert tts._cache[expected_female_key] == b"ID3\x03\x00FEMALE_FARHANA_AUDIO"
+    expected_susmit_key = f"scientist:{PREMADE_MALE_VOICE_ID}:eleven_flash_v2_5:{text_hash}"
+    expected_farhan_key = f"behavioral:{PREMADE_MALE_VOICE_ID}:eleven_flash_v2_5:{text_hash}"
+    assert expected_susmit_key in tts._cache
+    assert expected_farhan_key in tts._cache
+    assert expected_susmit_key != expected_farhan_key
+    assert tts._cache[expected_susmit_key] == b"ID3\x03\x00MALE_SUSMIT_AUDIO"
+    assert tts._cache[expected_farhan_key] == b"ID3\x03\x00FARHAN_AUDIO"
 
 
 def test_tts_service_dynamic_env_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -696,26 +695,26 @@ def test_tts_service_persona_aware_voice_routing(monkeypatch: pytest.MonkeyPatch
     assert PREMADE_MALE_VOICE_ID in requested_urls[-1]
     assert "21m00Tcm4TlvDq8ikWAM" not in requested_urls[-1]
 
-    # Farhana must route to Sarah
+    # Farhan must route to George by default, ignoring legacy voice
     requested_urls.clear()
     tts.synthesize("Habit coaching advice", persona="behavioral")
-    assert PREMADE_FEMALE_VOICE_ID in requested_urls[-1]
+    assert PREMADE_MALE_VOICE_ID in requested_urls[-1]
 
     # 2. Test optional env overrides
     monkeypatch.setenv("ELEVENLABS_VOICE_ID_MALE", "custom-male-voice")
-    monkeypatch.setenv("ELEVENLABS_VOICE_ID_FEMALE", "custom-female-voice")
+    monkeypatch.setenv("ELEVENLABS_VOICE_ID_FARHAN", "custom-farhan-voice")
 
     requested_urls.clear()
     tts.synthesize("Male override prompt", persona="dr_susmit")
     assert "custom-male-voice" in requested_urls[-1]
 
     requested_urls.clear()
-    tts.synthesize("Female override prompt", persona="farhana")
-    assert "custom-female-voice" in requested_urls[-1]
+    tts.synthesize("Farhan override prompt", persona="farhan")
+    assert "custom-farhan-voice" in requested_urls[-1]
 
 
 def test_edge_tts_persona_and_lang_voice_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify edge-tts selects Pradeep/Andrew for Dr. Susmit and Nabanita/Ava for Farhana."""
+    """Verify edge-tts selects Pradeep/Andrew for Dr. Susmit and Pradeep/Brian for Farhan."""
     from app.services.tts_service import TTSService
 
     mock_captured_voice = None
@@ -733,21 +732,21 @@ def test_edge_tts_persona_and_lang_voice_mapping(monkeypatch: pytest.MonkeyPatch
 
     tts = TTSService(api_key="")  # Unconfigured so it uses edge-tts
 
-    # 1. Dr. Susmit (Male) - English
+    # 1. Dr. Susmit (Scientist) - English -> Andrew
     tts.synthesize("Drink plenty of water.", lang="en", persona="scientist")
     assert mock_captured_voice == "en-US-AndrewNeural"
 
-    # 2. Dr. Susmit (Male) - Bengali
+    # 2. Dr. Susmit (Scientist) - Bengali -> Pradeep
     tts.synthesize("পানি পান করুন।", lang="en", persona="scientist")
     assert mock_captured_voice == "bn-BD-PradeepNeural"
 
-    # 3. Farhana (Female) - English
+    # 3. Farhan (Habit Coach) - English -> Brian
     tts.synthesize("Building healthy habits takes time.", lang="en", persona="behavioral")
-    assert mock_captured_voice == "en-US-AvaNeural"
+    assert mock_captured_voice == "en-US-BrianNeural"
 
-    # 4. Farhana (Female) - Bengali
-    tts.synthesize("প্রতিদিনের অভ্যাস ধীরে ধীরে গড়ে তুলুন।", lang="bn", persona="farhana")
-    assert mock_captured_voice == "bn-BD-NabanitaNeural"
+    # 4. Farhan (Habit Coach) - Bengali -> Pradeep
+    tts.synthesize("প্রতিদিনের অভ্যাস ধীরে ধীরে গড়ে তুলুন।", lang="bn", persona="farhan")
+    assert mock_captured_voice == "bn-BD-PradeepNeural"
 
 
 

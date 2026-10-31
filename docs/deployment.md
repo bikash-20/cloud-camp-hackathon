@@ -87,8 +87,8 @@ NutriVision AI uses `psycopg 3` with automatic DDL table migrations on startup.
 | `JWT_SECRET` | `openssl rand -hex 32` | 64-char random hex string |
 | `ADMIN_EMAILS` | `bikashtalukder040@gmail.com,lead@domain.com` | Admin permissions grant (comma-separated Google emails) |
 | `ELEVENLABS_API_KEY` | `xi-...` | Optional ElevenLabs text-to-speech API key |
-| `ELEVENLABS_VOICE_ID_MALE` | `JBFqnCBsd6RMkjVDRZzb` | Premade Male voice preset for Dr. Susmit (defaults to George) |
-| `ELEVENLABS_VOICE_ID_FEMALE` | `EXAVITQu4vr4xnSDxMaL` | Premade Female voice preset for Farhana (defaults to Sarah) |
+| `ELEVENLABS_VOICE_ID_MALE` | `JBFqnCBsd6RMkjVDRZzb` | Premade Male voice preset for Dr. Susmit & Farhan (defaults to George) |
+| `ELEVENLABS_VOICE_ID_FARHAN` | `JBFqnCBsd6RMkjVDRZzb` | Optional voice preset override for Farhan (defaults to George) |
 | `ELEVENLABS_VOICE_ID` | `JBFqnCBsd6RMkjVDRZzb` | Global fallback voice preset. Note: legacy library ID `21m00Tcm4TlvDq8ikWAM` is safely ignored to prevent Free Tier 402 errors |
 | `ELEVENLABS_MODEL_ID` | `eleven_flash_v2_5` | Default English model (~75ms TTFA; auto-switches to `eleven_multilingual_v2` for Bengali) |
 | `CORS_ALLOW_ORIGINS` | `https://cloud-camp-hackathon.vercel.app` | Allow frontend origin |

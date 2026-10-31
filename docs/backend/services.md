@@ -302,15 +302,15 @@ audio_base64, use_browser_tts, diagnostic = tts.synthesize(
 ```
 
 - **Tier 1 (ElevenLabs Premade Voices):**
-  - **Persona Voice Routing:** Routes Dr. Susmit (`scientist` / male) to `JBFqnCBsd6RMkjVDRZzb` (George) and Farhana (`habit` / female) to `EXAVITQu4vr4xnSDxMaL` (Sarah).
+  - **Persona Voice Routing:** Routes Dr. Susmit (`scientist`) to `JBFqnCBsd6RMkjVDRZzb` (George) and Farhan (`habit`) to `JBFqnCBsd6RMkjVDRZzb` (George) with persona-isolated caching.
   - **Dynamic Model Selection:** English routed to `eleven_flash_v2_5` (~75ms TTFA); Bengali Unicode script (`\u0980-\u09FF`) or `lang="bn"` automatically routed to `eleven_multilingual_v2`.
   - **Free Tier HTTP 402 Protection:** Strictly ignores legacy library voice IDs (e.g. `21m00Tcm4TlvDq8ikWAM`) even if set in Render env vars, and auto-retries in-flight on HTTP 400/402 with default premade voices.
-  - **In-Memory LRU Cache:** Thread-safe 128-entry cache keyed by `(clean_text, voice_id, model_id)`.
+  - **In-Memory LRU Cache:** Thread-safe 128-entry cache keyed by `f"{persona}:{voice_id}:{model_id}:{hash}"`.
 - **Tier 2 (Server-Side Neural TTS via `edge-tts`):**
   - Synthesizes high-fidelity neural MP3 audio with **zero API key requirement** if ElevenLabs is unconfigured, rate-limited, or fails.
-  - Persona gender & language matched:
-    - Dr. Susmit (Male): `en-US-AndrewNeural` (EN) / `bn-BD-PradeepNeural` (BN).
-    - Farhana (Female): `en-US-AvaNeural` (EN) / `bn-BD-NabanitaNeural` (BN).
+  - Persona & language matched:
+    - Dr. Susmit (Scientist): `en-US-AndrewNeural` (EN) / `bn-BD-PradeepNeural` (BN).
+    - Farhan (Habit Coach): `en-US-BrianNeural` (EN) / `bn-BD-PradeepNeural` (BN).
   - Runs in an isolated background thread event loop (`_run_async_in_thread`) without blocking FastAPI or conflicting with uvicorn.
 - **Tier 3 (Browser Speech Synthesis Fallback):**
   - Returns `use_browser_tts = True` and `audio_base64 = None`, enabling client-side `window.speechSynthesis`.

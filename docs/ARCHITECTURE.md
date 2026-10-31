@@ -151,20 +151,20 @@ The platform is designed around a strictly decoupled client-server architecture:
    - A single LLM pass synthesizes both a full, structured clinical Markdown card and an ultra-concise spoken summary (`voice_summary`, <60 words, clean of Markdown, LaTeX, and emojis) separated by `===VOICE_SUMMARY===`.
 4. **Persona-Aware Dual-Voice Routing:**
    - The user selects between two distinct coaching agents:
-     - **🔬 Dr. Susmit (Scientist):** Male Nutritional Biochemist. ElevenLabs premade voice `JBFqnCBsd6RMkjVDRZzb` (George).
-     - **🧠 Farhana Ahmed (Habit Coach):** Female Behavioral & Habit Coach. ElevenLabs premade voice `EXAVITQu4vr4xnSDxMaL` (Sarah).
+     - **🔬 Dr. Susmit (Scientist):** Nutritional Biochemist. ElevenLabs premade voice `JBFqnCBsd6RMkjVDRZzb` (George).
+     - **🧠 Farhan Ahmed (Habit Coach):** Behavioral & Habit Coach. ElevenLabs premade voice `JBFqnCBsd6RMkjVDRZzb` (George).
    - Legacy library voice IDs (e.g., `21m00Tcm4TlvDq8ikWAM`) are strictly ignored even if set in environment variables, completely eliminating ElevenLabs Free Tier HTTP 402 errors.
 5. **Tiered Speech Synthesis Engine (`app/services/tts_service.py`):**
    - **Tier 1 (ElevenLabs Low-Latency Premade TTS):**
      - English synthesized with `eleven_flash_v2_5` (~75ms TTFA).
      - Bengali Unicode script (`\u0980-\u09FF`) or `lang="bn"` automatically routes to `eleven_multilingual_v2`.
      - In-flight automatic retry on HTTP 400/402 with default premade voice.
-     - 128-slot thread-safe in-memory LRU cache avoids duplicate billing.
+     - 128-slot thread-safe in-memory LRU cache with persona namespace isolation (`cache_key = f"{persona}:{voice_id}:{model_id}:{hash}"`).
    - **Tier 2 (Server-Side Neural TTS via `edge-tts`):**
      - If ElevenLabs is unconfigured, rate-limited, or fails, server synthesizes neural MP3 audio with zero API keys required.
-     - Persona gender & language matched:
-       - Dr. Susmit (Male): `en-US-AndrewNeural` (EN) / `bn-BD-PradeepNeural` (BN).
-       - Farhana (Female): `en-US-AvaNeural` (EN) / `bn-BD-NabanitaNeural` (BN).
+     - Persona & language matched:
+       - Dr. Susmit (Scientist): `en-US-AndrewNeural` (EN) / `bn-BD-PradeepNeural` (BN).
+       - Farhan (Habit Coach): `en-US-BrianNeural` (EN) / `bn-BD-PradeepNeural` (BN).
      - Non-blocking execution via isolated background thread event loop (`_run_async_in_thread`).
    - **Tier 3 (Client Browser Fallback):**
      - If both server tiers are unavailable, returns `use_browser_tts = True` and `audio_base64 = null`, triggering client-side `window.speechSynthesis`.

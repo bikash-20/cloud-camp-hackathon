@@ -77,10 +77,10 @@ Built with Python 3.11+, Pydantic v2, PostgreSQL (`psycopg 3`), ChromaDB vector 
    - `POST /api/coach/voice-chat`: Single-pass dual-channel endpoint delivering formatted markdown UI advice alongside a concise spoken summary (`voice_summary`, <60 words) and synthesized MP3 audio.
    - `POST /api/coach/tts`: On-demand text-to-speech audio synthesis for the `🔊 Listen` button.
    - **Live Database Grounding:** Automatically compiles active user biometrics (`nv_users`), today's meal calorie/macro trajectory (`nv_meals`), and active pantry items (`nv_grocery`) from PostgreSQL.
-   - **Persona-Aware Dual-Voice Routing:** Dr. Susmit (`scientist` / male) uses `JBFqnCBsd6RMkjVDRZzb` (George), and Farhana (`habit` / female) uses `EXAVITQu4vr4xnSDxMaL` (Sarah).
+   - **Persona-Aware Dual-Voice Routing:** Dr. Susmit (`scientist` / male) uses `JBFqnCBsd6RMkjVDRZzb` (George), and Farhan (`habit` / male) uses `JBFqnCBsd6RMkjVDRZzb` (George) with persona-isolated caching.
    - **Tiered Speech Cascade:**
      - **Tier 1 (ElevenLabs Premade Voices):** High-speed streaming (`eleven_flash_v2_5` ~75ms for English; auto-switches to `eleven_multilingual_v2` for Bengali). Safely ignores legacy library voice IDs (`21m00Tcm4TlvDq8ikWAM`) and auto-retries on HTTP 400/402.
-     - **Tier 2 (Server-Side Neural TTS via `edge-tts`):** Zero-key neural MP3 audio matched to persona and language (`en-US-AndrewNeural`/`bn-BD-PradeepNeural` for Dr. Susmit; `en-US-AvaNeural`/`bn-BD-NabanitaNeural` for Farhana).
+     - **Tier 2 (Server-Side Neural TTS via `edge-tts`):** Zero-key neural MP3 audio matched to persona and language (`en-US-AndrewNeural`/`bn-BD-PradeepNeural` for Dr. Susmit; `en-US-BrianNeural`/`bn-BD-PradeepNeural` for Farhan).
      - **Tier 3 (Browser Speech Synthesis Fallback):** Returns `use_browser_tts = True` and `audio_base64 = null`.
    - **In-Memory LRU Cache:** Thread-safe 128-entry cache eliminates latency and character quota for repeated phrases.
    - **Observability:** Returns structured `tts_diagnostic` tags in API responses.
