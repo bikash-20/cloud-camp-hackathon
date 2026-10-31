@@ -257,8 +257,13 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
 
   // Speech-to-Text state
   const [isListening, setIsListening] = useState(false);
+  const [speechLang, setSpeechLang] = useState<'bn-BD' | 'en-US'>(() => (isBn ? 'bn-BD' : 'en-US'));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    setSpeechLang(isBn ? 'bn-BD' : 'en-US');
+  }, [isBn]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -443,7 +448,7 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
 
     try {
       const recognition = new SpeechRec();
-      recognition.lang = isBn ? 'bn-BD' : 'en-US';
+      recognition.lang = speechLang;
       recognition.interimResults = true;
       recognition.continuous = false;
 
@@ -1089,6 +1094,44 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
             )}
           </motion.button>
 
+          {/* Quick Voice Language Toggle Pill (BN / EN) */}
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.92 }}
+            onClick={() => {
+              const next = speechLang === 'bn-BD' ? 'en-US' : 'bn-BD';
+              setSpeechLang(next);
+              if (isListening && recognitionRef.current) {
+                recognitionRef.current.stop();
+                setIsListening(false);
+              }
+            }}
+            aria-label={`Switch voice language, currently ${speechLang === 'bn-BD' ? 'Bangla' : 'English'}`}
+            title={speechLang === 'bn-BD' ? 'ভয়েস ভাষা: বাংলা (ইংরেজিতে পরিবর্তন করতে ট্যাপ করুন)' : 'Voice language: English (Tap to switch to Bangla)'}
+            style={{
+              padding: '2px 7px',
+              borderRadius: 8,
+              border: isDark
+                ? '1px solid rgba(255, 255, 255, 0.16)'
+                : '1px solid rgba(74, 58, 52, 0.18)',
+              background: isDark
+                ? (speechLang === 'bn-BD' ? 'rgba(208, 174, 146, 0.22)' : 'rgba(255, 255, 255, 0.08)')
+                : (speechLang === 'bn-BD' ? 'rgba(74, 58, 52, 0.12)' : 'rgba(74, 58, 52, 0.06)'),
+              color: isDark ? '#F9F2E4' : T.ink,
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              fontFamily: 'Inter, sans-serif',
+              lineHeight: 1.3,
+              userSelect: 'none',
+              flexShrink: 0,
+            }}
+          >
+            <span>{speechLang === 'bn-BD' ? 'বাং' : 'EN'}</span>
+          </motion.button>
+
           <input
             type="text"
             value={input}
@@ -1101,9 +1144,9 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
             }}
             placeholder={
               isListening
-                ? isBn
-                  ? 'কথা বলুন… শুনছি…'
-                  : 'Listening to your voice…'
+                ? speechLang === 'bn-BD'
+                  ? 'বাংলায় কথা বলুন… শুনছি…'
+                  : 'Listening in English… speak now…'
                 : agentType === 'scientist'
                 ? isBn
                   ? 'ডায়েট বা খাবার নিয়ে জিজ্ঞাসা করুন…'

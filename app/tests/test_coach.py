@@ -399,6 +399,41 @@ def test_tts_service_mocked_synthesis_and_lru_cache(monkeypatch: pytest.MonkeyPa
     assert call_count == 1
 
 
+def test_tts_service_auto_routes_bengali_to_multilingual_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify Bengali Unicode automatically selects eleven_multilingual_v2 while English uses eleven_flash_v2_5."""
+    import httpx
+    from app.services.tts_service import TTSService, DEFAULT_MODEL_ID, MULTILINGUAL_MODEL_ID
+
+    recorded_models: list[str] = []
+
+    def mock_post(self: Any, url: str, headers: Any = None, json: Any = None) -> Any:
+        if json and "model_id" in json:
+            recorded_models.append(json["model_id"])
+
+        class MockResp:
+            status_code = 200
+            content = b"ID3\x03\x00\x00\x00MOCK_AUDIO"
+            text = "ok"
+
+        return MockResp()
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post)
+
+    tts = TTSService(api_key="test-key", voice_id="test-voice", model_id=DEFAULT_MODEL_ID)
+
+    # 1. Pure English text -> stays on eleven_flash_v2_5
+    tts.synthesize("Drink a glass of water before your meal.", lang="en")
+    assert recorded_models[-1] == "eleven_flash_v2_5"
+
+    # 2. Bengali script text -> auto-switches to eleven_multilingual_v2
+    tts.synthesize("আজ রাতের খাবারে পালং শাক এবং ডিম খেতে পারেন।", lang="en")
+    assert recorded_models[-1] == MULTILINGUAL_MODEL_ID
+
+    # 3. Explicit lang="bn" with ASCII transliteration -> auto-switches to eleven_multilingual_v2
+    tts.synthesize("Khhabarer por 15 minute haatun.", lang="bn")
+    assert recorded_models[-1] == MULTILINGUAL_MODEL_ID
+
+
 def test_coach_voice_chat_endpoint_graceful_degradation(client: TestClient) -> None:
     """Verify POST /api/coach/voice-chat returns dual-channel response and falls back to browser TTS cleanly."""
     payload = {

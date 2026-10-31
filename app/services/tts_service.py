@@ -142,12 +142,14 @@ class TTSService:
 
         active_voice = voice_id or self.voice_id or DEFAULT_VOICE_ID
 
-        # Automatic model selection: If text contains Bengali script or lang is 'bn',
-        # prefer multilingual model for authentic pronunciation unless explicitly set
-        active_model = model_id or self.model_id
+        # Automatic language-aware model selection:
+        # ElevenLabs Flash v2.5 delivers ultra-low ~75ms TTFA for English, but Bengali script
+        # requires eleven_multilingual_v2 for authentic phonetics and pronunciation.
         has_bengali_script = bool(re.search(r"[\u0980-\u09FF]", clean_text))
-        if (lang == "bn" or has_bengali_script) and active_model == DEFAULT_MODEL_ID:
-            active_model = MULTILINGUAL_MODEL_ID
+        active_model = model_id or self.model_id
+        if has_bengali_script or lang == "bn":
+            if active_model not in (MULTILINGUAL_MODEL_ID, "eleven_v3"):
+                active_model = MULTILINGUAL_MODEL_ID
 
         ckey = self._cache_key(clean_text, active_voice, active_model)
         with self._lock:
