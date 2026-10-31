@@ -354,16 +354,22 @@ def test_tts_sanitizer_removes_markdown_and_katex() -> None:
     assert "Cook your spinach with one egg for a balanced dinner." in clean
 
 
-def test_tts_service_fallback_when_unconfigured() -> None:
-    """Verify TTS gracefully degrades without crashing when ELEVENLABS_API_KEY is unset."""
+def test_tts_service_fallback_when_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify TTS gracefully degrades without crashing when ELEVENLABS_API_KEY is unset and edge-tts fails."""
     from app.services.tts_service import TTSService
+
+    monkeypatch.setattr(
+        TTSService,
+        "_synthesize_edge_tts",
+        lambda self, text, lang="en", agent_type="scientist", timeout=6.0: None,
+    )
 
     tts = TTSService(api_key="")
     audio, mime, fallback, diag = tts.synthesize("Hello there, how are you?")
     assert audio is None
     assert mime == "audio/mpeg"
     assert fallback is True
-    assert diag == "missing_api_key"
+    assert "edge_failed: missing_api_key" in diag
 
 
 def test_tts_service_mocked_synthesis_and_lru_cache(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -416,8 +422,78 @@ def test_tts_service_dynamic_env_lookup(monkeypatch: pytest.MonkeyPatch) -> None
     assert tts.api_key == "dynamically-added-render-key"
 
 
+def test_tts_service_auto_retries_on_http_402_library_voice(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify ElevenLabs HTTP 402 library voice restriction triggers auto-retry with premade voice."""
+    import httpx
+    from app.services.tts_service import TTSService, PREMADE_MALE_VOICE_ID
+
+    requested_urls: list[str] = []
+
+    def mock_post(self: Any, url: str, headers: Any = None, json: Any = None) -> Any:
+        requested_urls.append(url)
+        if "21m00Tcm4TlvDq8ikWAM" in url:
+            class Mock402:
+                status_code = 402
+
+                def json(self) -> dict[str, Any]:
+                    return {"detail": {"status": "blocked", "message": "Free users cannot use library voices"}}
+
+                text = "Free users cannot use library voices"
+
+            return Mock402()
+        else:
+            class Mock200:
+                status_code = 200
+                content = b"ID3\x03\x00PREMADE_AUDIO_BYTES"
+                text = "ok"
+
+            return Mock200()
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post)
+
+    tts = TTSService(api_key="valid-free-tier-key", voice_id="21m00Tcm4TlvDq8ikWAM")
+    audio, mime, fallback, diag = tts.synthesize("Welcome to NutriVision")
+    assert audio == b"ID3\x03\x00PREMADE_AUDIO_BYTES"
+    assert fallback is False
+    assert diag == "ok (premade_voice_retry)"
+    assert len(requested_urls) == 2
+    assert "21m00Tcm4TlvDq8ikWAM" in requested_urls[0]
+    assert PREMADE_MALE_VOICE_ID in requested_urls[1]
+
+
+def test_tts_service_edge_tts_fallback_when_elevenlabs_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify server-side neural TTS (edge-tts) generates audio when ElevenLabs fails."""
+    import httpx
+    from app.services.tts_service import TTSService
+
+    def mock_post(self: Any, url: str, headers: Any = None, json: Any = None) -> Any:
+        class Mock429:
+            status_code = 429
+
+            def json(self) -> dict[str, Any]:
+                return {"detail": "Rate limit exceeded"}
+
+            text = "Rate limit exceeded"
+
+        return Mock429()
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post)
+    monkeypatch.setattr(
+        TTSService,
+        "_synthesize_edge_tts",
+        lambda self, text, lang="en", agent_type="scientist", timeout=6.0: b"ID3\x03\x00EDGE_NEURAL_AUDIO",
+    )
+
+    tts = TTSService(api_key="rate-limited-key", voice_id="test-voice")
+    audio, mime, fallback, diag = tts.synthesize("Take your medication on time.")
+    assert audio == b"ID3\x03\x00EDGE_NEURAL_AUDIO"
+    assert fallback is False
+    assert "ok (edge_neural_fallback:" in diag
+    assert "elevenlabs_http_429" in diag
+
+
 def test_tts_service_surfaces_http_error_diagnostic(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify non-200 responses from ElevenLabs surface clear diagnostic messages."""
+    """Verify non-200 responses from ElevenLabs surface clear diagnostic messages when edge-tts also fails."""
     import httpx
     from app.services.tts_service import TTSService
 
@@ -433,6 +509,11 @@ def test_tts_service_surfaces_http_error_diagnostic(monkeypatch: pytest.MonkeyPa
         return MockErrorResp()
 
     monkeypatch.setattr(httpx.Client, "post", mock_post)
+    monkeypatch.setattr(
+        TTSService,
+        "_synthesize_edge_tts",
+        lambda self, text, lang="en", agent_type="scientist", timeout=6.0: None,
+    )
 
     tts = TTSService(api_key="expired-key", voice_id="test-voice")
     audio, mime, fallback, diag = tts.synthesize("Test prompt")
@@ -489,10 +570,8 @@ def test_coach_voice_chat_endpoint_graceful_degradation(client: TestClient) -> N
     assert "reply" in data
     assert "voice_summary" in data
     assert len(data["voice_summary"]) > 0
-    # In test environment without ElevenLabs key, use_browser_tts is True and audio is None
-    assert data["use_browser_tts"] is True
     assert "tts_diagnostic" in data
-    assert data["tts_diagnostic"] == "missing_api_key"
+    assert "missing_api_key" in data["tts_diagnostic"]
 
 
 def test_coach_tts_endpoint(client: TestClient) -> None:
