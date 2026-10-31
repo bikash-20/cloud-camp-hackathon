@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.auth import require_current_user
 from app.models.schemas import (
@@ -30,20 +30,27 @@ router = APIRouter(prefix="/api/meals", tags=["meals"])
 
 
 class SaveMealRequest(BaseModel):
-    """Body for `POST /api/meals`. Mirrors the frontend's
-    `Omit<MealEntry, 'id' | 'date'>` shape — the backend assigns both."""
+    """Body for `POST /api/meals`. Supports both camelCase and snake_case."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     label: str
     items: list[DetectedItem]
     totals: MealTotals
-    photo_url: str | None = None
-    active_goals: HealthGoals
+    photo_url: str | None = Field(default=None, alias="photoUrl")
+    active_goals: HealthGoals = Field(
+        default_factory=lambda: HealthGoals(),
+        alias="activeGoals",
+    )
 
 
 class UpdateLatestMealRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     label: str | None = None
     items: list[DetectedItem] | None = None
     totals: MealTotals | None = None
+    review_status: str | None = Field(default=None, alias="reviewStatus")
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────
@@ -55,12 +62,13 @@ def update_latest_meal(
     current_user: AuthSession = Depends(require_current_user),
     state: State = Depends(get_state),
 ) -> MealEntry | None:
-    """Update items, totals, or label on the authenticated user's latest meal."""
+    """Update items, totals, label, or review_status on the authenticated user's latest meal."""
     return state.update_user_latest_meal(
         current_user.email,
         label=body.label,
         items=body.items,
         totals=body.totals,
+        review_status=body.review_status,
     )
 
 

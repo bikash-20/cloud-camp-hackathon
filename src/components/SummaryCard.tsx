@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Flame, TrendingUp, BarChart2 } from 'lucide-react';
 import { T } from '../data';
@@ -6,6 +6,8 @@ import useCountUp from './useCountUp';
 import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 import { toBengaliDigits } from '../lib/format';
 import RevenueCurveChart from './RevenueCurveChart';
+import type { UserProfile } from '../types/schemas';
+import { getDynamicTargets } from '../lib/personalize';
 
 interface Totals {
   kcal: number;
@@ -17,13 +19,14 @@ interface Totals {
 interface SummaryCardProps {
   totals: Totals;
   itemCount: number;
+  profile?: UserProfile | null;
 }
 
 /**
  * Sticky header summary card for the Results screen with toggleable
  * Revenue-Style trajectory curve and high-contrast macro gauges.
  */
-export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
+export default function SummaryCard({ totals, itemCount, profile }: SummaryCardProps) {
   const [open, setOpen] = useState(true);
   const [showCurve, setShowCurve] = useState(false);
   const { language } = useLanguage();
@@ -33,10 +36,16 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
   const carbs = useCountUp(Math.round(totals.carbs));
   const fat = useCountUp(Math.round(totals.fat));
 
+  const targets = useMemo(() => getDynamicTargets(profile), [profile]);
+  const mealsPerDay = Math.max(1, profile?.mealsPerDay ?? 3);
+  const targetProtein = Math.max(15, Math.round(targets.protein / mealsPerDay));
+  const targetCarbs = Math.max(25, Math.round(targets.carbs / mealsPerDay));
+  const targetFat = Math.max(10, Math.round(targets.fat / mealsPerDay));
+
   const macros = [
-    { label: isBn ? 'প্রোটিন' : 'Protein', value: Math.round(protein), color: T.primary, pct: Math.min(100, Math.round((totals.protein / 50) * 100)) },
-    { label: isBn ? 'কার্বোহাইড্রেট' : 'Carbs',   value: Math.round(carbs),   color: T.accentAmber, pct: Math.min(100, Math.round((totals.carbs / 80) * 100)) },
-    { label: isBn ? 'চর্বি' : 'Fat',     value: Math.round(fat),     color: T.accentGood, pct: Math.min(100, Math.round((totals.fat / 65) * 100)) },
+    { label: isBn ? 'প্রোটিন' : 'Protein', value: Math.round(protein), color: T.primary, pct: Math.min(100, Math.round((totals.protein / targetProtein) * 100)) },
+    { label: isBn ? 'কার্বোহাইড্রেট' : 'Carbs',   value: Math.round(carbs),   color: T.accentAmber, pct: Math.min(100, Math.round((totals.carbs / targetCarbs) * 100)) },
+    { label: isBn ? 'চর্বি' : 'Fat',     value: Math.round(fat),     color: T.accentGood, pct: Math.min(100, Math.round((totals.fat / targetFat) * 100)) },
   ];
 
   return (
@@ -151,7 +160,7 @@ export default function SummaryCard({ totals, itemCount }: SummaryCardProps) {
             {showCurve ? (
               <RevenueCurveChart
                 currentKcal={Math.round(totals.kcal)}
-                dailyTarget={2269}
+                dailyTarget={targets.kcal}
                 mealsLogged={itemCount}
                 macros={{
                   protein: Math.round(totals.protein),

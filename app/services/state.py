@@ -815,6 +815,7 @@ class State:
         label: str | None = None,
         items: list[DetectedItem] | None = None,
         totals: MealTotals | None = None,
+        review_status: str | None = None,
     ) -> MealEntry | None:
         clean_email = email.lower().strip()
 
@@ -831,6 +832,8 @@ class State:
                 latest.review_status = "pending" if lowest_conf < 70.0 else None
             if totals is not None:
                 latest.totals = totals.model_copy(deep=True)
+            if review_status is not None:
+                latest.review_status = review_status
             return latest.model_copy(deep=True)
 
         return self._mutate(op)  # type: ignore[return-value]

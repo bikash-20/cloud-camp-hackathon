@@ -32,3 +32,4 @@ export function triggerHaptic(type: HapticType = 'light'): void {
     // Silently ignore if blocked by browser policy
   }
 }
+

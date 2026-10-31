@@ -18,9 +18,9 @@ import {
   T, NUTRITION_DB,
 } from '../../data';
 import { useTokens } from '../../theme/useTokens';
-import { getEffectiveNutrition } from '../../lib/personalize';
+import { getEffectiveNutrition, getDynamicTargets } from '../../lib/personalize';
 import { getContextAwarePairings } from '../../lib/foodAliases';
-import { addGroceryItem, addGroceryItemsBatch, getGroceryList, removeGroceryItem } from '../../lib/api';
+import { addGroceryItem, addGroceryItemsBatch, getGroceryList, removeGroceryItem, updateLatestMeal } from '../../lib/api';
 import { triggerHaptic } from '../../lib/haptics';
 import { checkDietConflicts, CLINICAL_DISCLAIMER_BN, CLINICAL_DISCLAIMER_EN } from '../../lib/dietConflict';
 import type { DetectedItem, UserProfile, AnalyzeResult } from '../../types/schemas';
@@ -113,6 +113,11 @@ export default function ResultsScreen({
   const [addCustomOpen, setAddCustomOpen] = useState(false);
 
   const diabeticMode = !!profile?.goals.diabetic;
+  const targets = useMemo(() => getDynamicTargets(profile), [profile]);
+  const mealsPerDay = Math.max(1, profile?.mealsPerDay ?? 3);
+  const maxProtein = Math.max(15, Math.round(targets.protein / mealsPerDay));
+  const maxCarbs = Math.max(25, Math.round(targets.carbs / mealsPerDay));
+  const maxFat = Math.max(10, Math.round(targets.fat / mealsPerDay));
 
   const contextPairings = useMemo(() => {
     return getContextAwarePairings(detected, 6);
@@ -1032,7 +1037,7 @@ export default function ResultsScreen({
         </motion.button>
       </div>
 
-      <SummaryCard totals={totals} itemCount={detected.length} />
+      <SummaryCard totals={totals} itemCount={detected.length} profile={profile} />
 
       {step === 2 ? (
         <motion.div
@@ -1210,6 +1215,7 @@ export default function ResultsScreen({
                 const allConf: Record<string, boolean> = {};
                 detected.forEach((d) => { allConf[d.name] = true; });
                 setConfirmed(allConf);
+                void updateLatestMeal({ reviewStatus: 'confirmed' });
                 triggerToast(isBn ? 'খাবার নিশ্চিত করা হয়েছে!' : 'Meal confirmed!');
                 onViewNutrients?.();
               }}
@@ -1422,6 +1428,9 @@ export default function ResultsScreen({
                   multiSelect={multiSelect}
                   editMode={editMode}
                   isItemInGrocery={isItemInGrocery}
+                  maxProtein={maxProtein}
+                  maxCarbs={maxCarbs}
+                  maxFat={maxFat}
                   onToggleGrocery={handleToggleSingleItemGrocery}
                   onConfirm={confirm}
                   onRemove={remove}

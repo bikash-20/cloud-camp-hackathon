@@ -64,6 +64,9 @@ interface ExpandableRowProps {
   onToggleGrocery?: (name: string) => Promise<void | boolean> | void;
   isItemInGrocery?: boolean;
   glycemic?: number;
+  maxProtein?: number;
+  maxCarbs?: number;
+  maxFat?: number;
 }
 
 /**
@@ -85,6 +88,9 @@ export default function ExpandableRow({
   onToggleGrocery,
   isItemInGrocery,
   glycemic,
+  maxProtein,
+  maxCarbs,
+  maxFat,
 }: ExpandableRowProps) {
   const reduceMotion = useReducedMotion();
   const { foodName, language } = useLanguage();
@@ -416,9 +422,9 @@ export default function ExpandableRow({
                     <span className="tnum">{isBn ? toBengaliDigits(Math.round(meta.kcal)) : Math.round(meta.kcal)} {isBn ? 'কিলোক্যালরি' : 'kcal'}</span>
                   </div>
                   {[
-                    { label: isBn ? 'প্রোটিন' : 'Protein', value: meta.protein, color: T.primary, max: 50 },
-                    { label: isBn ? 'কার্বোহাইড্রেট' : 'Carbs',   value: meta.carbs,   color: T.accentAmber, max: 80 },
-                    { label: isBn ? 'চর্বি' : 'Fat',     value: meta.fat,     color: T.accentGood, max: 65 },
+                    { label: isBn ? 'প্রোটিন' : 'Protein', value: meta.protein, color: T.primary, max: maxProtein ?? 50 },
+                    { label: isBn ? 'কার্বোহাইড্রেট' : 'Carbs',   value: meta.carbs,   color: T.accentAmber, max: maxCarbs ?? 80 },
+                    { label: isBn ? 'চর্বি' : 'Fat',     value: meta.fat,     color: T.accentGood, max: maxFat ?? 65 },
                   ].map((m) => (
                     <div
                       key={m.label}

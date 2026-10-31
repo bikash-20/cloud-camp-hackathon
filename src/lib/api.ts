@@ -30,8 +30,8 @@ import type {
   UserProfile,
 } from '../types/schemas';
 import * as storage from './storage';
-import { MOCK_NUTRITION_DB, MOCK_TARGETS } from '../mocks/fixtures';
-import { buildContributions, mealTotals } from './personalize';
+import { MOCK_NUTRITION_DB } from '../mocks/fixtures';
+import { buildContributions, mealTotals, getDynamicTargets } from './personalize';
 
 // ── Backend wiring ──────────────────────────────────────────────────────
 
@@ -270,9 +270,27 @@ export async function clearGroceryList(): Promise<void> {
 
 /** Save a completed meal to history. */
 export async function saveMeal(entry: Omit<MealEntry, 'id' | 'date'>): Promise<MealEntry> {
+  const e = entry as any;
+  const payload = {
+    ...entry,
+    photo_url: e.photoUrl ?? e.photo_url ?? null,
+    photoUrl: e.photoUrl ?? e.photo_url ?? null,
+    active_goals: e.activeGoals ?? e.active_goals ?? {
+      diabetic: false,
+      protein: false,
+      budget: false,
+      mediter: false,
+    },
+    activeGoals: e.activeGoals ?? e.active_goals ?? {
+      diabetic: false,
+      protein: false,
+      budget: false,
+      mediter: false,
+    },
+  };
   const saved = await apiFetch<MealEntry>('/api/meals', {
     method: 'POST',
-    body: JSON.stringify(entry),
+    body: JSON.stringify(payload),
   });
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('meal-history-updated', { detail: saved }));
@@ -545,8 +563,8 @@ export async function generateCoachTTS(req: CoachTTSRequest): Promise<CoachTTSRe
 
 // ── Aggregate targets (for NutrientsScreen) ─────────────────────────────
 
-export function getMacroTargets() {
-  return { ...MOCK_TARGETS };
+export function getMacroTargets(profile?: UserProfile | null) {
+  return getDynamicTargets(profile);
 }
 
 /** Fetch live telemetry metrics from backend for the admin dashboard. */

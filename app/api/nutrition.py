@@ -18,14 +18,16 @@ can stub each layer without monkeypatching the live clients.
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from pathlib import Path
 import json
 
+from app.api.auth import get_current_user_optional
 from app.api.personalize import compute_contributions, resolve_detected_item
 from app.models.schemas import (
+    AuthSession,
     DetectedItem,
     FoodDescriptor,
     MacroTargets,
@@ -41,6 +43,8 @@ from app.services import fruityvice_client as fruityvice_client_mod
 from app.services import usda_client as usda_client_mod
 from app.services.fruityvice_client import FruityviceClient
 from app.services.off_client import OFFClient
+from app.services.state import State, get_state
+from app.services.targets import calculate_targets
 from app.services.usda_client import USDAClient
 
 _BD_FOODS_PATH = Path(__file__).resolve().parents[1] / "data" / "bd_food_composition.json"
@@ -223,11 +227,30 @@ def resolve_nutrition(body: ResolveRequest) -> ResolveNutritionResult:
     return ResolveNutritionResult(resolved=resolved, contributions=contributions)
 
 
+class MacroTargetsRequest(BaseModel):
+    profile: UserProfile | None = None
+
+
 @router.get("/targets", response_model=MacroTargets)
-def macro_targets() -> MacroTargets:
-    """Daily macro ceilings used by NutrientsScreen. Static for now —
-    cut (b) will let these vary by profile (e.g. higher protein when
-    `goals.protein` is on)."""
+def macro_targets(
+    current_user: AuthSession | None = Depends(get_current_user_optional),
+    state: State = Depends(get_state),
+) -> MacroTargets:
+    """Daily macro targets personalized to the active user profile, or standard targets when unauthenticated."""
+    if current_user and current_user.email:
+        profile = state.get_user_profile(current_user.email)
+        if profile:
+            targets = calculate_targets(profile)
+            return targets["daily"]
+    return DEFAULT_TARGETS
+
+
+@router.post("/targets", response_model=MacroTargets)
+def calculate_macro_targets(body: MacroTargetsRequest) -> MacroTargets:
+    """Calculate daily macro targets dynamically for the provided user profile."""
+    if body.profile:
+        targets = calculate_targets(body.profile)
+        return targets["daily"]
     return DEFAULT_TARGETS
 
 

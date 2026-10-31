@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { T, TABS } from './data';
-import { getProfile, saveMeal, updateLatestMeal, analyzeMeal, resolveNutrition } from './lib/api';
+import { getProfile, saveMeal, updateLatestMeal, analyzeMeal, resolveNutrition, getMealHistory } from './lib/api';
 import { getEffectiveNutrition } from './lib/personalize';
 import { getSession, logout } from './lib/auth';
 import { ThemeProvider } from './theme/ThemeContext';
@@ -127,6 +127,23 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
     getProfile().then((p) => {
       if (!cancelled) setProfile(p);
     });
+    getMealHistory()
+      .then((meals) => {
+        if (!cancelled && meals && meals.length > 0) {
+          const latest = meals[0];
+          if (latest && latest.items && latest.items.length > 0) {
+            setDetected((prev) => (prev.length === 0 ? latest.items : prev));
+            const photo = (latest as any).photo_url || latest.photoUrl;
+            if (photo) {
+              setCapturedImage((prev) => prev || photo);
+              setCaptured((prev) => prev || true);
+            }
+          }
+        }
+      })
+      .catch(() => {
+        // Silently continue if offline
+      });
     return () => { cancelled = true; };
   }, []);
 

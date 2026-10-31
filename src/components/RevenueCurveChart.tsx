@@ -90,7 +90,7 @@ export default function RevenueCurveChart({
   const yBaseline = MARGIN_TOP + plotHeight;
 
   // Adaptive scale bounds
-  const targetKcal = Math.max(1200, dailyTarget || 2269);
+  const targetKcal = Math.max(1200, dailyTarget || 2000);
   const activeKcal = Math.max(0, currentKcal || 0);
   const maxY = Math.max(2500, Math.ceil(Math.max(targetKcal, activeKcal) * 1.15 / 500) * 500);
 

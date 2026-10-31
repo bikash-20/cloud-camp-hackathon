@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -343,28 +343,82 @@ class MealEntry(BaseModel):
     totals: MealTotals
     photo_url: str | None = Field(default=None, alias="photoUrl")
     """Which profile goals were active when this meal was logged."""
-    active_goals: HealthGoals
+    active_goals: HealthGoals = Field(default_factory=lambda: HealthGoals(), alias="activeGoals")
     review_status: str | None = Field(default=None, alias="reviewStatus")
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class UserStats(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     total_meals: int = 0
     total_days_active: int = 0
     avg_daily_kcal: int = 0
     streak_days: int = 0
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def totalMeals(self) -> int:
+        return self.total_meals
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def totalDaysActive(self) -> int:
+        return self.total_days_active
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def avgDailyKcal(self) -> int:
+        return self.avg_daily_kcal
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def streakDays(self) -> int:
+        return self.streak_days
+
 
 # Lifted from `getTodaySummary()`'s inline return type in the frontend
 # so FastAPI has an explicit response_model.
 class TodaySummary(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     meals_logged: int = 0
     total_kcal: float = 0.0
     total_protein: float = 0.0
     total_carbs: float = 0.0
     total_fat: float = 0.0
     daily_kcal_target: float = 2000.0
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def mealsLogged(self) -> int:
+        return self.meals_logged
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def totalKcal(self) -> float:
+        return self.total_kcal
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def totalProtein(self) -> float:
+        return self.total_protein
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def totalCarbs(self) -> float:
+        return self.total_carbs
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def totalFat(self) -> float:
+        return self.total_fat
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def dailyKcalTarget(self) -> float:
+        return self.daily_kcal_target
 
 
 # ─────────────────────────────────────────────────────────────────────────

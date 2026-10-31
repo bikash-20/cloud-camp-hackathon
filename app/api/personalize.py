@@ -17,7 +17,7 @@ from app.models.schemas import (
     ResolvedItem,
     UserProfile,
 )
-from app.seed.fixtures import TARGETS
+from app.services.targets import calculate_targets
 
 
 # A flagged nutrient is one the user's profile cares about.
@@ -39,44 +39,47 @@ class _Rule:
     low_reason: str | None  # template; None means "no low-reason comment"
 
 
-_RULES: list[_Rule] = [
-    _Rule(
-        nutrient="sodium",
-        threshold=TARGETS.sodium,
-        low_threshold=None,
-        warn_share=0.30,
-        unit="mg",
-        high_reason="{name} adds {amount}mg sodium — that's {pct}% of your daily cap in one item.",
-        low_reason=None,
-    ),
-    _Rule(
-        nutrient="sugar",
-        threshold=TARGETS.sugar,
-        low_threshold=TARGETS.sugar * 0.6,
-        warn_share=0.30,
-        unit="g",
-        high_reason="{name} brings {amount}g of sugar — a notable spike for a prediabetic-friendly plate.",
-        low_reason="{name} contributes only ~{amount}g of sugar — well within your prediabetic-friendly target.",
-    ),
-    _Rule(
-        nutrient="fiber",
-        threshold=TARGETS.fiber,
-        low_threshold=12.0,
-        warn_share=0.30,
-        unit="g",
-        high_reason="{name} is a solid fiber source at {amount}g — pulls the meal toward target.",
-        low_reason="{name} contributes only ~{amount}g fiber — the whole meal falls short of your 30g daily target. Add whole grains or legumes next time.",
-    ),
-    _Rule(
-        nutrient="protein",
-        threshold=TARGETS.protein,
-        low_threshold=None,
-        warn_share=0.30,
-        unit="g",
-        high_reason="{name} delivers {amount}g of protein — strong for a single dish.",
-        low_reason="{name} is light on protein (~{amount}g) — consider adding dal or paneer.",
-    ),
-]
+def _get_dynamic_rules(profile: UserProfile | None) -> list[_Rule]:
+    calc = calculate_targets(profile)
+    daily = calc["daily"]
+    return [
+        _Rule(
+            nutrient="sodium",
+            threshold=daily.sodium,
+            low_threshold=None,
+            warn_share=0.30,
+            unit="mg",
+            high_reason="{name} adds {amount}mg sodium — that's {pct}% of your daily cap in one item.",
+            low_reason=None,
+        ),
+        _Rule(
+            nutrient="sugar",
+            threshold=daily.sugar,
+            low_threshold=daily.sugar * 0.6,
+            warn_share=0.30,
+            unit="g",
+            high_reason="{name} brings {amount}g of sugar — a notable spike for your target.",
+            low_reason="{name} contributes only ~{amount}g of sugar — well within your target.",
+        ),
+        _Rule(
+            nutrient="fiber",
+            threshold=daily.fiber,
+            low_threshold=12.0,
+            warn_share=0.30,
+            unit="g",
+            high_reason="{name} is a solid fiber source at {amount}g — pulls the meal toward target.",
+            low_reason="{name} contributes only ~{amount}g fiber — the meal falls short of your daily target. Add whole grains or legumes.",
+        ),
+        _Rule(
+            nutrient="protein",
+            threshold=daily.protein,
+            low_threshold=None,
+            warn_share=0.30,
+            unit="g",
+            high_reason="{name} delivers {amount}g of protein — strong for a single dish.",
+            low_reason="{name} is light on protein (~{amount}g) — consider adding dal, eggs, or paneer.",
+        ),
+    ]
 
 
 def compute_contributions(
@@ -96,16 +99,17 @@ def compute_contributions(
         return []
     focus = _PROFILE_FOCUS[profile.goals.diabetic]
 
+    rules = _get_dynamic_rules(profile)
     # Per-nutrient meal totals — exclude items whose nutrition we
     # couldn't resolve (they'd just add noise to the share calc).
     totals: dict[str, float] = {
         r.nutrient: sum(_amount(it, r.nutrient) for it in resolved)
-        for r in _RULES
+        for r in rules
         if r.nutrient in focus
     }
 
     contributions: list[NutrientContribution] = []
-    for rule in _RULES:
+    for rule in rules:
         if rule.nutrient not in focus:
             continue
         total = totals[rule.nutrient]

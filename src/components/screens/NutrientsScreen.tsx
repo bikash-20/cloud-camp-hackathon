@@ -774,7 +774,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
       sum += (n.kcal * it.grams) / 100;
     }
     const val = Math.round(sum) || Math.round(totals.protein * 4 + totals.carbs * 4 + totals.fat * 9);
-    return val > 0 ? val : 1013;
+    return Math.max(0, val);
   }, [detected, resolvedNutritionMap, totals]);
   const overCarbs = totals.carbs > targets.carbs;
   const glycemicHigh = totals.glycemic > 0.65;
@@ -1089,12 +1089,12 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
       <div style={{ marginBottom: 18 }}>
         <RevenueCurveChart
           currentKcal={mealKcal}
-          dailyTarget={targets.kcal || 2269}
+          dailyTarget={targets.kcal}
           mealsLogged={todaySummary?.mealsLogged || 1}
           subtitle={
             language === 'bn'
-              ? `এই খাবার: ${toBengaliDigits(mealKcal)} কিলোক্যালরি (${toBengaliDigits(detected.length)}টি উপাদান) · দৈনিক লক্ষ্য ${toBengaliDigits(targets.kcal || 2269)}`
-              : `This meal: ${mealKcal} kcal (${detected.length} items) · Daily target: ${targets.kcal || 2269}`
+              ? `এই খাবার: ${toBengaliDigits(mealKcal)} কিলোক্যালরি (${toBengaliDigits(detected.length)}টি উপাদান) · দৈনিক লক্ষ্য ${toBengaliDigits(targets.kcal)}`
+              : `This meal: ${mealKcal} kcal (${detected.length} items) · Daily target: ${targets.kcal}`
           }
           macros={{
             protein: Math.round(protein),
