@@ -11,7 +11,7 @@ NutriVision AI is a production-grade, phone-first Progressive Web App (PWA) demo
 - **Visual Ingestion:** 5-tier multimodal vision cascade (Groq LPU $\rightarrow$ Gemini 2.0 Flash $\rightarrow$ OpenRouter $\rightarrow$ Gemini 1.5 $\rightarrow$ Hugging Face).
 - **Clinical Nutrition:** Dynamic BMR/TDEE calculation (Mifflin-St Jeor), clinical AMDR macronutrient splits, and localized Bangladeshi composition databases combined with Open Food Facts and USDA FoodData Central.
 - **Market Intelligence & Dietary Pivots:** Macro- and BDT price-delta calculations for meals, tied directly to a 1-tap localized weekly grocery list.
-- **AI Health Coach & Voice Assistant:** Dr. Susmit (Scientist) & Farhana (Habit Coach) with live PostgreSQL grounding (`nv_users`, `nv_meals`, `nv_grocery`), single-pass dual-channel inference, dynamic ElevenLabs TTS model routing (`eleven_flash_v2_5` ~75ms vs `eleven_multilingual_v2`), and browser STT with on-the-fly `[বাং / EN]` toggle.
+- **AI Health Coach & Voice Assistant:** Dr. Susmit (Scientist) & Farhana (Habit Coach) with live PostgreSQL grounding (`nv_users`, `nv_meals`, `nv_grocery`), single-pass dual-channel inference, 3-tier speech cascade (ElevenLabs premade voices $\rightarrow$ server-side `edge-tts` neural fallback $\rightarrow$ browser speech synthesis), on-demand `🔊 Listen` button with local caching, and browser STT with on-the-fly `[বাং / EN]` toggle.
 - **Admin Intelligence:** 4-view admin portal (live metrics, user directory, popular food analytics, low-confidence review queue).
 - **Storage Resilience:** Fail-loud PostgreSQL startup with `psycopg[binary]`, tracked migrations (`nv_migrations`), and public health monitoring (`/api/health`).
 
@@ -23,7 +23,7 @@ NutriVision AI is a production-grade, phone-first Progressive Web App (PWA) demo
 |---|---|---|
 | **Frontend PWA** | React 18, TypeScript, Vite, framer-motion | `src/App.tsx`, `src/components/*` |
 | **Authentication** | Google Identity Services (GIS), JWT (HS256) | `src/lib/auth.ts`, `app/api/auth.py` |
-| **Voice & Speech** | ElevenLabs REST API, Web Speech API, Web Audio | `app/services/tts_service.py`, `src/components/screens/CoachScreen.tsx` |
+| **Voice & Speech** | ElevenLabs REST API, edge-tts (Neural), Web Speech API, Web Audio | `app/services/tts_service.py`, `src/components/screens/CoachScreen.tsx` |
 | **Backend API** | FastAPI, Python 3.11+, Pydantic v2 | `app/main.py`, `app/api/*` |
 | **Persistence** | PostgreSQL (`psycopg 3`), JSON fallback | `app/services/state.py` |
 | **Vector & Cache** | ChromaDB, SQLite TTL | `app/cache/vector_cache.py`, `app/cache/sqlite_cache.py` |
@@ -100,7 +100,7 @@ src/
 │       ├── NutrientsScreen.tsx       # Macro donut charts & dietary pivot cards
 │       ├── ProfileScreen.tsx         # Health goals, allergies, and daily grocery budget
 │       ├── GroceryScreen.tsx         # Weekly organized shopping list
-│       └── CoachScreen.tsx           # Dr. Susmit AI habit & nutrition scientist
+│       └── CoachScreen.tsx           # Multi-agent AI coach (Dr. Susmit / Farhana) & voice assistant
 ```
 
 ### Backend (`app/`)
@@ -111,6 +111,8 @@ app/
 ├── models/schemas.py                 # Pydantic v2 schemas (mirrors TypeScript)
 ├── services/
 │   ├── state.py                      # Multi-tenant state store (PostgreSQL + JSON fallback)
+│   ├── coach_service.py              # Coach service: DB grounding, RAG, dual-channel parsing
+│   ├── tts_service.py                # 3-tier TTS engine (ElevenLabs, edge-tts, browser)
 │   ├── groq_client.py                # Tier 1 Groq LPU Vision client
 │   ├── gemini_client.py              # Tier 2 Google Gemini 2.0 Flash client
 │   ├── openrouter_client.py          # Tier 3 OpenRouter Vision cascade
@@ -120,6 +122,7 @@ app/
 │   └── fruityvice_client.py          # Fruityvice fruit nutrition client
 ├── api/
 │   ├── auth.py                       # Google OAuth verification & JWT generation
+│   ├── coach.py                      # Voice chat and on-demand TTS synthesis
 │   ├── admin.py                      # Metrics, user directory, popular foods, review queue
 │   ├── vision.py                     # Multi-tier meal image analysis
 │   ├── nutrition.py                  # Dynamic BMR/TDEE & nutrition resolution
@@ -129,6 +132,7 @@ app/
 └── tests/
     ├── test_contract.py              # Schema contract tests
     ├── test_schema_drift.py          # Lockstep AST drift verification
+    ├── test_coach.py                 # Multi-agent coach, RAG, and TTS unit/regression tests
     ├── test_admin.py                 # Admin dashboard endpoint tests
     └── test_caches.py                # Vector and TTL cache validation
 ```
@@ -140,7 +144,7 @@ app/
 Before committing changes, execute the full test and verification pipeline:
 
 ```bash
-# 1. Frontend Unit Tests (72 Vitest tests)
+# 1. Frontend Unit Tests (74 Vitest tests)
 npm test -- --run
 
 # 2. Frontend Strict Typecheck (0 errors)
@@ -149,6 +153,6 @@ npm run typecheck
 # 3. Frontend Production Build
 npm run build
 
-# 4. Backend Unit & Contract Tests (155 Pytest tests)
+# 4. Backend Unit & Contract Tests (177 Pytest tests)
 python3 -m pytest app/tests/ -v
 ```

@@ -1,5 +1,42 @@
 # Changelog
 
+## [Production Release] Persona-Aware Dual-Voice Speech Cascade, Edge-TTS Fallback & Vercel Edge Proxy
+
+This release upgrades NutriVision AI's speech engine into an enterprise-grade 3-tier synthesis pipeline featuring persona-aware voice routing, automated ElevenLabs Free-Tier 402 error protection, server-side neural speech fallback via `edge-tts`, on-demand `🔊 Listen` button playback, and transparent Vercel edge proxying.
+
+### 1. Persona-Aware Dual-Voice Routing (`tts_service.py` & `CoachScreen.tsx`)
+- **🔬 Dr. Susmit (Scientist / Male):** Voiced by ElevenLabs premade voice `JBFqnCBsd6RMkjVDRZzb` (George). Overridable via `ELEVENLABS_VOICE_ID_MALE`.
+- **🧠 Farhana Ahmed (Habit Coach / Female):** Voiced by ElevenLabs premade voice `EXAVITQu4vr4xnSDxMaL` (Sarah). Overridable via `ELEVENLABS_VOICE_ID_FEMALE`.
+- **Persona Context Propagation:** `persona` is passed in both `/api/coach/voice-chat` and `/api/coach/tts` payloads and incorporated into client audio cache keys.
+
+### 2. Free-Tier Premade Voice Selection & HTTP 402 Protection
+- **Legacy Library Voice Shield:** ElevenLabs now restricts Free Tier keys from using library voices (e.g., `21m00Tcm4TlvDq8ikWAM` / Rachel), throwing HTTP 402 `Free users cannot use library voices`. `resolve_voice_id()` strictly ignores legacy IDs and defaults to guaranteed premade voices.
+- **In-Flight Error Recovery:** Automatically catches HTTP 400 (`voice_not_found`) and HTTP 402 errors from ElevenLabs, immediately retrying synthesis with the default premade voice before degrading.
+
+### 3. Server-Side Neural TTS Fallback (`edge-tts` / Zero-Key)
+- Added `edge-tts` to `requirements.txt`.
+- When ElevenLabs is unconfigured, rate-limited, or fails, the server synthesizes crystal-clear neural MP3 audio via Microsoft Azure Speech endpoints with **zero API key requirement**.
+- **Gender & Language Matched:**
+  - Dr. Susmit: `en-US-AndrewNeural` (EN) / `bn-BD-PradeepNeural` (BN)
+  - Farhana: `en-US-AvaNeural` (EN) / `bn-BD-NabanitaNeural` (BN)
+- Executed inside an isolated thread event loop (`_run_async_in_thread`) to prevent blocking or conflicting with uvicorn's main loop.
+
+### 4. On-Demand `🔊 Listen` Button & Audio Observability
+- Added `POST /api/coach/tts` endpoint allowing users to trigger speech synthesis on any message bubble on demand.
+- Frontend message-level audio caching (`audioCacheRef`) prevents redundant network requests for already synthesized messages.
+- Added `tts_diagnostic` field to `CoachChatResponse` and `CoachTTSResponse` detailing the exact provider and voice used (e.g., `elevenlabs_flash_v2_5`, `edge_tts_fallback:en-US-AndrewNeural`, `browser_tts_client`).
+
+### 5. Transparent Vercel Edge Proxy
+- Added `/api/:path*` rewrite in `vercel.json` pointing to `https://cloud-camp-hackathon.onrender.com/api/:path*`.
+- Relative API requests from the frontend resolve cleanly to the Render backend, preventing SPA 404 router traps and eliminating unnecessary CORS preflight delays.
+
+### 6. Test Suite Expansion
+- 177 Pytest backend unit, coach, RAG, and TTS tests passing (`python3 -m pytest app/tests/ -v`).
+- 74 Vitest frontend unit tests passing (`npm test -- --run`).
+- 0 TypeScript type errors under strict checking (`npm run typecheck`).
+
+---
+
 ## [Production Release] Multi-Agent Voice AI Assistant, Dynamic ElevenLabs TTS & Live Database Grounding
 
 This release introduces conversational voice intelligence to NutriVision AI, with real-time speech synthesis, live PostgreSQL grounding (`nv_users`, `nv_meals`, `nv_grocery`), fail-loud storage architecture, and high-contrast dark theme refinements.

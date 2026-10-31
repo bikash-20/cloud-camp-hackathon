@@ -86,14 +86,19 @@ NutriVision AI uses `psycopg 3` with automatic DDL table migrations on startup.
 | `GOOGLE_CLIENT_ID` | `xxxxxxxx.apps.googleusercontent.com` | Matches Google Console |
 | `JWT_SECRET` | `openssl rand -hex 32` | 64-char random hex string |
 | `ADMIN_EMAILS` | `bikashtalukder040@gmail.com,lead@domain.com` | Admin permissions grant (comma-separated Google emails) |
-| `ELEVENLABS_API_KEY` | `xi-...` | ElevenLabs text-to-speech API key |
-| `ELEVENLABS_VOICE_ID` | `21m00Tcm4TlvDq8ikWAM` | Voice ID preset (defaults to Rachel) |
+| `ELEVENLABS_API_KEY` | `xi-...` | Optional ElevenLabs text-to-speech API key |
+| `ELEVENLABS_VOICE_ID_MALE` | `JBFqnCBsd6RMkjVDRZzb` | Premade Male voice preset for Dr. Susmit (defaults to George) |
+| `ELEVENLABS_VOICE_ID_FEMALE` | `EXAVITQu4vr4xnSDxMaL` | Premade Female voice preset for Farhana (defaults to Sarah) |
+| `ELEVENLABS_VOICE_ID` | `JBFqnCBsd6RMkjVDRZzb` | Global fallback voice preset. Note: legacy library ID `21m00Tcm4TlvDq8ikWAM` is safely ignored to prevent Free Tier 402 errors |
 | `ELEVENLABS_MODEL_ID` | `eleven_flash_v2_5` | Default English model (~75ms TTFA; auto-switches to `eleven_multilingual_v2` for Bengali) |
 | `CORS_ALLOW_ORIGINS` | `https://cloud-camp-hackathon.vercel.app` | Allow frontend origin |
 | `GROQ_API_KEY` | `gsk_...` | Tier 1 Fast Vision |
 | `GEMINI_API_KEY` | `AIzaSy...` | Tier 2 High-Accuracy Vision |
 | `OPENROUTER_API_KEY` | `sk-or-...` | Tier 3 Vision Cascade |
 | `USDA_API_KEY` | `DEMO_KEY` (or custom key) | USDA FoodData Central |
+
+> [!NOTE]
+> **Server-Side Neural Fallback (`edge-tts`):** If `ELEVENLABS_API_KEY` is not set or ElevenLabs quota is exceeded, the server automatically synthesizes neural MP3 audio via Microsoft Azure Speech (`edge-tts`) with **zero API key configuration required**.
 
 4. Deploy the service and record the assigned HTTPS domain:
    `https://cloud-camp-hackathon.onrender.com`
@@ -107,6 +112,14 @@ NutriVision AI uses `psycopg 3` with automatic DDL table migrations on startup.
    - Framework: `Vite`
    - Build Command: `npm run build`
    - Output Directory: `dist`
+   - **Edge API Rewrite Proxy:**
+     ```json
+     {
+       "source": "/api/:path*",
+       "destination": "https://cloud-camp-hackathon.onrender.com/api/:path*"
+     }
+     ```
+     This proxies all relative `/api/*` browser calls directly to the Render backend, preventing SPA 404 router traps and eliminating unnecessary CORS preflight roundtrips.
 3. In **Project Settings** $\rightarrow$ **Environment Variables**, configure:
 
 | Variable | Value | Notes |

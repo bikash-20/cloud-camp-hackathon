@@ -259,6 +259,66 @@ Reads `TESSERACT_CMD` env var; `is_enabled()` returns `True` if
 
 ---
 
+## Conversational AI & Speech Services
+
+### `coach_service.py`
+Multi-agent conversational nutrition intelligence with live database grounding and clinical RAG.
+
+```python
+from app.services.coach_service import get_coach_service
+
+coach = get_coach_service()
+response = coach.chat(
+    message="What should I have for dinner?",
+    user_email="user@example.com",
+    persona="scientist",  # or "habit"
+    lang="en",
+    include_audio=True,
+    history=[...]
+)
+# Returns CoachChatResponse with reply (Markdown), voice_summary,
+# audio_base64, use_browser_tts, tts_diagnostic
+```
+
+- **Live PostgreSQL Grounding:** Automatically compiles verified user biometrics (`nv_users`), today's logged meals and remaining intake budget (`nv_meals`), and active pantry items (`nv_grocery`). Handles null-safe fallbacks if logs or pantries are empty.
+- **Evidence-Based Clinical RAG:** Vector-similarity lookup in ChromaDB across BIRDEM 2023 Clinical Guidelines, ADA Standards of Care, and WHO behavioral habit loop strategies.
+- **Single-Pass Dual-Channel Inference:** Instructs the LLM (OpenRouter / Gemini) to output formatted clinical Markdown for the UI alongside an ultra-concise spoken summary (`voice_summary`, <60 words, strictly stripped of Markdown, LaTeX, and emojis) separated by `===VOICE_SUMMARY===` in a single model invocation.
+- **Used by:** `app/api/coach.py` (`POST /api/coach/voice-chat`, `POST /api/coach/chat`).
+
+---
+
+### `tts_service.py`
+3-tier voice synthesis engine with persona-aware premade routing and zero-key neural fallback.
+
+```python
+from app.services.tts_service import get_tts_service
+
+tts = get_tts_service()
+audio_base64, use_browser_tts, diagnostic = tts.synthesize(
+    text="Your meal aligns well with your 1800 calorie goal.",
+    lang="en",
+    persona="scientist",  # or "habit"
+)
+```
+
+- **Tier 1 (ElevenLabs Premade Voices):**
+  - **Persona Voice Routing:** Routes Dr. Susmit (`scientist` / male) to `JBFqnCBsd6RMkjVDRZzb` (George) and Farhana (`habit` / female) to `EXAVITQu4vr4xnSDxMaL` (Sarah).
+  - **Dynamic Model Selection:** English routed to `eleven_flash_v2_5` (~75ms TTFA); Bengali Unicode script (`\u0980-\u09FF`) or `lang="bn"` automatically routed to `eleven_multilingual_v2`.
+  - **Free Tier HTTP 402 Protection:** Strictly ignores legacy library voice IDs (e.g. `21m00Tcm4TlvDq8ikWAM`) even if set in Render env vars, and auto-retries in-flight on HTTP 400/402 with default premade voices.
+  - **In-Memory LRU Cache:** Thread-safe 128-entry cache keyed by `(clean_text, voice_id, model_id)`.
+- **Tier 2 (Server-Side Neural TTS via `edge-tts`):**
+  - Synthesizes high-fidelity neural MP3 audio with **zero API key requirement** if ElevenLabs is unconfigured, rate-limited, or fails.
+  - Persona gender & language matched:
+    - Dr. Susmit (Male): `en-US-AndrewNeural` (EN) / `bn-BD-PradeepNeural` (BN).
+    - Farhana (Female): `en-US-AvaNeural` (EN) / `bn-BD-NabanitaNeural` (BN).
+  - Runs in an isolated background thread event loop (`_run_async_in_thread`) without blocking FastAPI or conflicting with uvicorn.
+- **Tier 3 (Browser Speech Synthesis Fallback):**
+  - Returns `use_browser_tts = True` and `audio_base64 = None`, enabling client-side `window.speechSynthesis`.
+- **Observability:** Returns a structured `tts_diagnostic` string (e.g. `elevenlabs_flash_v2_5`, `edge_tts_fallback:en-US-AndrewNeural`, `browser_tts_client`) in API responses.
+- **Used by:** `app/api/coach.py` (`POST /api/coach/tts`, `POST /api/coach/voice-chat`), `app/services/coach_service.py`.
+
+---
+
 ## State and caches
 
 ### `state.py`

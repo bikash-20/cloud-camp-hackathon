@@ -52,31 +52,31 @@ The platform is designed around a strictly decoupled client-server architecture:
 │  │  • CORS & Body Limits    • JWT Authentication & Role Authorization │  │
 │  └─────────────┬──────────────────────────────────────────────────────┘  │
 │                │                                                         │
-│  ┌─────────────┴───────────┬───────────────────────────┬──────────────┐  │
-│  │                         │                           │              │  │
-│  ▼                         ▼                           ▼              ▼  │
-│ ┌──────────────┐   ┌──────────────┐   ┌─────────────┐   ┌──────────────┐ │
-│ │/api/auth     │   │/api/vision   │   │/api/admin   │   │/api/nutrition│ │
-│ │• Google JWKS │   │• 5-Tier      │   │• Telemetry  │   │• Mifflin-St  │ │
-│ │  Token Check │   │  Cascade     │   │• Directory  │   │  Jeor BMR    │ │
-│ │• JWT Issuance│   │• Portion BBox│   │• Audit Queue│   │• AMDR Splits │ │
-│ └──────┬───────┘   └──────┬───────┘   └──────┬──────┘   └──────┬───────┘ │
-│        │                  │                  │                 │         │
-│        └──────────────────┼──────────────────┴─────────────────┘         │
-│                           ▼                                              │
-│  ┌────────────────────────────────────────────────────────────────────┐  │
-│  │           State Store & Persistence (app/services/state.py)        │  │
-│  │                                                                    │  │
-│  │  ┌───────────────────────────────┐   ┌──────────────────────────┐  │  │
-│  │  │ Dual-Mode Adapter             │   │ Vector & Cache Layer     │  │  │
-│  │  │ • PostgreSQL (`psycopg 3`)    │   │ • ChromaDB Image Cache   │  │  │
-│  │  │   - Auto DDL Migrations       │   │ • SQLite TTL Fast Cache  │  │  │
-│  │  │   - Connection Pooling        │   └──────────────────────────┘  │  │
-│  │  │   - Transaction Pool Safe     │                                 │  │
-│  │  │ • Local JSON Fallback         │                                 │  │
-│  │  └───────────────────────────────┘                                 │  │
-│  └────────────────────────┬───────────────────────────────────────────┘  │
-└───────────────────────────┼──────────────────────────────────────────────┘
+│  ┌─────────────┴───────────┬─────────────┬─────────────┬──────────────┐  │
+│  │                         │             │             │              │  │
+│  ▼                         ▼             ▼             ▼              ▼  │
+│ ┌──────────────┐   ┌──────────────┐ ┌─────────┐ ┌──────────────┐ ┌─────────┐│
+│ │/api/auth     │   │/api/vision   │ │/api/    │ │/api/nutrition│ │/api/    ││
+│ │• Google JWKS │   │• 5-Tier      │ │admin    │ │• Mifflin-St  │ │coach    ││
+│ │  Token Check │   │  Cascade     │ │• Metrics│ │  Jeor BMR    │ │• RAG    ││
+│ │• JWT Issuance│   │• Portion BBox│ │• Review │ │• AMDR Splits │ │• 3-Tier ││
+│ └──────┬───────┘   └──────┬───────┘ └────┬────┘ └──────┬───────┘ │  TTS    ││
+│        │                  │              │             │         └───┬─────┘│
+│        └──────────────────┼──────────────┴─────────────┴─────────────┘      │
+│                           ▼                                                 │
+│  ┌────────────────────────────────────────────────────────────────────┐     │
+│  │           State Store & Persistence (app/services/state.py)        │     │
+│  │                                                                    │     │
+│  │  ┌───────────────────────────────┐   ┌──────────────────────────┐  │     │
+│  │  │ Dual-Mode Adapter             │   │ Vector & Cache Layer     │  │     │
+│  │  │ • PostgreSQL (`psycopg 3`)    │   │ • ChromaDB Image & RAG   │  │     │
+│  │  │   - Auto DDL Migrations       │   │ • SQLite TTL Fast Cache  │  │     │
+│  │  │   - Connection Pooling        │   └──────────────────────────┘  │     │
+│  │  │   - Transaction Pool Safe     │                                 │     │
+│  │  │ • Local JSON Fallback         │                                 │     │
+│  │  └───────────────────────────────┘                                 │     │
+│  └────────────────────────┬───────────────────────────────────────────┘     │
+└───────────────────────────┼─────────────────────────────────────────────────┘
                             │
                             ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -89,11 +89,13 @@ The platform is designed around a strictly decoupled client-server architecture:
 │  │ • `nv_grocery` (Items & Status) │  │ • OpenRouter / Hugging Face    │ │
 │  └─────────────────────────────────┘  └────────────────────────────────┘ │
 │                                                                          │
-│  ┌─────────────────────────────────────────────────────────────────────┐ │
-│  │ External Nutrition & Market Intelligence                            │ │
-│  │ • USDA FoodData Central • Open Food Facts • Fruityvice              │ │
-│  │ • Localized BD Food Composition DB • Chaldal / TCB Price Engine     │ │
-│  └─────────────────────────────────────────────────────────────────────┘ │
+│  ┌─────────────────────────────────┐  ┌────────────────────────────────┐ │
+│  │ External Nutrition Intelligence │  │ Speech & Audio Synthesis       │ │
+│  │ • USDA FoodData Central         │  │ • ElevenLabs Premade TTS       │ │
+│  │ • Open Food Facts • Fruityvice  │  │   (George/Sarah low-latency)   │ │
+│  │ • Localized BD Food Database    │  │ • Server-Side edge-tts Neural  │ │
+│  │ • Chaldal / TCB Price Engine    │  │ • Web Speech API (Client STT)  │ │
+│  └─────────────────────────────────┘  └────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -141,17 +143,35 @@ The platform is designed around a strictly decoupled client-server architecture:
    - User speaks into the browser microphone via Web Speech API (`SpeechRecognition`).
    - A dedicated `[বাং / EN]` toggle pill enables instant switching between `bn-BD` and `en-US` speech models on the fly.
 2. **Context Compilation & Live DB Grounding:**
-   - `POST /api/coach/voice-chat` receives the user prompt and session JWT.
-   - The backend looks up `nv_users` (biometrics, condition flags, calorie limits), `nv_meals` (today's logged meals and remaining intake budget), and `nv_grocery` (active pantry inventory).
+   - Client sends `POST /api/coach/voice-chat` or `POST /api/coach/tts` transparently proxied via Vercel edge rewrite (`/api/:path*` $\rightarrow$ Render backend).
+   - Backend looks up `nv_users` (biometrics, condition flags, calorie limits), `nv_meals` (today's logged meals and remaining intake budget), and `nv_grocery` (active pantry inventory).
    - If pantry or meal logs are empty, null-safe defaults are populated without failing.
+   - Clinical RAG retrieves evidence-based BIRDEM/ADA dietary guidelines and WHO behavioral habit loop strategies.
 3. **Single-Pass Dual-Channel Inference:**
    - A single LLM pass synthesizes both a full, structured clinical Markdown card and an ultra-concise spoken summary (`voice_summary`, <60 words, clean of Markdown, LaTeX, and emojis) separated by `===VOICE_SUMMARY===`.
-4. **Dynamic Language-Aware TTS Routing (`TTSService`):**
-   - English voice summaries are synthesized using ElevenLabs `eleven_flash_v2_5` (~75ms TTFA).
-   - Bengali script (`\u0980-\u09FF`) or `lang="bn"` triggers automatic routing to `eleven_multilingual_v2` for native phonetics.
-   - Responses are cached in an in-memory thread-safe 128-slot LRU cache.
-5. **Zero-Crash Audio Delivery & Fallback:**
-   - Returns base64 MP3 audio data. If ElevenLabs is missing, rate-limited, or fails, gracefully returns `use_browser_tts = True` and `audio_base64 = null`, triggering client-side `window.speechSynthesis`.
+4. **Persona-Aware Dual-Voice Routing:**
+   - The user selects between two distinct coaching agents:
+     - **🔬 Dr. Susmit (Scientist):** Male Nutritional Biochemist. ElevenLabs premade voice `JBFqnCBsd6RMkjVDRZzb` (George).
+     - **🧠 Farhana Ahmed (Habit Coach):** Female Behavioral & Habit Coach. ElevenLabs premade voice `EXAVITQu4vr4xnSDxMaL` (Sarah).
+   - Legacy library voice IDs (e.g., `21m00Tcm4TlvDq8ikWAM`) are strictly ignored even if set in environment variables, completely eliminating ElevenLabs Free Tier HTTP 402 errors.
+5. **Tiered Speech Synthesis Engine (`app/services/tts_service.py`):**
+   - **Tier 1 (ElevenLabs Low-Latency Premade TTS):**
+     - English synthesized with `eleven_flash_v2_5` (~75ms TTFA).
+     - Bengali Unicode script (`\u0980-\u09FF`) or `lang="bn"` automatically routes to `eleven_multilingual_v2`.
+     - In-flight automatic retry on HTTP 400/402 with default premade voice.
+     - 128-slot thread-safe in-memory LRU cache avoids duplicate billing.
+   - **Tier 2 (Server-Side Neural TTS via `edge-tts`):**
+     - If ElevenLabs is unconfigured, rate-limited, or fails, server synthesizes neural MP3 audio with zero API keys required.
+     - Persona gender & language matched:
+       - Dr. Susmit (Male): `en-US-AndrewNeural` (EN) / `bn-BD-PradeepNeural` (BN).
+       - Farhana (Female): `en-US-AvaNeural` (EN) / `bn-BD-NabanitaNeural` (BN).
+     - Non-blocking execution via isolated background thread event loop (`_run_async_in_thread`).
+   - **Tier 3 (Client Browser Fallback):**
+     - If both server tiers are unavailable, returns `use_browser_tts = True` and `audio_base64 = null`, triggering client-side `window.speechSynthesis`.
+6. **On-Demand `🔊 Listen` Button Flow:**
+   - When a user clicks `🔊 Listen` on any chat bubble, the frontend checks its local `audioCacheRef` before calling `POST /api/coach/tts`.
+   - The server resolves the persona voice, synthesizes or retrieves the audio, and returns `audio_base64` and a `tts_diagnostic` tag (e.g. `elevenlabs_flash_v2_5`, `edge_tts_fallback`, `browser_tts_client`).
+   - The client plays the MP3 stream via HTML5 `Audio()` and animates the speaker icon during playback.
 
 ---
 

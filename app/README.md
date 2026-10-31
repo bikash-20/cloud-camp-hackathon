@@ -73,13 +73,17 @@ Built with Python 3.11+, Pydantic v2, PostgreSQL (`psycopg 3`), ChromaDB vector 
    - Automatically migrates database tables on boot: `nv_users`, `nv_meals`, and `nv_grocery`.
    - Automatic startup purge ensures legacy synthetic/demo accounts are eliminated.
 
-6. **Multi-Agent AI Voice Assistant & TTS Engine (`/api/coach/*`)**
+6. **Multi-Agent AI Voice Assistant & 3-Tier TTS Engine (`/api/coach/*`)**
    - `POST /api/coach/voice-chat`: Single-pass dual-channel endpoint delivering formatted markdown UI advice alongside a concise spoken summary (`voice_summary`, <60 words) and synthesized MP3 audio.
-   - **Live Database Grounding:** Automatically compiles active user biometrics, today's meal calorie/macro trajectory, and active pantry items (`nv_grocery`) from PostgreSQL.
-   - **Dynamic TTS Routing (`TTSService`):** Automatically routes English to `eleven_flash_v2_5` for ~75ms TTFA, and Bengali Unicode script (`\u0980-\u09FF`) or `lang="bn"` to `eleven_multilingual_v2` for native phonetics.
+   - `POST /api/coach/tts`: On-demand text-to-speech audio synthesis for the `🔊 Listen` button.
+   - **Live Database Grounding:** Automatically compiles active user biometrics (`nv_users`), today's meal calorie/macro trajectory (`nv_meals`), and active pantry items (`nv_grocery`) from PostgreSQL.
+   - **Persona-Aware Dual-Voice Routing:** Dr. Susmit (`scientist` / male) uses `JBFqnCBsd6RMkjVDRZzb` (George), and Farhana (`habit` / female) uses `EXAVITQu4vr4xnSDxMaL` (Sarah).
+   - **Tiered Speech Cascade:**
+     - **Tier 1 (ElevenLabs Premade Voices):** High-speed streaming (`eleven_flash_v2_5` ~75ms for English; auto-switches to `eleven_multilingual_v2` for Bengali). Safely ignores legacy library voice IDs (`21m00Tcm4TlvDq8ikWAM`) and auto-retries on HTTP 400/402.
+     - **Tier 2 (Server-Side Neural TTS via `edge-tts`):** Zero-key neural MP3 audio matched to persona and language (`en-US-AndrewNeural`/`bn-BD-PradeepNeural` for Dr. Susmit; `en-US-AvaNeural`/`bn-BD-NabanitaNeural` for Farhana).
+     - **Tier 3 (Browser Speech Synthesis Fallback):** Returns `use_browser_tts = True` and `audio_base64 = null`.
    - **In-Memory LRU Cache:** Thread-safe 128-entry cache eliminates latency and character quota for repeated phrases.
-   - **Zero-Crash Graceful Fallback:** If `ELEVENLABS_API_KEY` is missing or depleted, returns `use_browser_tts = True` without raising 500 errors.
-   - `POST /api/coach/tts`: On-demand text-to-speech audio synthesis.
+   - **Observability:** Returns structured `tts_diagnostic` tags in API responses.
 
 7. **Storage Fail-Loud Guarantees & Health Monitoring (`/api/health`)**
    - `GET /api/health`: Public probe returning storage backend type (`"postgres"` or `"json"`) and live database connectivity status without exposing connection strings.
@@ -113,7 +117,7 @@ Interactive API docs are available at [http://localhost:8000/docs](http://localh
 
 ### 4. Run Test Suite
 ```bash
-# Run all 171 backend contract, service, and TTS tests
+# Run all 177 backend contract, service, coach, and TTS tests
 python3 -m pytest app/tests/ -v
 ```
 
@@ -128,7 +132,9 @@ python3 -m pytest app/tests/ -v
 | `JWT_SECRET` | Yes (for Auth)| _None_ | Secret string for HS256 JWT signature generation and verification. |
 | `ADMIN_EMAILS` | No | _Empty_ | Comma-separated list of Google account emails granted administrative privileges. |
 | `ELEVENLABS_API_KEY` | Optional | _None_ | ElevenLabs API key for ultra-low latency voice synthesis. |
-| `ELEVENLABS_VOICE_ID` | Optional | `21m00Tcm4TlvDq8ikWAM` | Voice ID preset (defaults to Rachel). |
+| `ELEVENLABS_VOICE_ID_MALE` | Optional | `JBFqnCBsd6RMkjVDRZzb` | Premade Male voice for Dr. Susmit (George). |
+| `ELEVENLABS_VOICE_ID_FEMALE` | Optional | `EXAVITQu4vr4xnSDxMaL` | Premade Female voice for Farhana (Sarah). |
+| `ELEVENLABS_VOICE_ID` | Optional | `JBFqnCBsd6RMkjVDRZzb` | Global fallback voice preset (legacy library voice `21m00Tcm4TlvDq8ikWAM` is ignored). |
 | `ELEVENLABS_MODEL_ID` | Optional | `eleven_flash_v2_5` | Default English model (~75ms TTFA). Auto-switches to `eleven_multilingual_v2` for Bengali. |
 | `CORS_ALLOW_ORIGINS` | No | `localhost:5173` | Comma-separated allowed frontend origins (e.g. `https://cloud-camp-hackathon.vercel.app`). |
 | `GROQ_API_KEY` | Recommended | _None_ | Tier 1 LPU vision inference. |

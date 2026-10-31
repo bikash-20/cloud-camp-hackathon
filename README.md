@@ -41,16 +41,18 @@ Built for **Cloud Camp Hackathon** by [bikash-20](https://github.com/bikash-20).
 
 ### Multi-Agent Voice AI Assistant (`CoachScreen.tsx` & `/api/coach/*`)
 - **Single-Pass Dual-Channel Response:** Delivers a complete, formatted clinical analysis alongside an ultra-concise spoken summary (`voice_summary`, <60 words, clean of Markdown, LaTeX, and emojis) generated in a single LLM pass.
-- **Dual Personas:**
-  - **Dr. Susmit (পুষ্টি বিজ্ঞানী / Nutrition Biochemist):** Evidence-based biochemical analysis of glycemic load ($GL$), cooking oil absorption, and clinical macronutrient partitioning per BIRDEM/ADA guidelines.
-  - **Farhana Ahmed (আচরণ ও অভ্যাস কোচ / Habit Coach):** Empathetic behavioral coaching based on CBT habit science, lifestyle pacing, and guilt-free dawat/feast recovery.
-- **Dynamic Language-Aware TTS Model Routing (`tts_service.py`):**
-  - **English:** Uses `eleven_flash_v2_5` for ultra-low latency (~75ms TTFA) and halved character cost.
-  - **Bengali:** Automatically detects Bengali Unicode script (`\u0980-\u09FF`) or `lang="bn"` and switches to `eleven_multilingual_v2` for authentic native phonetics.
+- **Dual Personas & Voice Routing:**
+  - **Dr. Susmit (পুষ্টি বিজ্ঞানী / Nutrition Biochemist):** Evidence-based biochemical analysis of glycemic load ($GL$), cooking oil absorption, and clinical macronutrient partitioning per BIRDEM/ADA guidelines. Voiced by ElevenLabs premade voice `JBFqnCBsd6RMkjVDRZzb` (George).
+  - **Farhana Ahmed (আচরণ ও অভ্যাস কোচ / Habit Coach):** Empathetic behavioral coaching based on CBT habit science, lifestyle pacing, and guilt-free dawat/feast recovery. Voiced by ElevenLabs premade voice `EXAVITQu4vr4xnSDxMaL` (Sarah).
+- **3-Tier Speech Synthesis Cascade (`tts_service.py`):**
+  - **Tier 1 (ElevenLabs Premade Low-Latency TTS):** Auto-selects `eleven_flash_v2_5` (~75ms TTFA) for English and `eleven_multilingual_v2` for Bengali Unicode script (`\u0980-\u09FF`). Strictly ignores legacy library voice IDs (`21m00Tcm4TlvDq8ikWAM`) to eliminate Free Tier 402 errors, with automatic in-flight retry.
+  - **Tier 2 (Server-Side Neural TTS via `edge-tts`):** Zero-key neural MP3 synthesis matching persona gender and language (`en-US-AndrewNeural`/`bn-BD-PradeepNeural` for Dr. Susmit; `en-US-AvaNeural`/`bn-BD-NabanitaNeural` for Farhana) executed in a thread-isolated event loop.
+  - **Tier 3 (Browser Client Fallback):** Seamless client-side `window.speechSynthesis`.
+- **On-Demand `🔊 Listen` Button:** Generates or replays speech on demand with message-level caching and `tts_diagnostic` observability.
 - **In-Memory LRU Cache:** Thread-safe 128-entry in-memory audio cache for zero-latency responses on frequent prompts.
 - **Hands-Free Speech-to-Text (STT):** Live microphone input using browser Web Speech API with an instant `[বাং / EN]` language toggle pill directly beside the microphone.
-- **Zero-Crash Graceful Degradation:** If ElevenLabs API key is absent, rate-limited, or fails, automatically falls back to browser `window.speechSynthesis` without raising 500 errors.
 - **Live Database Grounding:** Seamlessly compiles user's clinical profile, today's logged meals, and active grocery list from PostgreSQL into context.
+- **Transparent Vercel Edge Proxy:** All `/api/*` requests proxied directly to Render backend via `vercel.json` rewrites. See [AI Coach API Guide](docs/api/coach.md) for full details.
 
 ### Nutrients & Analysis
 - Editable health goals: prediabetic-friendly, high-protein, budget-aware, Mediterranean
