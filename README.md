@@ -289,6 +289,7 @@ MIT
 
 Comprehensive docs live in [`docs/`](./docs/README.md):
 
+- [Master Workflow & System Guide](./docs/WORKFLOW.md) — complete step-by-step user journey, vision cascade, and Voice AI Coach
 - [Architecture overview](./docs/ARCHITECTURE.md) — the 5-minute orientation
 - [What happens when you upload a picture](./docs/IMAGE_UPLOAD_FLOW.md) — frame-by-frame trace from camera to saved meal
 - [Agent context](./docs/AGENT_CONTEXT.md) — for AI agents or new developers picking up the project

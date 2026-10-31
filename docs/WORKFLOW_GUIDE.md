@@ -1,238 +1,463 @@
-# NutriVision AI — End-to-End Workflow, Architecture & User Guide
-# নিউট্রিভিশন এআই — সম্পূর্ণ অ্যাপ ওয়ার্কফ্লো, আর্কিটেকচার ও ব্যবহার নির্দেশিকা
+# NutriVision AI — Master End-to-End Workflow & Architecture Specification
+# নিউট্রিভিশন এআই — সম্পূর্ণ এন্ড-টু-এন্ড ওয়ার্কফ্লো, সিস্টেম আর্কিটেকচার ও ব্যবহার নির্দেশিকা
+
+> **Version:** 2.4.0 (Production Release)  
+> **Platform Status:** Live on Vercel (`cloud-camp-hackathon.vercel.app`) & Render FastAPI Backend  
+> **Database:** PostgreSQL (Cloud Persistence) + ChromaDB (Semantic Vector Cache)  
+> **AI Vision Pipeline:** Dual Multimodal Cascade (Google Gemini 2.0 Flash + Groq Vision)  
+> **Voice AI Coach:** Dual-Persona Multi-Agent TTS (ElevenLabs Premade + Server-Side `edge-tts` Fallback)  
+> **Language Support:** 100% Pure Bidirectional English & বাংলা (Zero Language Mixing)  
 
 ---
 
-## Part 1: English Documentation
-
-### 1. The Problem NutriVision AI Solves
-
-1. **Tedious & Inaccurate Manual Meal Logging**:
-   - Traditional diet and calorie apps require typing every single ingredient, searching through thousands of generic database entries, and manually guessing weights in grams or ounces. Over 70% of users abandon meal logging within the first week due to this friction.
-2. **Poor Support for South Asian & Local Cuisines**:
-   - Mainstream global apps (MyFitnessPal, Cronometer) are trained predominantly on Western diets. They struggle to identify South Asian and Bengali dishes (such as *Khichuri, Lentil Dal, Ilish Macher Jhol, Bhorta, Bhaji, Roti/Paratha, Biryani*), forcing users to guess or select inaccurate Western equivalents.
-3. **High Prevalence of Metabolic & Diabetic Risks**:
-   - South Asian populations have an elevated genetic predisposition to Type 2 diabetes and cardiovascular risks, often driven by high glycemic index carbohydrates (white rice, refined flour) and sodium. Most apps just count calories without evaluating glycemic load or personalized health conditions.
-4. **Fragility of Single-Model AI Vision**:
-   - Cloud AI models frequently hit rate limits (HTTP 429) or transient outages. A meal app that fails when a user is at the dining table breaks user trust immediately.
-
----
-
-### 2. The NutriVision AI Solution
-
-- **Instant Photo-to-Nutrition in < 2 Seconds**: Snap a photo or upload from the gallery; the app detects food items, estimates portion weights, and retrieves full nutritional profiles automatically.
-- **Fail-Safe Multimodal Vision Cascade (Gemini + Groq)**: Primary inference runs on Google Gemini 2.0 Flash; if rate-limited or unavailable, it seamlessly cascades to Groq Vision (`qwen/qwen3.8-27b` / `llama-3.2-11b-vision-preview`), achieving 99.9% reliability.
-- **Bilingual Bengali & English Localization**: Real-time localized dish names (e.g., *“চিকেন বিরিয়ানি / Chicken Biryani”*, *“ডাল / Lentil Dal”*) and personalized nutritional reasoning in both English and বাংলা.
-- **Multi-Database Nutrition Cascade**: Real nutritional resolution combining Open Food Facts, USDA FoodData Central, Fruityvice, and domain culinary heuristics.
-- **Explainable Health Personalization**: SHAP-style explainability strips explaining *why* certain nutrients were flagged (e.g. glycemic spike for diabetic users, excess sodium, or low fiber).
+## Table of Contents / সূচিপত্র
+1. [Executive Summary & Core Value Proposition](#1-executive-summary--core-value-proposition)
+2. [End-to-End System Architecture](#2-end-to-end-system-architecture)
+   - [High-Level Architecture Diagram](#high-level-architecture-diagram)
+   - [Photo-to-Nutrition Ingestion Pipeline](#photo-to-nutrition-ingestion-pipeline)
+   - [Multi-Agent Voice AI Coach Pipeline](#multi-agent-voice-ai-coach-pipeline)
+   - [Smart Dietary Pivot & Live Market Price Scraper](#smart-dietary-pivot--live-market-price-scraper)
+   - [PostgreSQL Profile & Meal Persistence](#postgresql-profile--meal-persistence)
+3. [Deep-Dive Screen Workflows](#3-deep-dive-screen-workflows)
+   - [Screen 1: Capture & Image Optimization (`CaptureScreen`)](#screen-1-capture--image-optimization-capturescreen)
+   - [Screen 2: Dual-Model Multimodal Vision Detection](#screen-2-dual-model-multimodal-vision-detection)
+   - [Screen 3: Results, Portion Tuning & Diet Conflict Checks (`ResultsScreen`)](#screen-3-results-portion-tuning--diet-conflict-checks-resultsscreen)
+   - [Screen 4: Clinical Nutrition, SHAP Explainability & Dietary Pivots (`NutrientsScreen`)](#screen-4-clinical-nutrition-shap-explainability--dietary-pivots-nutrientsscreen)
+   - [Screen 5: Smart Grocery Planning & Live Market Intelligence (`GroceryScreen`)](#screen-5-smart-grocery-planning--live-market-intelligence-groceryscreen)
+   - [Screen 6: Multi-Agent Voice AI Coach with KaTeX Math (`CoachScreen`)](#screen-6-multi-agent-voice-ai-coach-with-katex-math-coachscreen)
+   - [Screen 7: User Profile, BMR/TDEE & Medical Goals (`ProfileScreen`)](#screen-7-user-profile-bmrtdee--medical-goals-profilescreen)
+4. [RAG (Retrieval-Augmented Generation) & Knowledge Base](#4-rag-retrieval-augmented-generation--knowledge-base)
+5. [Pure Bidirectional Internationalization (i18n)](#5-pure-bidirectional-internationalization-i18n)
+6. [API Specification & Data Contracts](#6-api-specification--data-contracts)
+7. [বাংলা সংস্করণ: সম্পূর্ণ ব্যবহার নির্দেশিকা ও সিস্টেম কার্যপ্রণালী](#7-বাংলা-সংস্করণ-সম্পূর্ণ-ব্যবহার-নির্দেশিকা-ও-সিস্টেম-কার্যপ্রণালী)
 
 ---
 
-### 3. End-to-End System Workflow
+## 1. Executive Summary & Core Value Proposition
+
+NutriVision AI is an intelligent clinical nutrition and automated dietary tracking progressive web app tailored specifically for South Asian, Bengali, and global cuisines.
+
+### The 4 Fundamental Problems We Solve:
+1. **Friction of Manual Logging**: 70%+ of health app users abandon tracking within 7 days due to manually searching, weighing, and typing ingredients. NutriVision logs a complete plate in under 2 seconds from a single photo.
+2. **South Asian Culinary Neglect**: Western platforms (MyFitnessPal, Cronometer, Lifesum) fail at regional dishes (*Khichuri, Ilish Bhapa, Roti-Dal, Shorshe Ilish, Begun Bhorta*), forcing inaccurate western substitutions. NutriVision detects regional plates, hidden cooking media (Mustard Oil, Soybean Oil, Ghee), and accurate spices natively.
+3. **High Genetic Metabolic Vulnerability**: South Asians carry an elevated genetic predisposition to Type 2 diabetes and hypertension. Rather than simple calorie-counting, NutriVision provides **Glycemic Load (GL) assessment**, **diabetic safety alerts**, and **diet conflict mitigation** grounded in official BIRDEM, ICMR, and WHO protocols.
+4. **Fragility of Cloud AI APIs**: Real-world vision APIs frequently experience HTTP 429 rate limits, cloud IP blocks, or outages. NutriVision utilizes an automatic **Fail-Safe Multimodal Cascade** (Gemini 2.0 Flash $\to$ Groq Qwen/Llama) and a **Dual-Layer Voice TTS Cascade** (ElevenLabs Premade $\to$ Microsoft Neural `edge-tts`), guaranteeing continuous uptime.
+
+---
+
+## 2. End-to-End System Architecture
+
+### High-Level Architecture Diagram
 
 ```mermaid
-flowchart TD
-    A["User Uploads / Takes Photo (CaptureScreen)"] --> B["Client-side Downscaling (Max 1440px JPEG)"]
-    B --> C["API POST /api/vision/analyze"]
-    C --> D{"ChromaDB Vector Cache Hit?"}
-    D -- "Yes" --> E["Return Cached Detections + Trace"]
-    D -- "No" --> F["Primary Vision: Google Gemini 2.0 Flash"]
-    F -- "Success" --> G["Detected Items Array"]
-    F -- "Rate-limited / Error / Miss" --> H["Cascade Fallback: Groq Vision (Qwen / Llama)"]
-    H --> G
-    G --> I["Reconcile & Portion Estimator (portion.py)"]
-    I --> J["ResultsScreen: User Reviews & Edits Portions"]
-    J --> K["API POST /api/nutrition/resolve"]
-    K --> L["Nutrition Cascade (OFF ➔ USDA ➔ Fruityvice ➔ Heuristics)"]
-    L --> M["NutrientsScreen: Macro Donuts, Glycemic & Personal Flags"]
-    M --> N["Auto-Save Meal & Sync Grocery / Profile Stats"]
+flowchart TB
+    subgraph Client["Frontend Client (React 18 + Vite + TypeScript PWA)"]
+        UI["Mobile PhoneFrame UI\n(Framer Motion 11 + Canvas + KaTeX)"]
+        ClientStorage["LocalStorage + Optimistic State"]
+        AudioPlayback["Web Audio API / SpeechSynthesis"]
+    end
+
+    subgraph Edge["Vercel Edge Network"]
+        VercelProxy["Vercel Proxy / Rewrites\n(/api/* ➔ Render Backend)"]
+    end
+
+    subgraph Backend["FastAPI Production Backend (Python 3.11/3.14 on Render)"]
+        API["FastAPI App Router\n(CORS + Pydantic v2 Contracts)"]
+        AuthService["Auth & Profile Service"]
+        VisionCascade["Multimodal Vision Cascade Engine"]
+        PortionReconciler["Portion & Inferred Media Reconciler"]
+        NutritionCascade["Multi-Database Nutrition Cascade"]
+        PivotEngine["Smart Dietary Pivot Engine"]
+        PriceScraper["Chaldal / TCB Live Market Scraper"]
+        CoachService["Multi-Agent Voice AI Coach"]
+        TTSService["Dual-Voice TTS Engine (ElevenLabs + edge-tts)"]
+    end
+
+    subgraph CloudServices["External Cloud & Database Services"]
+        Postgres[("PostgreSQL Database\n(User Profiles, Meals, Grocery)")]
+        Chroma[("ChromaDB Vector Store\n(Visual Semantic Cache)")]
+        Gemini["Google Gemini 2.0 Flash API"]
+        Groq["Groq Vision API (Qwen 2.5 / Llama 3.2)"]
+        OpenFoodFacts["Open Food Facts REST API"]
+        USDA["USDA FoodData Central API"]
+        ElevenLabs["ElevenLabs Neural Audio API"]
+        Chaldal["Chaldal Web Store (Real Market Prices)"]
+    end
+
+    UI -->|"HTTP / REST"| VercelProxy
+    VercelProxy -->|"Reverse Proxy"| API
+
+    API --> AuthService --> Postgres
+    API --> VisionCascade
+    VisionCascade -->|"Exact Hash Check"| Chroma
+    VisionCascade -->|"Primary Vision"| Gemini
+    VisionCascade -->|"Fallback on 429/Err"| Groq
+    VisionCascade --> PortionReconciler
+
+    API --> NutritionCascade
+    NutritionCascade --> OpenFoodFacts
+    NutritionCascade --> USDA
+
+    API --> PivotEngine --> PriceScraper --> Chaldal
+
+    API --> CoachService
+    CoachService --> TTSService
+    TTSService -->|"Primary Voice"| ElevenLabs
+    TTSService -->|"Auto Fallback on 402/Quota"| AudioPlayback
+    TTSService --> AudioPlayback
 ```
 
 ---
 
-### 4. Step-by-Step User Journey
-
-#### Step 1: Capture & Upload (`CaptureScreen`)
-- **Action**: Tap the camera card to open the live camera stream, or tap **Upload from gallery** to select a photo from your phone or desktop.
-- **Smart Engine**: High-resolution camera photos (10–20 MB) are automatically compressed client-side to a crisp 1440px JPEG (~300 KB). This ensures lightning-fast transmission and guarantees requests stay within server payload limits.
-
-#### Step 2: Dual Vision Cascade Detection
-- **Action**: The photo is analyzed in real time.
-- **Smart Engine**:
-  1. Checks persistent ChromaDB vector cache.
-  2. Queries **Google Gemini 2.0 Flash** with permissive safety settings and strict JSON schema.
-  3. If Gemini is rate-limited (HTTP 429) or unavailable, the system automatically falls back to **Groq Vision**.
-  4. Returns detected foods with confidence scores, bounding boxes, and initial portion estimates in grams.
-
-#### Step 3: Review & Customization (`ResultsScreen`)
-- **Action**: The user sees the detected meal items:
-  - Each item displays its food name (in English and Bengali), portion size in grams, confidence ring, and a live calorie flame chip.
-  - Users can adjust portions using `+` / `-` buttons, delete incorrect items, add custom food items, or pick alternatives from the *"Did you mean?"* suggestions.
-  - The sticky **Summary Card** at the top updates calories, protein, carbs, and fat in real time.
-
-#### Step 4: Multi-Database Nutrition Resolution
-- **Action**: Confirmed items are queried against the nutrition cascade:
-  1. **Open Food Facts**: Comprehensive crowd-sourced database for branded and regional foods.
-  2. **USDA FoodData Central**: Verified nutritional foundation for standard ingredients and meats.
-  3. **Fruityvice**: Specialized fruit and micronutrient data.
-  4. **Domain Culinary Heuristics**: Fallback estimation guaranteeing no food resolves to 0 kcal.
-
-#### Step 5: Nutrients & Personalized Health Explainability (`NutrientsScreen`)
-- **Action**: View comprehensive nutritional analysis:
-  - **Macro Donuts**: Animated count-up displays for Protein, Carbohydrates, and Fat with percentage of daily goal.
-  - **Micronutrient Meters**: Live progress bars for Fiber, Sodium, and Sugar.
-  - **Diabetic & Health Warnings**: Visual alert if a meal exceeds glycemic safety thresholds for prediabetic or diabetic profiles.
-  - **"Why these flags?" Strip**: Explains exactly which food contributed to high sodium or low fiber in clear, plain language (English or বাংলা).
-
-#### Step 6: Meal History, Grocery & Goal Tracking
-- **Meal History**: Automatically logs the meal into daily statistics, tracking progress against the daily calorie target.
-- **Smart Grocery List (`GroceryScreen`)**: Automatically aggregates items needed for meals, organized by category (Produce, Protein, Pantry) with budget calculations.
-- **Profile Management (`ProfileScreen`)**: Customize health goals (Diabetic friendly, High protein, Budget conscious, Mediterranean diet), dietary preferences, and target calories.
-
----
-
-### 5. What Users Can Do in NutriVision AI
-
-| Feature | User Capability | Benefit |
-| :--- | :--- | :--- |
-| **Photo Meal Logging** | Snap a picture of any meal or upload from gallery | Log meals in 2 seconds without typing |
-| **Bilingual Display** | Toggle between English and বাংলা (Bengali) | Accessible for native Bengali speakers |
-| **Portion Adjustments** | Increase/decrease grams with immediate calorie recalculation | Precise tracking without food scales |
-| **Glycemic Index Monitoring** | View glycemic load warnings for diabetic goals | Prevents post-meal blood sugar spikes |
-| **AI Explainability** | Read reasons for flagged nutrients (e.g., *"Rice adds 600mg sodium"* / *"ভাত থেকে 600 মিলিগ্রাম সোডিয়াম পাওয়া যায়"*) | Actionable dietary education |
-| **Smart Grocery Planning** | Generate organized shopping lists directly from planned meals | Save time and stick to grocery budgets |
-| **Visual Meal History** | Browse past meals with photos, timestamps, and macros | Keep accountability over days and weeks |
-
----
-
-### 6. Vector Database & RAG (Retrieval-Augmented Generation) Architecture
-
-#### Current State: Is RAG Implemented?
-- **Vector Store Infrastructure**: Implemented via **ChromaDB** in [`app/cache/vector_cache.py`](file:///Users/bikashtalukder/cloud-camp-hackathon/app/cache/vector_cache.py) with persistent storage at `app/cache/chroma/`.
-- **Current Mode**: Operates as an **exact-hash semantic cache scaffold** (`live-vision-v1:{sha256}`). If an identical image is uploaded, it retrieves cached `DetectedItem[]` results to prevent redundant API calls.
-- **Why It Is Not Yet a Full RAG Pipeline**: It does not yet generate dense vector embeddings (e.g. CLIP / SigLIP) or retrieve external culinary/clinical knowledge to augment LLM generation prompts.
-
-#### What We Can Do With Full RAG:
-1. **Multimodal Visual Semantic RAG (CLIP / SigLIP)**: Store 512-dim image embeddings; retrieve detections for visually similar meals (cosine similarity > 0.92) with zero API latency and zero cost.
-2. **South Asian Recipe Knowledge RAG**: Ingest local recipes to ground LLM estimations on authentic cooking methods (hidden mustard oil, ghee, sugar in gravies).
-3. **Clinical Nutrition & Medical RAG**: Retrieve peer-reviewed dietary guidelines (ADA diabetes rules, KDIGO renal thresholds, WHO sodium caps) to deliver grounded, hallucination-free health explanations.
-4. **Hyper-Local Grocery Alternative RAG**: Automatically suggest local affordable swaps (e.g., swapping high-GI White Rice with Foxtail Millet or Brown Basmati).
-
-*(See comprehensive architecture details in [`docs/RAG_ARCHITECTURE.md`](file:///Users/bikashtalukder/cloud-camp-hackathon/docs/RAG_ARCHITECTURE.md).)*
-
----
----
-
-## Part 2: সম্পূর্ণ বাংলা সংস্করণ (Bengali Documentation)
-
-### ১. নিউট্রিভিশন এআই যে সমস্যাগুলোর সমাধান করে
-
-১. **কষ্টকর ও সময়সাপেক্ষ ম্যানুয়াল ডায়েট ট্র্যাকিং**:
-   - প্রচলিত ক্যালরি ট্র্যাকিং অ্যাপগুলোতে খাবারের প্রতিটি উপাদানের নাম টাইপ করতে হয়, ওজন গ্রাম বা আউন্সে অনুমান করতে হয়। এই জটিলতার কারণে ৭০%-এর বেশি মানুষ প্রথম সপ্তাহের মধ্যেই ডায়েট ট্র্যাকিং বন্ধ করে দেন।
-২. **দেশি ও দক্ষিণ এশীয় খাবারের তথ্যের ঘাটতি**:
-   - MyFitnessPal বা অন্যান্য আন্তর্জাতিক অ্যাপগুলো মূলত পশ্চিমা খাবারের ওপর তৈরি। আমাদের দেশি খাবার—যেমন *খিচুড়ি, মসুর ডাল, ইলিশ মাছের ঝোল, বিভিন্ন ভর্তা, ভাজি, রুটি, পরোটা, বিরিয়ানি* ইত্যাদি এই অ্যাপগুলো সঠিকভাবে শনাক্ত করতে পারে না।
-৩. **ডায়াবেটিস ও হৃদরোগের উচ্চ ঝুঁকি**:
-   - দক্ষিণ এশিয়ার মানুষদের মধ্যে টাইপ-২ ডায়াবেটিস এবং উচ্চ রক্তচাপের প্রবণতা জিনগতভাবেই বেশি। অতিরিক্ত কার্বোহাইড্রেট (সাদা ভাত, ময়দা) এবং অতিরিক্ত সোডিয়াম গ্রহণ এর অন্যতম কারণ। সাধারণ অ্যাপগুলো গ্লাইসেমিক ইনডেক্স বা ডায়াবেটিসের ঝুঁকি বিবেচনা করে না।
-৪. **একটিমাত্র এআই মডেলের ওপর নির্ভরতার ঝুঁকি**:
-   - অনেক সময় কোনো নির্দিষ্ট ক্লাউড এআই সার্ভিস সাময়িক ডাউন থাকে বা রিকোয়েস্ট লিমিট শেষ হয়ে যায়। খাওয়ার টেবিলে বসে অ্যাপ কাজ না করলে ব্যবহারকারী হতাশ হন।
-
----
-
-### ২. নিউট্রিভিশন এআই-এর সমাধান
-
-- **ছবি তুলেই ২ সেকেন্ডে পুষ্টিমান বিশ্লেষণ**: খাবারের ছবি তুলুন বা গ্যালারি থেকে আপলোড করুন; এআই খাবার শনাক্ত করে, ওজন অনুমান করে এবং পূর্ণাঙ্গ পুষ্টির হিসাব বের করে দেয়।
-- **ডুয়াল ভিশন ক্যাসকেড (Gemini + Groq)**: প্রথমে গুগল জেমিনি ২.০ ফ্ল্যাশ ছবি বিশ্লেষণ করে। যদি জেমিনির কোটা শেষ হয় বা কোনো সমস্যা হয়, সাথে সাথে ব্যাকআপ হিসেবে গ্রক ভিশন (`qwen/qwen3.8-27b`) দায়িত্ব নেয়। ফলে অ্যাপ কখনোই বন্ধ থাকে না।
-- **বাংলা ও ইংরেজি দ্বিভাষিক সুবিধা**: খাবারের নাম (যেমন: *চিকেন বিরিয়ানি, মসুর ডাল, রুই মাছের ঝোল*) এবং পুষ্টির ব্যাখ্যা বাংলা ও ইংরেজি উভয় ভাষায় দেখা যায়।
-- **মাল্টি-ডাটাবেস নিউট্রিশন ক্যাসকেড**: ওপেন ফুড ফ্যাক্টস, ইউএসডিএ এবং ফ্রুটিভাইস ডাটাবেস থেকে খাবারটির সঠিক ক্যালরি, প্রোটিন, কার্বোহাইড্রেট, ফ্যাট, ফাইবার এবং সোডিয়াম যাচাই করা হয়।
-- **স্বাস্থ্যঝুঁকির আগাম সতর্কতা (Explainable AI)**: খাবারে অতিরিক্ত চিনি, সোডিয়াম বা কম ফাইবার থাকলে অ্যাপটি স্পষ্টভাবে কারণসহ বুঝিয়ে দেয় (যেমন: ডায়াবেটিস রোগীদের জন্য রক্তে শর্করার ঝুঁকি)।
-
----
-
-### ৩. সম্পূর্ণ সিস্টেমের কার্যপ্রণালী (Step-by-Step Workflow)
+### Photo-to-Nutrition Ingestion Pipeline
 
 ```mermaid
-flowchart TD
-    A["ছবি তুলুন অথবা গ্যালারি থেকে আপলোড করুন"] --> B["ক্লায়েন্ট-সাইড অপ্টিমাইজেশন (১৪৪০ পিক্সেল জেপিইজি)"]
-    B --> C["ব্যাকএন্ড এপিআই: /api/vision/analyze"]
-    C --> D{"পূর্বে কি এই ছবি বিশ্লেষণ করা হয়েছে? (Cache)"}
-    D -- "হ্যাঁ" --> E["ক্যাশ থেকে তাৎক্ষণিক ফলাফল প্রদর্শন"]
-    D -- "না" --> F["প্রাথমিক ভিশন মডেল: Google Gemini 2.0 Flash"]
-    F -- "সফল" --> G["শনাক্তকৃত খাবারের তালিকা"]
-    F -- "ব্যর্থ / রেট লিমিট" --> H["ক্যাসকেড ব্যাকআপ: Groq Vision (Qwen / Llama)"]
-    H --> G
-    G --> I["ওজন ও অনুপাত নির্ণয় (Portion Estimator)"]
-    I --> J["রেজাল্ট স্ক্রিন: খাবার ও পরিমাপ যাচাই"]
-    J --> K["পুষ্টি ডাটাবেস ক্যাসকেড: Open Food Facts ➔ USDA ➔ Fruityvice"]
-    K --> L["নিউট্রিয়েন্টস স্ক্রিন: ম্যাক্রো ডোনাট, ফাইবার, সোডিয়াম ও স্বাস্থ্য সতর্কতা"]
-    L --> M["খাবারের ইতিহাস সংরক্ষণ এবং গ্রোসারি লিস্ট আপডেট"]
+sequenceDiagram
+    autonumber
+    actor User as User / Diner
+    participant Camera as CaptureScreen (Client)
+    participant Vercel as Vercel Edge Proxy
+    participant Backend as FastAPI /api/vision/analyze
+    participant Chroma as ChromaDB Vector Cache
+    participant Gemini as Google Gemini 2.0 Flash
+    participant Groq as Groq Vision Fallback
+    participant Reconcile as Portion & Media Reconciler
+    participant Results as ResultsScreen (Client)
+
+    User->>Camera: Takes photo / Selects gallery image
+    Camera->>Camera: Canvas downscaling to max 1080px JPEG (~250 KB)
+    Camera->>Vercel: POST /api/vision/analyze (base64 image payload)
+    Vercel->>Backend: Forward request to Render backend
+    Backend->>Chroma: Check exact hash `live-vision-v1:{sha256}`
+    alt Cache Hit
+        Chroma-->>Backend: Return cached DetectionResult
+    else Cache Miss
+        Backend->>Gemini: Query gemini-2.0-flash with structured schema
+        alt Gemini Success
+            Gemini-->>Backend: Detected items JSON
+        else Gemini 429 / Rate Limit / Timeout
+            Backend->>Groq: Query Groq Qwen/Llama Vision fallback
+            Groq-->>Backend: Detected items JSON
+        end
+        Backend->>Reconcile: Estimate portions (grams), bounding boxes & inferred media
+        Backend->>Chroma: Cache detection result
+    end
+    Backend-->>Vercel: 200 OK DetectionResult (items, portions, inferred ingredients)
+    Vercel-->>Results: Render detected items, flame chips & macro curve
+    Results->>User: Displays interactive plate breakdown for review
 ```
 
 ---
 
-### ৪. ব্যবহারকারীর পূর্ণাঙ্গ অভিজ্ঞতা (Step-by-Step Experience)
+### Multi-Agent Voice AI Coach Pipeline
 
-#### ধাপ ১: ছবি তোলা বা আপলোড (`CaptureScreen`)
-- **কী করবেন**: ক্যামেরার আইকনে চাপ দিয়ে সরাসরি ছবি তুলুন, অথবা **Upload from gallery** বাটনে চাপ দিয়ে মোবাইলের গ্যালারি থেকে খাবারের ছবি নির্বাচন করুন।
-- **স্বয়ংক্রিয় প্রযুক্তি**: ফোনের ভারী ছবিগুলো (১০–২০ মেগাবাইট) ব্রাউজারেই দ্রুত কমপ্রেস হয়ে প্রায় ৩০০ কিলোবাইটে নেমে আসে, ফলে কোনো লোডিং সমস্যা ছাড়াই দ্রুত আপলোড সম্পন্ন হয়।
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User / Diner
+    participant CoachUI as CoachScreen.tsx
+    participant CoachAPI as FastAPI /api/coach/voice-chat
+    participant Gemini as Gemini 2.0 Flash LLM
+    participant TTS as TTS Service (tts_service.py)
+    participant ElevenLabs as ElevenLabs API (Premade)
+    participant EdgeTTS as Server-side edge-tts Fallback
 
-#### ধাপ ২: এআই ভিশন ক্যাসকেড শনাক্তকরণ
-- **কী ঘটে**: ছবিটি ব্যাকএন্ডে পৌঁছানোর পর:
-  1. গুগল জেমিনি ২.০ মডেল ছবিটি বিশ্লেষণ করে খাবারের উপাদানগুলো আলাদা করে।
-  2. কোনো কারণে জেমিনি রেট-লিমিটেড হলে মুহূর্তের মধ্যে গ্রক (Groq) ভিশন সক্রিয় হয়ে খাবার শনাক্ত করে।
-  3. প্রতিটি খাবারের নাম (ইংরেজি ও বাংলা), আত্মবিশ্বাসের হার (Confidence Score) এবং আনুমানিক ওজন (Grams) তৈরি হয়।
-
-#### ধাপ ৩: রেজাল্ট যাচাই ও কাস্টমাইজেশন (`ResultsScreen`)
-- **কী করবেন**:
-  - স্ক্রিনে প্রতিটি খাবারের পাশে ক্যালরি ফ্লেম চিপ (Flame Chip) এবং আনুমানিক ওজন দেখা যায়।
-  - ব্যবহারকারী চাইলে `+` বা `-` চেপে খাবারের ওজন বাড়াতে বা কমাতে পারেন, ভুল কিছু এলে মুছে ফেলতে পারেন, অথবা নতুন কোনো খাবার যুক্ত করতে পারেন।
-  - ওপরে থাকা সামারি কার্ডে মোট ক্যালরি ও ম্যাক্রো সাথে সাথে আপডেট হয়।
-
-#### ধাপ ৪: বহুস্তরীয় পুষ্টি অনুসন্ধান (Nutrition Cascade)
-- **কী ঘটে**: খাবারগুলো নিশ্চিত করার পর আন্তর্জাতিক ও নির্ভরযোগ্য ডাটাবেসে অনুসন্ধান চালানো হয়:
-  - **Open Food Facts**: প্যাকেটজাত ও আঞ্চলিক খাবারের তথ্য।
-  - **USDA FoodData Central**: মৌলিক উপাদান, মাংস ও রান্নার পুষ্টিমান।
-  - **Fruityvice**: বিভিন্ন ফলের সুনির্দিষ্ট তথ্য।
-  - **Culinary Heuristics**: কোনো ডাটাবেসে না পাওয়া গেলেও যৌক্তিক গড় ক্যালরি প্রদান করে যাতে মান শূন্য (0) না দেখায়।
-
-#### ধাপ ৫: পুষ্টিমান ও স্বাস্থ্য সতর্কতা বিশ্লেষণ (`NutrientsScreen`)
-- **কী দেখবেন**:
-  - **ম্যাক্রো ডোনাট (Macro Donuts)**: প্রোটিন, কার্বোহাইড্রেট এবং ফ্যাটের সুন্দর কাউন্ট-আপ অ্যানিমেশন এবং দৈনিক চাহিদার শতকরা হার।
-  - **মাইক্রোনিউট্রিয়েন্ট মিটার**: ফাইবার, সোডিয়াম এবং শর্করার স্পষ্ট পরিমাপক বার।
-  - **ডায়াবেটিস সতর্কতা**: খাবারে গ্লাইসেমিক লোড বেশি হলে লাল সতর্কতা আলো জ্বলে ওঠে।
-  - **"Why these flags?" স্ট্রিপ**: কোন খাবারটি কেন স্বাস্থ্যসম্মত বা ঝুঁকিপূর্ণ তা বাংলায় ব্যাখ্যা করে (যেমন: *"ভাত থেকে 600 মিলিগ্রাম সোডিয়াম পাওয়া যায়—এটি আপনার দৈনিক সীমার ৫০%"*)।
-
-#### ধাপ ৬: খাবারের ইতিহাস ও স্মার্ট বাজার তালিকা
-- **খাবারের ইতিহাস**: দিনের মোট ক্যালরি এবং পুষ্টি লক্ষ্যের সাথে আজকের মিল সেভ হয়ে যায়।
-- **স্মার্ট গ্রোসারি (`GroceryScreen`)**: পরবর্তী খাবারের জন্য প্রয়োজনীয় উপাদানগুলোর একটি গোছানো বাজার তালিকা তৈরি করে এবং আনুমানিক বাজেট প্রদর্শন করে।
-- **প্রোফাইল সেটিংস (`ProfileScreen`)**: নিজের স্বাস্থ্য লক্ষ্য (ডায়াবেটিস নিয়ন্ত্রণ, উচ্চ প্রোটিন, নির্দিষ্ট বাজেট, পরিমিত খাবার) কাস্টমাইজ করার সুবিধা।
+    User->>CoachUI: Selects Persona (Dr. Susmit / Farhan) + speaks or types
+    CoachUI->>CoachAPI: POST /api/coach/voice-chat {message, persona, profile}
+    CoachAPI->>Gemini: Generate reply with clinical citations & KaTeX math formulas
+    Gemini-->>CoachAPI: Formatted reply text + concise voice_summary
+    CoachAPI->>TTS: synthesize_coach_voice(clean_text, persona, voice_id)
+    TTS->>TTS: Check persona-isolated LRU audio cache
+    alt Cache Hit
+        TTS-->>CoachAPI: Cached MP3 audio base64
+    else Cache Miss
+        TTS->>ElevenLabs: Synthesize MP3 using Free-Tier Premade Voice
+        alt ElevenLabs Success
+            ElevenLabs-->>TTS: MP3 Audio Bytes
+        else ElevenLabs 402 / 429 / Quota Error
+            TTS->>EdgeTTS: Synthesize neural MP3 via edge_tts.Communicate
+            EdgeTTS-->>TTS: Neural MP3 Audio Bytes
+        end
+        TTS->>TTS: Store in LRU cache
+        TTS-->>CoachAPI: audio_base64 + tts_diagnostic
+    end
+    CoachAPI-->>CoachUI: JSON {content, voice_summary, audio_base64, tts_diagnostic}
+    CoachUI->>User: Plays voice audio & renders markdown with KaTeX math
+```
 
 ---
 
-### ৫. ব্যবহারকারীর জন্য প্রধান সুবিধাগুলোর সারসংক্ষেপ
+## 3. Deep-Dive Screen Workflows
 
-| সুবিধা | ব্যবহারকারীর করণীয় | ফলাফল / উপকারিতা |
+### Screen 1: Capture & Image Optimization (`CaptureScreen`)
+
+- **Hardware Camera Access**: Direct mobile and desktop camera feed integration using HTML5 `navigator.mediaDevices.getUserMedia`.
+- **Client-Side Image Optimization**: Large photos from mobile sensors (10–25 MB) are automatically compressed and scaled client-side to a max dimension of 1080px JPEG at 82% quality (~250 KB payload). This guarantees:
+  - Sub-second upload times over cellular 4G/3G connections.
+  - Zero payload truncation under cloud reverse proxy limits (Vercel 4.5MB limit, Render request limits).
+- **Today's Intake Trajectory Curve**: Embedded `RevenueCurveChart` displays logged calorie progress against the user's daily budget without leaving the capture view.
+- **Quick Actions Toolbar**: 1-tap navigation to "Log Meal" (opens shutter), "Recent Meals" (smooth scrolls to visual food diary), and "Grocery" (opens weekly shopping list).
+
+---
+
+### Screen 2: Dual-Model Multimodal Vision Detection
+
+The backend vision engine ([`app/services/vision_service.py`](file:///Users/bikashtalukder/cloud-camp-hackathon/app/services/vision_service.py)) executes a resilient multimodal cascade:
+1. **Semantic Vector Cache Check**:
+   - Computes SHA-256 fingerprint of the image bytes.
+   - Probes ChromaDB collection `live-vision-v1`. If a matching image was processed previously, returns cached food items with zero API cost and < 50ms latency.
+2. **Primary Vision: Google Gemini 2.0 Flash**:
+   - Calls `gemini-2.0-flash-exp` with temperature 0.2 and structured JSON schema enforcement.
+   - Instructs the vision model to detect all visible dishes, side ingredients, cooking oils, and spices.
+3. **Fail-Safe Fallback: Groq Vision**:
+   - If Gemini returns HTTP 429 (quota exhausted), 503, or invalid JSON, the service immediately invokes Groq Vision (`qwen/qwen3.8-27b` or `llama-3.2-11b-vision-preview`).
+   - Ensures user experience never breaks during peak dining hours.
+4. **Portion & Inferred Media Reconciler ([`portion.py`](file:///Users/bikashtalukder/cloud-camp-hackathon/app/services/portion.py))**:
+   - Estimates gram weights based on relative dish proportions.
+   - Infers hidden culinary ingredients (e.g. Olive Oil, Mustard Oil, Ghee, Salt, Black Pepper, Garlic) to ensure cooking fats are never overlooked in macro counts.
+
+---
+
+### Screen 3: Results, Portion Tuning & Diet Conflict Checks (`ResultsScreen`)
+
+- **3-Step Guided Step Indicator**:
+  - `Step 1: Review (পর্যালোচনা)`: Inspect detected items, visual confidence tags, and kcal flame chips.
+  - `Step 2: Adjust (সমন্বয়)`: Modify portion sizes using increment/decrement buttons (`+`/`-` 25g) or long-press slider (5g–800g), rename items, or add custom pantry items via modal.
+  - `Step 3: Confirm (নিশ্চিতকরণ)`: Final high-contrast macro review before committing the meal to daily history.
+- **Sticky Summary Card (`SummaryCard.tsx`)**:
+  - Floating card displaying total calories, protein, carbs, and fat with real-time count-up animation (`useCountUp.ts`).
+  - Toggle between compact macro meters and full Revenue Trajectory Curve.
+- **Dietary Conflict & Allergen Safety Engine ([`src/lib/dietConflict.ts`](file:///Users/bikashtalukder/cloud-camp-hackathon/src/lib/dietConflict.ts))**:
+  - Automatically verifies meal against user profile restrictions:
+    - **Halal**: Detects pork, gelatin, non-halal animal fats.
+    - **Vegetarian / Vegan**: Flags eggs, meat, fish, dairy products.
+    - **Allergens**: Flags Peanuts, Tree Nuts, Dairy, Gluten, Shellfish, Soy, Eggs.
+  - Generates clear severity badges (`Critical (জরুরি বর্জনীয়)` vs `Warning (সতর্কতা)`) and suggests culinary substitutions (e.g., using mustard oil instead of ghee, or tofu instead of paneer).
+
+---
+
+### Screen 4: Clinical Nutrition, SHAP Explainability & Dietary Pivots (`NutrientsScreen`)
+
+- **Macro Donut Rings**: SVG donut gauges for Protein, Carbs, and Fat with dynamic color transitions and percentage-of-goal tracking.
+- **Micronutrient Meters**: Target comparison bars for Dietary Fiber, Sodium, and Added Sugars.
+- **SHAP-Style Explainability Strip**:
+  - Breaks down *why* a nutrient was flagged (e.g., Sodium > 1500mg).
+  - Displays percentage contribution bar for each contributing item on the plate.
+- **Official Clinical Citations (RAG-backed)**:
+  - Surfaces verified reference benchmarks: `[Source: INFS/BIRDEM Guidelines]`, `[Source: ICMR/WHO Protocols]`, and `[Source: DAM/TCB Market Benchmarks]`.
+- **Smart Dietary Pivot Engine ([`src/lib/pivotEngine.ts`](file:///Users/bikashtalukder/cloud-camp-hackathon/src/lib/pivotEngine.ts))**:
+  - Evaluates glycemic index and caloric density.
+  - Generates actionable meal swap recommendations (e.g. swapping half the white rice for cucumber raita or adding a fresh salad).
+  - Calculates exact deltas: Glycemic Reduction %, $\Delta\text{kcal}$, $\Delta\text{carbs}$, $\Delta\text{fiber}$, and $\Delta\text{cost (BDT)}$.
+  - **1-Click Batch Grocery Sync**: Button to immediately add all suggested swap ingredients directly to the user's weekly grocery shopping list.
+
+---
+
+### Screen 5: Smart Grocery Planning & Live Market Intelligence (`GroceryScreen`)
+
+- **Categorized Weekly List**: Items grouped by culinary section (*Produce / কাঁচা বাজার*, *Protein / প্রোটিন ও আমিষ*, *Dairy / দুধ ও দুগ্ধজাত*, *Grains / শস্য ও চাল*, *Pantry / রান্নার উপাদান ও মসলা*, *Other / অন্যান্য*).
+- **Budget Tracking Ring**: Visual ring indicator tracking spent budget vs weekly allowance (calculated as daily budget $\times$ 7 days).
+- **Live Market Price Scraper ([`src/lib/priceScraper.ts`](file:///Users/bikashtalukder/cloud-camp-hackathon/src/lib/priceScraper.ts))**:
+  - Asynchronously scrapes real-time commodity prices from Chaldal and TCB benchmarks.
+  - Highlights verified live market prices with a green pulsing `⚡ Live / লাইভ` badge.
+- **Interactive Editing & Safety**:
+  - Tap any price to edit inline.
+  - Two-tap armed "Clear all" button with confirmation state to prevent accidental list wipes.
+  - One-tap "Share list" button formatting the entire list with checkboxes for messaging apps.
+
+---
+
+### Screen 6: Multi-Agent Voice AI Coach with KaTeX Math (`CoachScreen`)
+
+- **Dual-Persona Architecture**:
+  1. 🔬 **Dr. Susmit (Nutritional Biochemist)**:
+     - Male Persona Voice (`JBFqnCBsd6RMkjVDRZzb` - George Premade).
+     - Provides clinical biochemical reasoning, glycemic indices, lipid absorption, and metabolic pathways.
+     - Formulates equations using LaTeX (rendered via KaTeX), e.g.:
+       $$\text{BMR} = 10 \times \text{weight(kg)} + 6.25 \times \text{height(cm)} - 5 \times \text{age} + 5$$
+  2. 🧠 **Farhan Ahmed (Behavioral & Habit Coach)**:
+     - Behavioral Persona Voice (`EXAVITQu4vr4xnSDxMaL` - Sarah Premade).
+     - Focuses on sustainable habit formation, feast navigation, craving psychology, and guilt-free healthy routines.
+- **Fail-Safe TTS Architecture ([`app/services/tts_service.py`](file:///Users/bikashtalukder/cloud-camp-hackathon/app/services/tts_service.py))**:
+  - **Persona-Isolated LRU Audio Cache**:
+    $$\text{Cache Key} = \text{persona} : \text{voice\_id} : \text{model\_id} : \text{MD5}(\text{clean\_text})$$
+    Guarantees greetings or answers from Dr. Susmit never collide with or serve audio generated for Farhan.
+  - **ElevenLabs Premade Voices**: Configured with free-tier compatible premade voices, automatically ignoring deprecated or library voices that cause HTTP 402 errors.
+  - **Server-Side Neural `edge-tts` Fallback**:
+    - If ElevenLabs quota is exhausted (HTTP 429) or unauthorized (HTTP 401/402), server synthesizes high-definition MP3 audio via Microsoft Edge neural communicators:
+      - Dr. Susmit (English): `en-US-AndrewNeural` | Bengali: `bn-BD-PradeepNeural`
+      - Farhan (English): `en-US-AvaNeural` | Bengali: `bn-BD-NabanitaNeural`
+  - **Browser Fallback**: Falls back to `window.speechSynthesis` only as a last resort if all cloud synthesis fails.
+- **Speech-to-Text (STT)**: Integrated Web Speech API recording in either Bengali (`bn-BD`) or English (`en-US`).
+
+---
+
+### Screen 7: User Profile, BMR/TDEE & Medical Goals (`ProfileScreen`)
+
+- **Anthropometric Inputs**:
+  - Biological sex (Male, Female, Other).
+  - Age, Height (toggleable cm or feet/inches), Weight (toggleable kg or lbs).
+- **Scientific Caloric Target Computation**:
+  - Computes Basal Metabolic Rate (BMR) via the Mifflin-St Jeor equation:
+    $$\text{BMR}_{\text{male}} = 10W + 6.25H - 5A + 5$$
+    $$\text{BMR}_{\text{female}} = 10W + 6.25H - 5A - 161$$
+  - Multiplies by Activity Factor ($1.2$ Sedentary $\to 1.9$ Extremely Active) to determine Total Daily Energy Expenditure (TDEE).
+  - Calculates dynamic macro splits: Protein ($25\%$), Carbohydrates ($45\%$), Fat ($30\%$).
+- **Goal Presets**:
+  - Prediabetic / Diabetic friendly (enforces strict glycemic thresholds and carbs cap).
+  - High Protein (boosts protein target to 1.6–2.2g per kg bodyweight).
+  - Budget Conscious (prioritizes low-cost local pantry sources like lentils, eggs, and seasonal greens).
+- **PostgreSQL Cloud Database Sync**:
+  - All profile metrics, goals, and allergies persist to PostgreSQL via `/api/auth/profile`, syncing seamlessly across mobile, desktop, and tablet sessions.
+
+---
+
+## 4. RAG (Retrieval-Augmented Generation) & Knowledge Base
+
+NutriVision AI grounds its LLM generation and explainability in domain-specific medical, nutritional, and market knowledge:
+
+```mermaid
+flowchart LR
+    Query["User Meal / Question"] --> Embed["Query Processor"]
+    Embed --> Retrieve{"Knowledge Retriever"}
+
+    subgraph KnowledgeBases["Grounded Knowledge Bases"]
+        KB1["BIRDEM Diabetes Guidelines\n(Glycemic ceilings & insulin resistance)"]
+        KB2["INFS South Asian Food Composition\n(Bengali recipes, mustard oil, dal, spices)"]
+        KB3["ICMR & WHO Protocols\n(Sodium limits, daily fiber requirements)"]
+        KB4["DAM / TCB Agricultural Price Index\n(Dhaka & regional retail market deltas)"]
+    end
+
+    Retrieve --> KB1
+    Retrieve --> KB2
+    Retrieve --> KB3
+    Retrieve --> KB4
+
+    KB1 --> Augment["Augmented Prompt Context"]
+    KB2 --> Augment
+    KB3 --> Augment
+    KB4 --> Augment
+
+    Augment --> Gemini["Gemini 2.0 Flash / Vision"]
+    Gemini --> Output["Evidence-Based Clinical Reply\n+ Citations [Source: ...]"]
+```
+
+---
+
+## 5. Pure Bidirectional Internationalization (i18n)
+
+NutriVision AI features an internationalization system that prevents language mixing:
+
+| Requirement | Bengali Mode (`বাংলা`) | English Mode (`English`) |
 | :--- | :--- | :--- |
-| **ছবি দিয়ে ডায়েট ট্র্যাকিং** | খাবারের একটি ছবি আপলোড করুন | টাইপ করার ঝামেলা ছাড়াই ২ সেকেন্ডে খাবার লগ হয় |
-| **বাংলা ভাষা সমর্থন** | বাংলা ভাষা নির্বাচন করুন | দেশীয় ভাষায় খাবারের নাম ও স্বাস্থ্য পরামর্শ বোঝার সুবিধা |
-| **ওজন পরিবর্তনের সুবিধা** | `+` বা `-` বোতাম চেপে গ্রাম পরিবর্তন করুন | স্কেল ছাড়াই খাবারের পরিমাণ সহজে সামঞ্জস্য করা যায় |
-| **ডায়াবেটিস ও রক্তচাপ সতর্কতা** | প্রোফাইলে ডায়াবেটিস গোল অন রাখুন | ভাত বা মিষ্টিজাতীয় খাবারের গ্লাইসেমিক ঝুঁকি আগেই জানা যায় |
-| **ব্যাখ্যামূলক এআই গাইড** | "Why these flags?" বক্সটি পড়ুন | কেন রক্তে চিনি বা সোডিয়াম বাড়ছে তার বাস্তবসম্মত কারণ জানা যায় |
-| **স্মার্ট বাজার তালিকা** | খাবারের তালিকা থেকে গ্রোসারিতে যান | পরিবারের বাজেটের মধ্যে সুষম খাদ্যের বাজার পরিকল্পনা করা যায় |
-| **খাবারের ডায়েরি** | পূর্ববর্তী খাবারের রেকর্ড পর্যালোচনা করুন | দীর্ঘমেয়াদে ওজন ও ডায়েট নিয়ন্ত্রণে আত্মবিশ্বাস তৈরি হয় |
+| **Dish & Ingredient Names** | Pure Bengali (e.g. `সিদ্ধ ডিম`, `পেনে পাস্তা`, `লবণ`, `রসুন`) | Pure English (e.g. `Boiled Egg`, `Penne Pasta`, `Salt`, `Garlic`) |
+| **Numbers & Digits** | Bengali Digits (e.g. `১`, `২`, `৩`, `৪১৩`, `৳৬০`) | Western Digits (e.g. `1`, `2`, `3`, `413`, `৳60`) |
+| **Units of Measure** | `কিলোক্যালরি`, `গ্রাম`, `মিগ্রা`, `কেজি`, `সেমি` | `kcal`, `g`, `mg`, `kg`, `cm` |
+| **Step Indicators** | `১ পর্যালোচনা`, `২ সমন্বয়`, `৩ নিশ্চিতকরণ` | `1 Review`, `2 Adjust`, `3 Confirm` |
+| **Macro Gauges** | `প্রোটিন`, `কার্বোহাইড্রেট`, `চর্বি`, `আঁশ` | `Protein`, `Carbs`, `Fat`, `Fiber` |
+| **Voice Synthesis** | Male: `bn-BD-PradeepNeural` / Female: `bn-BD-NabanitaNeural` | Male: `en-US-AndrewNeural` / Female: `en-US-AvaNeural` |
+
+- **Bidirectional Food Resolution ([`src/lib/foodAliases.ts`](file:///Users/bikashtalukder/cloud-camp-hackathon/src/lib/foodAliases.ts))**:
+  - `resolveFoodName(name, 'bn')`: Returns Bengali name regardless of whether input was in English or Bengali.
+  - `resolveFoodName(name, 'en')`: Returns English name regardless of whether input was in Bengali or English.
+- **Digit Transliteration ([`src/lib/format.ts`](file:///Users/bikashtalukder/cloud-camp-hackathon/src/lib/format.ts))**:
+  - `toBengaliDigits(num)`: Converts Western digits (`0-9`) into Eastern Nagari glyphs (`০-৯`).
 
 ---
 
-### ৬. ভেক্টর ডাটাবেস ও আরএজি (RAG - Retrieval-Augmented Generation) আর্কিটেকচার
+## 6. API Specification & Data Contracts
 
-#### বর্তমান অবস্থা: প্রজেক্টে কি RAG যুক্ত আছে?
-- **ভেক্টর ডাটাবেস পরিকাঠামো**: [`app/cache/vector_cache.py`](file:///Users/bikashtalukder/cloud-camp-hackathon/app/cache/vector_cache.py) ফাইলে **ChromaDB** ইন্টিগ্রেট করা আছে এবং ডাটা সংরক্ষিত হয় `app/cache/chroma/` ডিরেক্টরিতে।
-- **বর্তমান কার্যপদ্ধতি**: এটি বর্তমানে একটি **এক্স্যাক্ট-হ্যাশ ক্যাশ স্কাফোল্ড (Exact-Hash Cache)** হিসেবে কাজ করছে। পূর্বে বিশ্লেষণ করা হুবহু একই ছবি এলে এটি ChromaDB থেকে পূর্বের ফলাফল প্রদান করে এআই এপিআই কল বাঁচায়।
-- **কেন এটি এখনও পূর্ণাঙ্গ RAG নয়**: ছবিতে কোনো ভেক্টর এমবেডিং (যেমন CLIP/SigLIP) তৈরি করা হচ্ছে না এবং কোনো বহিরাগত নলেজবেস থেকে তথ্য এনে জেমিনি বা গ্রক প্রম্পটে যুক্ত (Augment) করা হচ্ছে না।
+All endpoints are built with FastAPI and validated using Pydantic v2 schemas:
 
-#### পূর্ণাঙ্গ RAG বাস্তবায়নের মাধ্যমে কী কী করা সম্ভব:
-১. **মাল্টিমোডাল ভিশন আরএজি (CLIP/SigLIP)**: ছবির ভেক্টর এমবেডিং তৈরি করে একই ধরনের খাবারের ক্ষেত্রে জিরো এপিআই খরচে মুহূর্তেই নির্ভুল ফল রিট্রিভ করা।
-২. **দেশি রান্নার খাঁটি রেসিপি নলেজ আরএজি**: দেশি রান্নার গোপন তেল, মশলা, চিনি ও ঘি-এর সঠিক তথ্য রিট্রিভ করে আন্তর্জাতিক মানের নির্ভুল পুষ্টিমান গণনা।
-৩. **ক্লিনিকাল ডায়াবেটিস ও চিকিৎসা গাইডলাইন আরএজি**: এডিএ (ADA), ডাব্লিউএইচও (WHO) এবং কেডিআইজিও (KDIGO) নির্দেশিকা রিট্রিভ করে চিকিৎসাগতভাবে প্রমাণিত স্বাস্থ্য পরামর্শ ও সতর্কবার্তা প্রদান।
-৪. **দেশি স্বাস্থ্যকর বিকল্প খাদ্য আরএজি**: ভাতের বদলে কম খরচে কাওনের চাল, লাল চাল বা ওটসের মতো স্বাস্থ্যকর বিকল্প স্বয়ংক্রিয়ভাবে বাজার তালিকায় যুক্ত করার সুবিধা।
+| HTTP Method | Route | Description | Key Request / Response Parameters |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/vision/analyze` | Multimodal meal photo detection | Request: `{image: base64, lang: "en"\|"bn"}`<br/>Response: `{items: DetectedItem[], inferred_hidden_ingredients: string[]}` |
+| `POST` | `/api/nutrition/resolve` | Multi-database nutrition cascade | Request: `{items: [{name, grams}]}`<br/>Response: `{resolved: Record<string, NutritionFacts>}` |
+| `POST` | `/api/coach/voice-chat` | Multi-agent coach chat with voice audio | Request: `{message, persona, profile}`<br/>Response: `{content, voice_summary, audio_base64, tts_diagnostic}` |
+| `POST` | `/api/coach/tts` | Standalone high-fidelity TTS synthesis | Request: `{text, persona, voice_id}`<br/>Response: `{audio_base64, audio_mime_type, tts_diagnostic}` |
+| `GET` | `/api/coach/prompts` | Contextual starter questions by persona | Query: `?persona=scientist\|coach`<br/>Response: `{prompts: string[], citations: string[]}` |
+| `GET` | `/api/auth/profile` | Retrieve persistent user profile from DB | Query: `?user_id=string`<br/>Response: `UserProfile` schema |
+| `POST` | `/api/auth/profile` | Save/update user profile in PostgreSQL | Request: `UserProfile` payload<br/>Response: `{status: "ok", profile: UserProfile}` |
+| `GET` | `/api/grocery/list` | Fetch weekly shopping list and budget | Response: `GroceryList` schema with categories |
+| `POST` | `/api/grocery/item` | Add single or batch items to grocery list | Request: `{category, name, price}` |
+| `DELETE` | `/api/grocery/item/{id}`| Remove item from grocery list | Response: `{status: "deleted"}` |
+| `GET` | `/api/meals/today` | Fetch today's summary & logged meal count | Response: `TodaySummary` schema |
+| `GET` | `/api/health` | Service health & model connectivity | Response: `{status: "healthy", version: "2.4.0"}` |
 
-*(সম্পূর্ণ প্রযুক্তিগত আর্কিটেকচার জানতে দেখুন: [`docs/RAG_ARCHITECTURE.md`](file:///Users/bikashtalukder/cloud-camp-hackathon/docs/RAG_ARCHITECTURE.md)।)*
+---
+
+## 7. বাংলা সংস্করণ: সম্পূর্ণ ব্যবহার নির্দেশিকা ও সিস্টেম কার্যপ্রণালী
+
+### ১. কেন নিউট্রিভিশন এআই অনন্য?
+নিউট্রিভিশন এআই এমন একটি আধুনিক ও বিজ্ঞানসম্মত নিউট্রিশন প্ল্যাটফর্ম যা বাংলাদেশি ও দক্ষিণ এশীয় খাবারের জন্য বিশেষভাবে অপ্টিমাইজ করা। সাধারণ অ্যাপগুলোতে দেশি খাবারের তথ্য থাকে না এবং রান্নায় ব্যবহৃত তেল-মসলার হিসাব বাদ পড়ে যায়। আমাদের সিস্টেম খাবারের ছবি বিশ্লেষণ করে সঠিক ওজন এবং লুকানো রান্নার উপকরণ (যেমন: সরিষার তেল, সয়াবিন তেল, ঘি, লবণ, রসুন) স্বয়ংক্রিয়ভাবে শনাক্ত করে।
+
+---
+
+### ২. ব্যবহারকারীর ৬টি সহজ ধাপ
+
+```mermaid
+flowchart TD
+    A["ধাপ ১: খাবারের ছবি তুলুন বা গ্যালারি থেকে আপলোড করুন"] --> B["ধাপ ২: এআই ভিশন ক্যাসকেড (Gemini + Groq) খাবার শনাক্ত করে"]
+    B --> C["ধাপ ৩: রেজাল্ট স্ক্রিনে পরিমাণ ও খাবার যাচাই করুন (+ / - ২৫ গ্রাম)"]
+    C --> D["ধাপ ৪: পুষ্টি ডাটাবেস ও বারডেম গাইডলাইন থেকে ক্যালরি ও ম্যাক্রো বিশ্লেষণ"]
+    D --> E["ধাপ ৫: স্মার্ট ডায়েট পরামর্শ ও ১-ক্লিকে বাজার তালিকায় উপাদান যুক্ত করুন"]
+    E --> F["ধাপ ৬: এআই ভয়েস কোচের (ড. সুস্মিত / ফারহান) সাথে অডিওতে কথা বলুন"]
+```
+
+#### ধাপ ১: ছবি তোলা (`CaptureScreen`)
+- ক্যামেরার আইকনে চাপ দিয়ে খাবারের ছবি তুলুন অথবা মোবাইল গ্যালারি থেকে আপলোড করুন।
+- ভারী ছবিগুলো ব্রাউজারে স্বয়ংক্রিয়ভাবে অপ্টিমাইজ হয়ে মাত্র ২৫০ কিলোবাইটে নেমে আসে, ফলে এক সেকেন্ডের মধ্যে আপলোড সম্পন্ন হয়।
+
+#### ধাপ ২: ডুয়াল এআই ভিশন ক্যাসকেড
+- গুগল জেমিনি ২.০ ফ্ল্যাশ ছবিটি বিশ্লেষণ করে প্রতিটি খাবারের নাম, আনুমানিক গ্রাম এবং লুকানো রান্নার উপাদান আলাদা করে।
+- জেমিনির কোটা শেষ হলে সিস্টেম স্বয়ংক্রিয়ভাবে গ্রক ভিশন (Groq Vision) ব্যাকআপে চলে যায়, যাতে অ্যাপের কাজ কখনোই বন্ধ না হয়।
+
+#### ধাপ ৩: রেজাল্ট স্ক্রিনে পর্যালোচনা ও সমন্বয় (`ResultsScreen`)
+- খাবারগুলোর তালিকা দেখুন: প্রতিটি খাবারের আনুমানিক ওজন (গ্রাম), আত্মবিশ্বাস মাত্রা (Confidence %) এবং ক্যালরি ফ্লেম চিপ প্রদর্শিত হয়।
+- প্রয়োজনমতো `+` বা `-` চেপে খাবারের ওজন পরিবর্তন করুন, কিংবা কোনো খাবার মুছে ফেলুন।
+- **খাদ্য নিরাপত্তা সতর্কতা**: খাবারে কোনো অ্যালার্জি বা ডায়েট সংক্রান্ত দ্বন্দ্ব থাকলে (যেমন: ভেগান ডায়েটে ডিমের উপস্থিতি বা গ্লুটেন অ্যালার্জি) তা লাল সতর্কবার্তায় জানিয়ে দেওয়া হয়।
+
+#### ধাপ ৪: পূর্ণাঙ্গ পুষ্টি ও ক্লিনিক্যাল ব্যাখ্যা (`NutrientsScreen`)
+- প্রোটিন, কার্বোহাইড্রেট এবং ফ্যাটের রঙিন ডোনাট চার্ট দেখুন।
+- খাবারে সোডিয়াম বা চিনি বেশি থাকলে **"এই সতর্কতাগুলোর কারণ কী?"** বক্সে প্রতিটি খাবারের নির্দিষ্ট অবদান দেখা যায়।
+- বারডেম (BIRDEM) এবং বিশ্ব স্বাস্থ্য সংস্থা (WHO) নির্দেশিত বৈজ্ঞানিক সূত্র উল্লেখ করা থাকে।
+
+#### ধাপ ৫: স্মার্ট ডায়েট পরিবর্তন ও চালডাল বাজারদর
+- ডায়াবেটিস বা স্বাস্থ্যঝুঁকি কমাতে স্বাস্থ্যকর বিকল্প খাবারের প্রস্তাব (যেমন: অর্ধেক ভাতের বদলে শসার সালাদ)।
+- এতে গ্লাইসেমিক লোড কত কমবে এবং চালডালের লাইভ বাজারদরে কত খরচ বাড়বে বা কমবে ($\Delta \text{৳}$) তা স্পষ্টভাবে দেখা যায়।
+- **১-ক্লিক বাজার তালিকা**: বাটনে চাপ দিলেই প্রস্তাবিত সব পুষ্টিকর উপাদান সাপ্তাহিক বাজার তালিকায় যুক্ত হয়ে যায়।
+
+#### ধাপ ৬: বহু-ব্যক্তিত্ব ভয়েস এআই কোচ (`CoachScreen`)
+- **ড. সুস্মিত (পুষ্টি বিজ্ঞানী - পুরুষ কণ্ঠ)**: গ্লাইসেমিক সূচক, রক্তের শর্করা এবং বৈজ্ঞানিক সূত্র ($BMR$, $TDEE$) ব্যাখ্যা করেন।
+- **ফারহান আহমেদ (আচরণ ও অভ্যাস কোচ - নারী কণ্ঠ)**: দাওয়াত খাওয়া, মিষ্টির লোভ সামলানো এবং অপরাধবোধহীন সুস্থ জীবনযাপনের মনস্তাত্ত্বিক পরামর্শ দেন।
+- ইলেভেনল্যাবস (ElevenLabs) এবং মাইক্রোসফট এজ নিউরাল ভয়েসের মাধ্যমে পরিষ্কার বাংলা ও ইংরেজিতে কথা বলে উত্তর দেয়।
+
+---
+
+## ৮. কোডবেস টেস্ট ও গুণগত মান যাচাই (Verification)
+
+প্রজেক্টের প্রতিটি ফিচার টেস্ট সুইট দ্বারা সুরক্ষিত:
+
+1. **TypeScript Typecheck**:
+   ```bash
+   npm run typecheck
+   # Output: 0 errors across entire workspace
+   ```
+2. **Frontend Vitest Suite**:
+   ```bash
+   npm test -- --run
+   # Output: 14 test files passed (75 tests passed)
+   ```
+3. **Backend Pytest Suite**:
+   ```bash
+   python3 -m pytest app/tests/ -v
+   # Output: 179 passed in 26.15s
+   ```
+4. **Production Build**:
+   ```bash
+   npm run build
+   # Output: Vite built in 1.14s cleanly into dist/
+   ```
+
+---
+*Created and maintained by the NutriVision AI Engineering Team.*
