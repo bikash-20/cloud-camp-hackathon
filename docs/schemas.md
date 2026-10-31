@@ -18,7 +18,7 @@ This requirement is strictly enforced in CI by `app/tests/test_schema_drift.py`.
 
 ## 2. The `MUST_MATCH` Contract
 
-The following 44 schemas must match identically on both sides:
+The following 46 schemas must match identically on both sides:
 
 ### Core Nutrition Primitives
 - `NutritionFacts`: Per-100g nutritional profile (calories, protein, carbs, fat, fiber, sodium, sugar, glycemic index).
@@ -40,8 +40,10 @@ The following 44 schemas must match identically on both sides:
 - `CoachRole`: `'user' | 'assistant' | 'system'`.
 - `CoachAgentType`: `'scientist' | 'behavioral'`.
 - `CoachMessage`: Chat conversation bubble structure with agent metadata.
-- `CoachChatRequest`: Payload containing query, persona, active health goals, and meal history context.
-- `CoachChatResponse`: Structured response with BIRDEM/WHO citations, habit loops, and action chips.
+- `CoachChatRequest`: Payload containing query, persona, active health goals, meal history, active grocery items, and audio inclusion flag.
+- `CoachChatResponse`: Structured response with BIRDEM/WHO citations, habit loops, action chips, concise spoken summary (`voice_summary`), and optional base64 MP3 audio.
+- `CoachTTSRequest`: On-demand text-to-speech request with text, language code, and voice preset.
+- `CoachTTSResponse`: TTS response with optional base64 audio, audio MIME type, and browser fallback flag.
 
 ### Profile & Clinical Personalization
 - `HealthGoals`: Boolean clinical indicators (`diabetic`, `protein`, `budget`, `mediter`).

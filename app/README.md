@@ -73,6 +73,18 @@ Built with Python 3.11+, Pydantic v2, PostgreSQL (`psycopg 3`), ChromaDB vector 
    - Automatically migrates database tables on boot: `nv_users`, `nv_meals`, and `nv_grocery`.
    - Automatic startup purge ensures legacy synthetic/demo accounts are eliminated.
 
+6. **Multi-Agent AI Voice Assistant & TTS Engine (`/api/coach/*`)**
+   - `POST /api/coach/voice-chat`: Single-pass dual-channel endpoint delivering formatted markdown UI advice alongside a concise spoken summary (`voice_summary`, <60 words) and synthesized MP3 audio.
+   - **Live Database Grounding:** Automatically compiles active user biometrics, today's meal calorie/macro trajectory, and active pantry items (`nv_grocery`) from PostgreSQL.
+   - **Dynamic TTS Routing (`TTSService`):** Automatically routes English to `eleven_flash_v2_5` for ~75ms TTFA, and Bengali Unicode script (`\u0980-\u09FF`) or `lang="bn"` to `eleven_multilingual_v2` for native phonetics.
+   - **In-Memory LRU Cache:** Thread-safe 128-entry cache eliminates latency and character quota for repeated phrases.
+   - **Zero-Crash Graceful Fallback:** If `ELEVENLABS_API_KEY` is missing or depleted, returns `use_browser_tts = True` without raising 500 errors.
+   - `POST /api/coach/tts`: On-demand text-to-speech audio synthesis.
+
+7. **Storage Fail-Loud Guarantees & Health Monitoring (`/api/health`)**
+   - `GET /api/health`: Public probe returning storage backend type (`"postgres"` or `"json"`) and live database connectivity status without exposing connection strings.
+   - **Fail-Loud Guarantee:** If `DATABASE_URL` is set but the connection or migrations fail, the service refuses to start or returns 503, eliminating silent JSON fallbacks.
+
 ---
 
 ## Quick Start (Local Development)
@@ -101,7 +113,7 @@ Interactive API docs are available at [http://localhost:8000/docs](http://localh
 
 ### 4. Run Test Suite
 ```bash
-# Run all 155 contract and service tests
+# Run all 171 backend contract, service, and TTS tests
 python3 -m pytest app/tests/ -v
 ```
 
@@ -111,10 +123,13 @@ python3 -m pytest app/tests/ -v
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `DATABASE_URL` | Recommended | _None_ | PostgreSQL connection URI (Neon, Supabase, Render). Falls back to JSON if unset. |
+| `DATABASE_URL` | Recommended | _None_ | PostgreSQL connection URI (Neon, Supabase, Render). Fails loudly if misconfigured. |
 | `GOOGLE_CLIENT_ID` | Yes (for Auth)| _None_ | Google Cloud OAuth 2.0 Web Client ID. |
 | `JWT_SECRET` | Yes (for Auth)| _None_ | Secret string for HS256 JWT signature generation and verification. |
 | `ADMIN_EMAILS` | No | _Empty_ | Comma-separated list of Google account emails granted administrative privileges. |
+| `ELEVENLABS_API_KEY` | Optional | _None_ | ElevenLabs API key for ultra-low latency voice synthesis. |
+| `ELEVENLABS_VOICE_ID` | Optional | `21m00Tcm4TlvDq8ikWAM` | Voice ID preset (defaults to Rachel). |
+| `ELEVENLABS_MODEL_ID` | Optional | `eleven_flash_v2_5` | Default English model (~75ms TTFA). Auto-switches to `eleven_multilingual_v2` for Bengali. |
 | `CORS_ALLOW_ORIGINS` | No | `localhost:5173` | Comma-separated allowed frontend origins (e.g. `https://cloud-camp-hackathon.vercel.app`). |
 | `GROQ_API_KEY` | Recommended | _None_ | Tier 1 LPU vision inference. |
 | `GEMINI_API_KEY` | Recommended | _None_ | Tier 2 Google Gemini vision inference. |
@@ -130,5 +145,5 @@ python3 -m pytest app/tests/ -v
 2. **Runtime:** Python 3.
 3. **Build Command:** `pip install -r requirements.txt`
 4. **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-5. **Health Check Path:** `/health`
+5. **Health Check Path:** `/api/health`
 6. Add the environment variables listed above under **Environment Variables**.

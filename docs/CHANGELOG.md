@@ -1,5 +1,43 @@
 # Changelog
 
+## [Production Release] Multi-Agent Voice AI Assistant, Dynamic ElevenLabs TTS & Live Database Grounding
+
+This release introduces conversational voice intelligence to NutriVision AI, with real-time speech synthesis, live PostgreSQL grounding (`nv_users`, `nv_meals`, `nv_grocery`), fail-loud storage architecture, and high-contrast dark theme refinements.
+
+### 1. Multi-Agent Voice AI Assistant (`CoachScreen.tsx` & `/api/coach/*`)
+- **Single-Pass Dual-Channel Response:** Delivers a complete clinical Markdown response alongside an ultra-concise spoken summary (`voice_summary`, <60 words, clean of Markdown, LaTeX, and emojis) via `===VOICE_SUMMARY===` in a single LLM pass.
+- **Dual Personas:**
+  - **Dr. Susmit (পুষ্টি বিজ্ঞানী / Nutrition Biochemist):** Evidence-based biochemical analysis of glycemic load ($GL$), cooking oil absorption, and clinical macronutrient partitioning per BIRDEM/ADA guidelines.
+  - **Farhana Ahmed (আচরণ ও অভ্যাস কোচ / Habit Coach):** Empathetic behavioral coaching based on CBT habit science, lifestyle pacing, and guilt-free dawat/feast recovery.
+- **Live Database Grounding:** Dynamically injects the user's clinical profile, today's logged meals and remaining intake budget, and active pantry items (`nv_grocery`) from PostgreSQL. Null-safe fallbacks prevent errors when logs or pantries are empty.
+- **Hands-Free Speech-to-Text (STT):** Microphone integration with a dedicated `[বাং / EN]` toggle pill enabling instant switching between `bn-BD` and `en-US` speech recognition on the fly.
+
+### 2. Low-Latency ElevenLabs TTS Engine (`tts_service.py`)
+- **Dynamic Language-Aware Model Routing:**
+  - **English:** Uses `eleven_flash_v2_5` for ultra-low ~75ms TTFA latency and halved character consumption.
+  - **Bengali:** Automatically detects Bengali Unicode script (`\u0980-\u09FF`) or `lang="bn"` and routes to `eleven_multilingual_v2` for authentic native phonetics.
+- **In-Memory Thread-Safe LRU Cache:** 128-entry cache eliminates latency and character quota for repeated greetings and phrases.
+- **Zero-Crash Graceful Degradation:** If `ELEVENLABS_API_KEY` is unset, rate-limited, or times out, returns `use_browser_tts: true` with `audio_base64: null`. Never fails with a 500 error; frontend falls back seamlessly to `window.speechSynthesis`.
+
+### 3. Fail-Loud Storage Backend & Health Probe (`/api/health`)
+- Logs explicit storage status on startup: `"Storage backend: postgres (host=...)"` or `"Storage backend: json file"`.
+- Never silently falls back to JSON when `DATABASE_URL` is set; refuses startup or returns 503 on database migration errors.
+- Added public monitoring endpoint `GET /api/health` reporting storage backend type and database connectivity without exposing credentials.
+- Added tracked migration table `nv_migrations` ensuring legacy demo cleanup runs once and preserves real user accounts.
+
+### 4. UI Contrast & Theme Fixes
+- Enforced Light Mode as the explicit default across `ThemeContext.tsx` and `index.html`.
+- Fixed chart container in `RevenueCurveChart.tsx` so it adapts to dark mode (`rgba(42, 32, 27, 0.94)`) instead of glaring stark white.
+- Redesigned Profile screen dark-on-dark contrast for titles, subtitles, user stats cards, and stepper inputs (`StepperRow`).
+- Fixed Nutrients screen empty meal state banner and heading contrast.
+
+### 5. Test Suite Expansion
+- 171 Pytest backend unit and integration tests passing (`python3 -m pytest app/tests/ -v`).
+- 74 Vitest frontend unit tests passing (`npm test -- --run`).
+- 0 TypeScript compilation errors under strict mode (`npm run typecheck`).
+
+---
+
 ## [Production Release] Real Google OAuth 2.0, PostgreSQL Multi-Tenancy & Dynamic Admin Intelligence
 
 This major release upgrades NutriVision AI from a prototype with local/demo fixtures to a production-ready, multi-tenant system backed by real Google authentication and managed PostgreSQL storage.

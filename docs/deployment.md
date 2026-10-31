@@ -77,7 +77,7 @@ NutriVision AI uses `psycopg 3` with automatic DDL table migrations on startup.
    - **Root Directory:** `.`
    - **Build Command:** `pip install -r requirements.txt`
    - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-   - **Health Check Path:** `/health`
+   - **Health Check Path:** `/api/health`
 3. Configure **Environment Variables** in Render:
 
 | Variable | Recommended Value | Notes |
@@ -86,6 +86,9 @@ NutriVision AI uses `psycopg 3` with automatic DDL table migrations on startup.
 | `GOOGLE_CLIENT_ID` | `xxxxxxxx.apps.googleusercontent.com` | Matches Google Console |
 | `JWT_SECRET` | `openssl rand -hex 32` | 64-char random hex string |
 | `ADMIN_EMAILS` | `bikashtalukder040@gmail.com,lead@domain.com` | Admin permissions grant (comma-separated Google emails) |
+| `ELEVENLABS_API_KEY` | `xi-...` | ElevenLabs text-to-speech API key |
+| `ELEVENLABS_VOICE_ID` | `21m00Tcm4TlvDq8ikWAM` | Voice ID preset (defaults to Rachel) |
+| `ELEVENLABS_MODEL_ID` | `eleven_flash_v2_5` | Default English model (~75ms TTFA; auto-switches to `eleven_multilingual_v2` for Bengali) |
 | `CORS_ALLOW_ORIGINS` | `https://cloud-camp-hackathon.vercel.app` | Allow frontend origin |
 | `GROQ_API_KEY` | `gsk_...` | Tier 1 Fast Vision |
 | `GEMINI_API_KEY` | `AIzaSy...` | Tier 2 High-Accuracy Vision |
@@ -117,20 +120,26 @@ NutriVision AI uses `psycopg 3` with automatic DDL table migrations on startup.
 
 ## 5. Verification Checklist
 
-1. **Health Check:**
+1. **Storage & Health Check:**
    ```bash
-   curl -s https://cloud-camp-hackathon.onrender.com/health | jq .
-   # Expected: {"status": "ok", "service": "nutrivision-backend"}
+   curl -s https://cloud-camp-hackathon.onrender.com/api/health | jq .
+   # Expected: {"status": "ok", "storage_backend": "postgres", "db_connected": true}
    ```
 2. **Google Sign-In Flow:**
    - Open `https://cloud-camp-hackathon.vercel.app`.
    - Click **"Continue with Google"**.
    - Verify that your real Google email and name appear on the Profile screen.
    - Verify that new accounts start with clean 0 stats (0 meals, 0 active days, 0 streak).
-3. **Admin Dashboard Flow:**
+3. **Multi-Agent Voice AI Assistant:**
+   - Navigate to the **AI Coach** tab.
+   - Switch between **Dr. Susmit** (Scientist) and **Farhana** (Habit Coach).
+   - Use the mic button to speak a query; test switching the voice language pill between `বাং` and `EN`.
+   - Confirm audio response plays automatically (via ElevenLabs or graceful browser speech synthesis).
+   - Check the **Live DB Grounded** badge verifying that biometrics and today's meal records are incorporated into the advice.
+4. **Admin Dashboard Flow:**
    - Sign in using an email configured in `ADMIN_EMAILS`.
    - Verify the 4 active tabs: **Overview** (with real 7-day sparkline), **Users**, **Popular Foods**, and **Review Queue**.
    - Verify that non-admin accounts receive `403 Forbidden` if attempting to access admin APIs.
-4. **Theme Rendering:**
+5. **Theme Rendering:**
    - Switch between Light and Dark mode.
-   - Refresh the page and confirm zero white flash on dark theme.
+   - Confirm that Light mode is the default and that dark mode preserves high contrast without glaring white cards on the Nutrients chart.

@@ -39,13 +39,20 @@ Built for **Cloud Camp Hackathon** by [bikash-20](https://github.com/bikash-20).
 - SHAP-style explainability strip with per-item contributions
 - Share nutrition summary to clipboard
 
-### AI Coach
-- **Persona:** Dr. Susmit (পুষ্টি বিজ্ঞানী / Nutrition Scientist)
-- **Dual Expertise:** Biochemical & nutritional analysis paired with empathetic habit coaching (CBT habit science & WHO/ICMR lifestyle protocols)
-- **Bilingual & Cultural:** Seamless English & Bengali support tailored for regional diets, feasts, dawats, and cravings
-- **Scientific Transparency:** Evidence-based citations (INFS/BIRDEM guidelines, WHO protocols)
+### Multi-Agent Voice AI Assistant (`CoachScreen.tsx` & `/api/coach/*`)
+- **Single-Pass Dual-Channel Response:** Delivers a complete, formatted clinical analysis alongside an ultra-concise spoken summary (`voice_summary`, <60 words, clean of Markdown, LaTeX, and emojis) generated in a single LLM pass.
+- **Dual Personas:**
+  - **Dr. Susmit (পুষ্টি বিজ্ঞানী / Nutrition Biochemist):** Evidence-based biochemical analysis of glycemic load ($GL$), cooking oil absorption, and clinical macronutrient partitioning per BIRDEM/ADA guidelines.
+  - **Farhana Ahmed (আচরণ ও অভ্যাস কোচ / Habit Coach):** Empathetic behavioral coaching based on CBT habit science, lifestyle pacing, and guilt-free dawat/feast recovery.
+- **Dynamic Language-Aware TTS Model Routing (`tts_service.py`):**
+  - **English:** Uses `eleven_flash_v2_5` for ultra-low latency (~75ms TTFA) and halved character cost.
+  - **Bengali:** Automatically detects Bengali Unicode script (`\u0980-\u09FF`) or `lang="bn"` and switches to `eleven_multilingual_v2` for authentic native phonetics.
+- **In-Memory LRU Cache:** Thread-safe 128-entry in-memory audio cache for zero-latency responses on frequent prompts.
+- **Hands-Free Speech-to-Text (STT):** Live microphone input using browser Web Speech API with an instant `[বাং / EN]` language toggle pill directly beside the microphone.
+- **Zero-Crash Graceful Degradation:** If ElevenLabs API key is absent, rate-limited, or fails, automatically falls back to browser `window.speechSynthesis` without raising 500 errors.
+- **Live Database Grounding:** Seamlessly compiles user's clinical profile, today's logged meals, and active grocery list from PostgreSQL into context.
 
-### Profile
+### Nutrients & Analysis
 - Editable health goals: prediabetic-friendly, high-protein, budget-aware, Mediterranean
 - Dietary preferences: Vegetarian, Vegan, Pescatarian, Gluten-free, Dairy-free, Halal, Kosher
 - Allergen tracking: Peanuts, Tree nuts, Shellfish, Soy, Eggs, Dairy, Gluten, Sesame
@@ -198,6 +205,9 @@ The system operates on an asynchronous, decoupled client-server architecture:
 | `GOOGLE_CLIENT_ID` | Google Cloud OAuth 2.0 Web Client ID (matches frontend) |
 | `JWT_SECRET` | 64-char random hex string used to sign backend session JWTs |
 | `ADMIN_EMAILS` | Comma-separated list of admin Google emails (e.g., `bikashtalukder040@gmail.com,lead@domain.com`) |
+| `ELEVENLABS_API_KEY` | ElevenLabs API key for AI Voice Assistant text-to-speech synthesis |
+| `ELEVENLABS_VOICE_ID` | Voice ID preset (defaults to `"21m00Tcm4TlvDq8ikWAM"` — Rachel) |
+| `ELEVENLABS_MODEL_ID` | Model preset (defaults to `eleven_flash_v2_5` ~75ms TTFA; auto-routes Bengali to `eleven_multilingual_v2`) |
 | `CORS_ALLOW_ORIGINS` | `https://cloud-camp-hackathon.vercel.app` (or comma-separated allowed origins) |
 | `GROQ_API_KEY` | Groq API key for Tier 1 ultra-fast vision inference |
 | `GEMINI_API_KEY` | Google Gemini API key for Tier 2 vision cascade |

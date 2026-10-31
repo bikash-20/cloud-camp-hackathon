@@ -32,6 +32,8 @@ Welcome to the architectural and operational documentation for **NutriVision AI*
 ### HTTP REST APIs
 - [api/auth.md](./api/auth.md) — Google OAuth 2.0 Identity Services verification and session JWT management (`/api/auth/*`).
 - [api/admin.md](./api/admin.md) — Platform telemetry, multi-user directory, food popularity analytics, and review queue (`/api/admin/*`).
+- [api/coach.md](./api/coach.md) — Multi-agent voice AI coach, dual-channel voice chat, and ElevenLabs TTS synthesis (`/api/coach/*`).
+- [api/health.md](./api/health.md) — Public storage backend and database connectivity health check (`/api/health`).
 - [api/vision.md](./api/vision.md) — 5-tier vision cascade and portion estimation (`/api/vision/analyze`).
 - [api/nutrition.md](./api/nutrition.md) — Dynamic BMR/TDEE targets, food database cascade, and clinical flags (`/api/nutrition/*`).
 - [api/meals.md](./api/meals.md) — Meal logging, daily intake summaries, and user streak statistics (`/api/meals/*`).
@@ -45,8 +47,8 @@ Welcome to the architectural and operational documentation for **NutriVision AI*
 1. **Schema Lockstep:** `src/types/schemas.ts` and `app/models/schemas.py` are strictly validated by `app/tests/test_schema_drift.py` via TypeScript AST reflection.
 2. **Real Authentication & Multi-Tenancy:** Authenticated sessions use verified Google OAuth 2.0 ID tokens and JWTs. User data is partitioned by email in PostgreSQL.
 3. **Resilient Neon & PgBouncer Persistence:** Database connections via `psycopg 3` enforce `prepare_threshold=None` and `channel_binding=require` for 100% transaction-pooling reliability.
-4. **Zero-Flash Theme Rendering:** Inline synchronous theme script in `<head>` ensures dark mode loads without white flashes.
+4. **Zero-Flash Theme Rendering:** Inline synchronous theme script in `<head>` ensures dark mode loads without white flashes. Default theme is explicitly light mode.
 5. **Verified Test Coverage:**
-   - **Frontend:** 72 Vitest tests across 14 test suites (`npm test -- --run`).
+   - **Frontend:** 74 Vitest tests across 14 test suites (`npm test -- --run`).
    - **TypeScript:** Strict typecheck passing with 0 errors (`npm run typecheck`).
-   - **Backend:** 155 Pytest tests across 8 test suites (`python3 -m pytest app/tests/ -v`).
+   - **Backend:** 171 Pytest tests across 8 test suites (`python3 -m pytest app/tests/ -v`).

@@ -11,8 +11,9 @@ NutriVision AI is a production-grade, phone-first Progressive Web App (PWA) demo
 - **Visual Ingestion:** 5-tier multimodal vision cascade (Groq LPU $\rightarrow$ Gemini 2.0 Flash $\rightarrow$ OpenRouter $\rightarrow$ Gemini 1.5 $\rightarrow$ Hugging Face).
 - **Clinical Nutrition:** Dynamic BMR/TDEE calculation (Mifflin-St Jeor), clinical AMDR macronutrient splits, and localized Bangladeshi composition databases combined with Open Food Facts and USDA FoodData Central.
 - **Market Intelligence & Dietary Pivots:** Macro- and BDT price-delta calculations for meals, tied directly to a 1-tap localized weekly grocery list.
-- **AI Health Coach:** Dr. Susmit (bilingual English/Bengali biochemical scientist and habit coach).
+- **AI Health Coach & Voice Assistant:** Dr. Susmit (Scientist) & Farhana (Habit Coach) with live PostgreSQL grounding (`nv_users`, `nv_meals`, `nv_grocery`), single-pass dual-channel inference, dynamic ElevenLabs TTS model routing (`eleven_flash_v2_5` ~75ms vs `eleven_multilingual_v2`), and browser STT with on-the-fly `[বাং / EN]` toggle.
 - **Admin Intelligence:** 4-view admin portal (live metrics, user directory, popular food analytics, low-confidence review queue).
+- **Storage Resilience:** Fail-loud PostgreSQL startup with `psycopg[binary]`, tracked migrations (`nv_migrations`), and public health monitoring (`/api/health`).
 
 ---
 
@@ -22,6 +23,7 @@ NutriVision AI is a production-grade, phone-first Progressive Web App (PWA) demo
 |---|---|---|
 | **Frontend PWA** | React 18, TypeScript, Vite, framer-motion | `src/App.tsx`, `src/components/*` |
 | **Authentication** | Google Identity Services (GIS), JWT (HS256) | `src/lib/auth.ts`, `app/api/auth.py` |
+| **Voice & Speech** | ElevenLabs REST API, Web Speech API, Web Audio | `app/services/tts_service.py`, `src/components/screens/CoachScreen.tsx` |
 | **Backend API** | FastAPI, Python 3.11+, Pydantic v2 | `app/main.py`, `app/api/*` |
 | **Persistence** | PostgreSQL (`psycopg 3`), JSON fallback | `app/services/state.py` |
 | **Vector & Cache** | ChromaDB, SQLite TTL | `app/cache/vector_cache.py`, `app/cache/sqlite_cache.py` |

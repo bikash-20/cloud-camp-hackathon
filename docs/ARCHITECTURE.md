@@ -136,6 +136,23 @@ The platform is designed around a strictly decoupled client-server architecture:
    - Isolates meals detected with confidence $<70\%$.
    - Admin can approve, dismiss, or correct food labels via `PATCH /api/admin/review-queue/{meal_id}`, retraining/correcting the system logs.
 
+### D. Multi-Agent AI Coach & Voice Assistant Pipeline
+1. **Voice Ingestion & STT:**
+   - User speaks into the browser microphone via Web Speech API (`SpeechRecognition`).
+   - A dedicated `[বাং / EN]` toggle pill enables instant switching between `bn-BD` and `en-US` speech models on the fly.
+2. **Context Compilation & Live DB Grounding:**
+   - `POST /api/coach/voice-chat` receives the user prompt and session JWT.
+   - The backend looks up `nv_users` (biometrics, condition flags, calorie limits), `nv_meals` (today's logged meals and remaining intake budget), and `nv_grocery` (active pantry inventory).
+   - If pantry or meal logs are empty, null-safe defaults are populated without failing.
+3. **Single-Pass Dual-Channel Inference:**
+   - A single LLM pass synthesizes both a full, structured clinical Markdown card and an ultra-concise spoken summary (`voice_summary`, <60 words, clean of Markdown, LaTeX, and emojis) separated by `===VOICE_SUMMARY===`.
+4. **Dynamic Language-Aware TTS Routing (`TTSService`):**
+   - English voice summaries are synthesized using ElevenLabs `eleven_flash_v2_5` (~75ms TTFA).
+   - Bengali script (`\u0980-\u09FF`) or `lang="bn"` triggers automatic routing to `eleven_multilingual_v2` for native phonetics.
+   - Responses are cached in an in-memory thread-safe 128-slot LRU cache.
+5. **Zero-Crash Audio Delivery & Fallback:**
+   - Returns base64 MP3 audio data. If ElevenLabs is missing, rate-limited, or fails, gracefully returns `use_browser_tts = True` and `audio_base64 = null`, triggering client-side `window.speechSynthesis`.
+
 ---
 
 ## 4. Key Architectural Invariants
@@ -152,12 +169,17 @@ The codebase strictly enforces the following principles:
 
 3. **No Mock or Synthetic Personas in Production:**
    - All runtime execution paths use verified Google authenticated accounts.
-   - Startup migrations automatically purge legacy mock/synthetic accounts (`judge`, `rafi`, `@nutrivision.ai`).
+   - Startup migrations automatically purge legacy mock/synthetic accounts (`judge`, `rafi`, `@nutrivision.ai`). Real accounts with meals are never touched.
 
-4. **Zero-Flash Theme Rendering:**
+4. **Zero-Flash Theme Rendering & High-Contrast Design:**
    - Synchronous script execution in `<head>` before CSS/DOM hydration guarantees dark mode renders without white flashes on reload.
-   - All dark mode surfaces enforce WCAG AA 4.5:1 contrast minimums.
+   - All dark mode surfaces enforce WCAG AA 4.5:1 contrast minimums across chart containers, profile steppers, and coach bubbles. Default theme is explicitly light mode.
 
-5. **Resilient Database Connectivity:**
+5. **Resilient Database Connectivity & Fail-Loud Storage:**
    - PostgreSQL connections via `psycopg 3` enforce `prepare_threshold=None` for transaction poolers (Neon, PgBouncer).
    - SCRAM-SHA-256 channel binding (`channel_binding=require`) is enforced for TLS connection integrity.
+   - If `DATABASE_URL` is configured but connectivity or migrations fail, the service logs the error and refuses startup or returns 503 rather than silently degrading to JSON storage.
+   - `GET /api/health` reports storage backend type and database connectivity without exposing connection secrets.
+
+6. **Zero-Crash Graceful Voice Degradation:**
+   - Text-to-speech failures or quota limits never produce 500 API errors; client seamlessly falls back to local browser speech synthesis.

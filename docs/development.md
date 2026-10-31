@@ -90,18 +90,19 @@ src/
     ├── ThemeToggle.tsx
     ├── useCountUp.ts             # Animated number counter
     ├── auth/
-    │   └── LoginScreen.tsx       # Mock login (don't touch)
+    │   └── LoginScreen.tsx       # Google Identity Services (GIS) OAuth login
     ├── admin/
     │   ├── AdminLayout.tsx
     │   ├── AdminOverview.tsx
     │   ├── KpiCard.tsx
     │   └── Sparkline.tsx
     └── screens/
-        ├── CaptureScreen.tsx     # Camera + home + meal history
-        ├── ResultsScreen.tsx     # Detected items list
-        ├── NutrientsScreen.tsx   # Macro donuts + explainability
-        ├── ProfileScreen.tsx     # Goals, prefs, allergens, budget
-        └── GroceryScreen.tsx     # Weekly grocery list
+        ├── CaptureScreen.tsx     # Camera + home + meal history + revenue curve
+        ├── ResultsScreen.tsx     # Detected items list & portion editing
+        ├── NutrientsScreen.tsx   # Macro donuts, trajectory, & dietary pivots
+        ├── ProfileScreen.tsx     # Goals, prefs, allergens, budget stepper
+        ├── GroceryScreen.tsx     # Weekly organized grocery list
+        └── CoachScreen.tsx       # Multi-agent AI Coach with ElevenLabs Voice & STT
 ```
 
 ## Backend
