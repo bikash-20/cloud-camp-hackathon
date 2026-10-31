@@ -9,6 +9,8 @@ import {
   ShoppingBag,
   Sparkles,
   CheckCircle2,
+  Check,
+  Loader2,
   BookOpen,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -18,7 +20,8 @@ import {
 import { useTokens } from '../../theme/useTokens';
 import { getEffectiveNutrition } from '../../lib/personalize';
 import { getContextAwarePairings } from '../../lib/foodAliases';
-import { addGroceryItem } from '../../lib/api';
+import { addGroceryItem, addGroceryItemsBatch, getGroceryList, removeGroceryItem } from '../../lib/api';
+import { triggerHaptic } from '../../lib/haptics';
 import { checkDietConflicts, CLINICAL_DISCLAIMER_BN, CLINICAL_DISCLAIMER_EN } from '../../lib/dietConflict';
 import type { DetectedItem, UserProfile, AnalyzeResult } from '../../types/schemas';
 import PhotoThumb from '../PhotoThumb';
@@ -65,6 +68,7 @@ interface ResultsScreenProps {
   detected?: DetectedItem[];
   onChangeDetected?: (next: DetectedItem[]) => void;
   onViewNutrients?: () => void;
+  onNavigateToGrocery?: () => void;
   profile?: UserProfile;
   capturedImage?: string | null;
   analysisMessage?: string | null;
@@ -76,6 +80,7 @@ export default function ResultsScreen({
   detected: detectedProp,
   onChangeDetected,
   onViewNutrients,
+  onNavigateToGrocery,
   profile,
   capturedImage,
   analysisMessage,
@@ -89,6 +94,10 @@ export default function ResultsScreen({
   const [detected, setDetected] = useState(detectedProp ?? []);
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
   const [addedGroceryIds, setAddedGroceryIds] = useState<Record<string, boolean>>({});
+  const [addedDetectedToGrocery, setAddedDetectedToGrocery] = useState(false);
+  const [isAddingDetectedGrocery, setIsAddingDetectedGrocery] = useState(false);
+  const [isAddingMissingGrocery, setIsAddingMissingGrocery] = useState<Record<number, boolean>>({});
+  const [groceryItemMap, setGroceryItemMap] = useState<Record<string, string>>({}); // item name (lowercase) -> item ID
 
   const dietConflicts = useMemo(() => {
     if (!profile) return [];
@@ -131,6 +140,44 @@ export default function ResultsScreen({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(detectedProp)]);
+
+  // Check and sync grocery list status
+  useEffect(() => {
+    let active = true;
+    const checkGrocery = async () => {
+      if (!profile) return;
+      try {
+        const list = await getGroceryList(profile);
+        if (!active || !list?.groups) return;
+        const allItems = list.groups.flatMap((g) => g.items || []);
+        const map: Record<string, string> = {};
+        for (const item of allItems) {
+          map[item.name.toLowerCase().trim()] = item.id;
+        }
+        setGroceryItemMap(map);
+        if (detected.length > 0) {
+          const allIn = detected.every((d) => !!map[d.name.toLowerCase().trim()]);
+          setAddedDetectedToGrocery(allIn);
+        }
+      } catch {
+        // Silently ignore if offline
+      }
+    };
+
+    checkGrocery();
+
+    const handleGroceryUpdated = () => {
+      checkGrocery();
+    };
+
+    window.addEventListener('grocery-updated', handleGroceryUpdated);
+    window.addEventListener('storage', handleGroceryUpdated);
+    return () => {
+      active = false;
+      window.removeEventListener('grocery-updated', handleGroceryUpdated);
+      window.removeEventListener('storage', handleGroceryUpdated);
+    };
+  }, [profile, detected]);
 
   const totals = useMemo(() => totalsFor(detected), [detected]);
 
@@ -276,11 +323,12 @@ export default function ResultsScreen({
   };
 
   const onShare = () => {
+    triggerHaptic('light');
     const lines = detected
       .map((d, i) => `${i + 1}. ${foodName(d.name, d.name_bn)} — ${d.grams}g (${d.confidence}%)`)
       .join('\n');
     if (navigator?.clipboard) navigator.clipboard.writeText(lines).catch(() => {});
-    triggerToast('Copied to clipboard');
+    triggerToast(isBn ? 'ক্লিপবোর্ডে কপি করা হয়েছে' : 'Copied to clipboard');
   };
 
   const selectedCount = Object.values(selected).filter(Boolean).length;
@@ -290,33 +338,137 @@ export default function ResultsScreen({
   });
 
   const handleAddMissingToGrocery = async (recipeIdx: number, items: string[]) => {
+    if (items.length === 0) return;
     try {
-      for (const item of items) {
-        await addGroceryItem('Pantry', item, 60);
-      }
+      setIsAddingMissingGrocery((prev) => ({ ...prev, [recipeIdx]: true }));
+      triggerHaptic('light');
+      const itemsToSync = items.map((item) => ({
+        category: 'Pantry',
+        name: item,
+        price: 60,
+      }));
+      await addGroceryItemsBatch(itemsToSync);
       setAddedGroceryIds((prev) => ({ ...prev, [recipeIdx]: true }));
+      triggerHaptic('success');
       triggerToast(
         isBn
           ? `${toBengaliDigits(items.length)}টি উপাদান বাজারে যুক্ত হয়েছে!`
           : `Added ${items.length} items to Grocery List!`,
+        onNavigateToGrocery
+          ? {
+              label: isBn ? 'বাজার দেখুন' : 'View in Grocery',
+              onClick: onNavigateToGrocery,
+            }
+          : undefined,
       );
     } catch {
+      triggerHaptic('warning');
       triggerToast(isBn ? 'বাজারে যোগ করতে ব্যর্থ হয়েছে' : 'Failed to add items');
+    } finally {
+      setIsAddingMissingGrocery((prev) => ({ ...prev, [recipeIdx]: false }));
     }
   };
 
-  const handleAddDetectedToGrocery = async () => {
+  const handleToggleDetectedGrocery = async () => {
+    if (detected.length === 0) return;
+
+    if (addedDetectedToGrocery) {
+      triggerHaptic('toggle');
+      triggerToast(
+        isBn
+          ? 'উপাদানগুলো ইতিমধ্যে আপনার বাজারের তালিকায় আছে'
+          : 'Items are already in your Grocery list',
+        onNavigateToGrocery
+          ? {
+              label: isBn ? 'বাজার দেখুন' : 'View in Grocery',
+              onClick: onNavigateToGrocery,
+            }
+          : undefined,
+      );
+      return;
+    }
+
+    triggerHaptic('light');
+    setIsAddingDetectedGrocery(true);
+
     try {
-      for (const item of detected) {
-        await addGroceryItem('Produce', item.name, 60);
+      const itemsToSync = detected.map((item) => ({
+        category: NUTRITION_DB[item.name]?.category || 'Produce',
+        name: item.name,
+        price: 60,
+      }));
+
+      const created = await addGroceryItemsBatch(itemsToSync);
+      const newMap = { ...groceryItemMap };
+      for (const c of created) {
+        newMap[c.name.toLowerCase().trim()] = c.id;
       }
+      setGroceryItemMap(newMap);
+      setAddedDetectedToGrocery(true);
+      triggerHaptic('success');
+
       triggerToast(
         isBn
           ? `${toBengaliDigits(detected.length)}টি উপাদান বাজারে যুক্ত হয়েছে!`
           : `Added ${detected.length} items to Grocery List!`,
+        onNavigateToGrocery
+          ? {
+              label: isBn ? 'বাজার দেখুন' : 'View in Grocery',
+              onClick: onNavigateToGrocery,
+            }
+          : undefined,
       );
     } catch {
+      triggerHaptic('warning');
       triggerToast(isBn ? 'বাজারে যোগ করতে ব্যর্থ হয়েছে' : 'Failed to add items');
+    } finally {
+      setIsAddingDetectedGrocery(false);
+    }
+  };
+
+  const handleToggleSingleItemGrocery = async (name: string) => {
+    const key = name.toLowerCase().trim();
+    const existingId = groceryItemMap[key];
+
+    if (existingId) {
+      triggerHaptic('toggle');
+      try {
+        await removeGroceryItem(existingId);
+        setGroceryItemMap((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        triggerToast(
+          isBn ? `${foodName(name)} বাজার থেকে সরানো হয়েছে` : `Removed ${name} from Grocery`,
+        );
+      } catch {
+        triggerHaptic('warning');
+        triggerToast(isBn ? 'মুছতে ব্যর্থ হয়েছে' : 'Failed to remove');
+      }
+    } else {
+      triggerHaptic('light');
+      try {
+        const item = await addGroceryItem(
+          NUTRITION_DB[name]?.category || 'Produce',
+          name,
+          60,
+        );
+        setGroceryItemMap((prev) => ({ ...prev, [key]: item.id }));
+        triggerHaptic('success');
+        triggerToast(
+          isBn ? `${foodName(name)} বাজারে যোগ করা হয়েছে` : `Added ${name} to Grocery`,
+          onNavigateToGrocery
+            ? {
+                label: isBn ? 'বাজার দেখুন' : 'View Grocery',
+                onClick: onNavigateToGrocery,
+              }
+            : undefined,
+        );
+      } catch {
+        triggerHaptic('warning');
+        triggerToast(isBn ? 'যোগ করতে ব্যর্থ হয়েছে' : 'Failed to add');
+      }
     }
   };
 
@@ -629,8 +781,8 @@ export default function ResultsScreen({
                       type="button"
                       onClick={() => handleAddMissingToGrocery(rIdx, recipe.missing_ingredients)}
                       whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.97 }}
-                      disabled={alreadyAdded}
+                      whileTap={{ scale: 0.95 }}
+                      disabled={alreadyAdded || isAddingMissingGrocery[rIdx]}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -643,10 +795,16 @@ export default function ResultsScreen({
                         fontFamily: 'Inter',
                         fontSize: 11,
                         fontWeight: 600,
-                        cursor: alreadyAdded ? 'default' : 'pointer',
+                        cursor: alreadyAdded ? 'default' : isAddingMissingGrocery[rIdx] ? 'wait' : 'pointer',
+                        boxShadow: '0 4px 10px rgba(0,0,0,0.12)',
                       }}
                     >
-                      {alreadyAdded ? (
+                      {isAddingMissingGrocery[rIdx] ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin" />
+                          <span>{isBn ? 'যোগ হচ্ছে...' : 'Adding...'}</span>
+                        </>
+                      ) : alreadyAdded ? (
                         <>
                           <CheckCircle2 size={12} /> {isBn ? 'বাজারে যোগ করা হয়েছে' : 'Added to Grocery'}
                         </>
@@ -1160,29 +1318,58 @@ export default function ResultsScreen({
           </motion.button>
           <motion.button
             type="button"
-            onClick={handleAddDetectedToGrocery}
-            whileHover={{ y: -1 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            aria-label={isBn ? 'বাজারের তালিকায় উপাদান যোগ করুন' : 'Add ingredients to Grocery List'}
+            onClick={handleToggleDetectedGrocery}
+            disabled={isAddingDetectedGrocery}
+            whileHover={{ y: -1, scale: 1.02 }}
+            whileTap={{ scale: 0.94 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+            aria-label={
+              addedDetectedToGrocery
+                ? (isBn ? 'উপাদানগুলো ইতিমধ্যে বাজারে আছে' : 'Items already in Grocery List')
+                : (isBn ? 'বাজারের তালিকায় উপাদান যোগ করুন' : 'Add ingredients to Grocery List')
+            }
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: 5,
-              background: 'rgba(74, 58, 52, 0.07)',
-              border: '1px solid rgba(74, 58, 52, 0.14)',
+              background: addedDetectedToGrocery
+                ? (isDark ? 'rgba(76, 175, 80, 0.22)' : 'rgba(46, 125, 50, 0.12)')
+                : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.07)'),
+              border: addedDetectedToGrocery
+                ? (isDark ? '1px solid rgba(76, 175, 80, 0.50)' : '1px solid rgba(46, 125, 50, 0.38)')
+                : '1px solid rgba(74, 58, 52, 0.14)',
               borderRadius: 8,
-              padding: '4px 8px',
+              padding: '4px 9px',
               fontFamily: 'Inter',
               fontSize: 11,
               fontWeight: 600,
-              color: T.ink,
-              cursor: 'pointer',
+              color: addedDetectedToGrocery ? (isDark ? '#81C784' : '#2E7D32') : T.ink,
+              cursor: isAddingDetectedGrocery ? 'wait' : 'pointer',
               minHeight: 28,
+              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              boxShadow: addedDetectedToGrocery ? '0 2px 8px rgba(46, 125, 50, 0.18)' : 'none',
             }}
           >
-            <ShoppingBag size={12} color={T.primary} />
-            <span>{isBn ? 'বাজারে যোগ' : 'Add to Grocery'}</span>
+            {isAddingDetectedGrocery ? (
+              <>
+                <Loader2 size={12} className="animate-spin" color={T.primary} />
+                <span>{isBn ? 'যোগ হচ্ছে...' : 'Adding...'}</span>
+              </>
+            ) : addedDetectedToGrocery ? (
+              <motion.span
+                initial={{ scale: 0.85, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+              >
+                <Check size={12} strokeWidth={2.8} />
+                <span>{isBn ? 'বাজারে যুক্ত ✓' : 'In Grocery ✓'}</span>
+              </motion.span>
+            ) : (
+              <>
+                <ShoppingBag size={12} color={T.primary} />
+                <span>{isBn ? 'বাজারে যোগ' : 'Add to Grocery'}</span>
+              </>
+            )}
           </motion.button>
         </div>
 
@@ -1224,6 +1411,7 @@ export default function ResultsScreen({
         <AnimatePresence initial={false}>
           {visibleItems.map((it) => {
             const meta = NUTRITION_DB[it.name];
+            const isItemInGrocery = !!groceryItemMap[it.name.toLowerCase().trim()];
             return (
               <div key={it.name} style={{ position: 'relative' }}>
                 <ExpandableRow
@@ -1233,6 +1421,8 @@ export default function ResultsScreen({
                   isSelected={!!selected[it.name]}
                   multiSelect={multiSelect}
                   editMode={editMode}
+                  isItemInGrocery={isItemInGrocery}
+                  onToggleGrocery={handleToggleSingleItemGrocery}
                   onConfirm={confirm}
                   onRemove={remove}
                   onGramsChange={setGrams}

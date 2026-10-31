@@ -314,6 +314,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
               detected={detected}
               onChangeDetected={handleDetectedChange}
               onViewNutrients={() => goToTab(2)}
+              onNavigateToGrocery={() => goToTab(4)}
               profile={profile}
               capturedImage={capturedImage}
               analysisMessage={analysisMessage}

@@ -225,6 +225,23 @@ def test_grocery_remove_unknown_returns_404(client: TestClient, auth_headers: di
     assert client.delete("/api/grocery/items/g-does-not-exist", headers=auth_headers).status_code == 404
 
 
+def test_grocery_batch_add(client: TestClient, auth_headers: dict[str, str]) -> None:
+    """Batch add inserts multiple items atomically in a single request."""
+    resp = client.post(
+        "/api/grocery/batch",
+        json=[
+            {"name": "Boiled Egg", "price": 15.0, "category": "Dairy & eggs"},
+            {"name": "Tomato", "price": 40.0, "category": "Produce"},
+        ],
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    items = resp.json()
+    assert len(items) == 2
+    assert items[0]["name"] == "Boiled Egg"
+    assert items[1]["name"] == "Tomato"
+
+
 # ── Meals ───────────────────────────────────────────────────────────────
 
 

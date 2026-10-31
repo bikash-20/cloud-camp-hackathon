@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { addGroceryItem, getGroceryList, DEFAULT_PROFILE } from './api';
+import { addGroceryItem, addGroceryItemsBatch, getGroceryList, DEFAULT_PROFILE } from './api';
 
 describe('Grocery pipeline API', () => {
   beforeEach(() => {
@@ -84,6 +84,32 @@ describe('Grocery pipeline API', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ category: 'Grains & staples', name: 'Brown rice (Lal chal)', price: 90 }),
+      }),
+    );
+  });
+
+  it('adds multiple items in a batch request', async () => {
+    const mockBatch = [
+      { id: 'g-new-3', name: 'Boiled Egg', category: 'Produce', price: 15, checked: false },
+      { id: 'g-new-4', name: 'Tomato', category: 'Produce', price: 40, checked: false },
+    ];
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: () => Promise.resolve(mockBatch),
+    }) as unknown as typeof fetch;
+
+    const items = await addGroceryItemsBatch([
+      { name: 'Boiled Egg', price: 15 },
+      { name: 'Tomato', price: 40 },
+    ]);
+    expect(items).toHaveLength(2);
+    expect(items[0].name).toBe('Boiled Egg');
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/grocery/batch'),
+      expect.objectContaining({
+        method: 'POST',
       }),
     );
   });

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles, ShoppingBag, CheckCircle, ArrowRight } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles, ShoppingBag, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 import { T, NUTRITION_DB } from '../../data';
 import { useTokens } from '../../theme/useTokens';
-import { resolveNutrition, addGroceryItem, getTodaySummary, updateLatestMeal } from '../../lib/api';
+import { resolveNutrition, addGroceryItemsBatch, getTodaySummary, updateLatestMeal } from '../../lib/api';
+import { triggerHaptic } from '../../lib/haptics';
 import { focusedNutrients, unitForNutrient, getEffectiveNutrition, getDynamicTargets } from '../../lib/personalize';
 import { checkDietConflicts, CLINICAL_DISCLAIMER_BN, CLINICAL_DISCLAIMER_EN } from '../../lib/dietConflict';
 import { generateDietaryPivots, generateDietaryPivotsAsync, type DietaryPivot } from '../../lib/pivotEngine';
@@ -785,6 +786,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
 
   const [pivotToast, setPivotToast] = useState<string | null>(null);
   const [addedPivotIds, setAddedPivotIds] = useState<Record<string, boolean>>({});
+  const [isAddingPivot, setIsAddingPivot] = useState<Record<string, boolean>>({});
 
   const dietConflicts = useMemo(() => {
     if (!profile || detected.length === 0) return [];
@@ -817,13 +819,18 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
   }, [detected, profile, resolvedNutritionMap]);
 
   const handleAddPivotToGrocery = async (pivot: DietaryPivot) => {
+    if (pivot.grocery_items_to_add.length === 0) return;
     try {
-      await Promise.all(
-        pivot.grocery_items_to_add.map((item) =>
-          addGroceryItem(item.category || 'Produce', item.name, item.price_bdt),
-        ),
-      );
+      setIsAddingPivot((prev) => ({ ...prev, [pivot.id]: true }));
+      triggerHaptic('light');
+      const itemsToSync = pivot.grocery_items_to_add.map((item) => ({
+        category: item.category || 'Produce',
+        name: item.name,
+        price: item.price_bdt,
+      }));
+      await addGroceryItemsBatch(itemsToSync);
       setAddedPivotIds((prev) => ({ ...prev, [pivot.id]: true }));
+      triggerHaptic('success');
       setPivotToast(
         language === 'bn'
           ? `${toBengaliDigits(pivot.grocery_items_to_add.length)}টি স্বাস্থ্যকর উপাদান মুদির তালিকায় যোগ করা হয়েছে!`
@@ -831,8 +838,11 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
       );
       setTimeout(() => setPivotToast(null), 4000);
     } catch {
+      triggerHaptic('warning');
       setPivotToast(language === 'bn' ? 'যোগ করতে ব্যর্থ হয়েছে' : 'Failed to add items');
       setTimeout(() => setPivotToast(null), 3000);
+    } finally {
+      setIsAddingPivot((prev) => ({ ...prev, [pivot.id]: false }));
     }
   };
 
@@ -1539,8 +1549,8 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
                       type="button"
                       onClick={() => handleAddPivotToGrocery(pivot)}
                       whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.97 }}
-                      disabled={alreadyAdded}
+                      whileTap={{ scale: 0.95 }}
+                      disabled={alreadyAdded || isAddingPivot[pivot.id]}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -1553,11 +1563,16 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
                         fontFamily: 'Inter',
                         fontSize: 12,
                         fontWeight: 600,
-                        cursor: alreadyAdded ? 'default' : 'pointer',
+                        cursor: alreadyAdded ? 'default' : isAddingPivot[pivot.id] ? 'wait' : 'pointer',
                         boxShadow: '0 4px 12px rgba(201, 98, 45, 0.25)',
                       }}
                     >
-                      {alreadyAdded ? (
+                      {isAddingPivot[pivot.id] ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin" />
+                          <span>{language === 'bn' ? 'যোগ হচ্ছে...' : 'Adding...'}</span>
+                        </>
+                      ) : alreadyAdded ? (
                         <>
                           <CheckCircle size={14} /> {language === 'bn' ? 'মুদির তালিকায় যুক্ত হয়েছে' : 'Added to Grocery List'}
                         </>

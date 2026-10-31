@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
-  Check, Flame, Minus, Plus, Trash2, Edit3, ChevronDown,
+  Check, Flame, Minus, Plus, Trash2, Edit3, ChevronDown, ShoppingBag, Loader2,
 } from 'lucide-react';
 import { T, NUTRITION_DB, CATEGORY_TILES } from '../data';
 import { getEffectiveNutrition } from '../lib/personalize';
+import { triggerHaptic } from '../lib/haptics';
 import type { DetectedItem } from '../types/schemas';
 import Chip from './Chip';
 import AddCustomModal from './AddCustomModal';
@@ -60,6 +61,8 @@ interface ExpandableRowProps {
   onRename?: (oldName: string, newName: string) => void;
   onReplace?: (oldName: string, newName: string) => void;
   onAddPairing?: (name: string, pairing: string) => void;
+  onToggleGrocery?: (name: string) => Promise<void | boolean> | void;
+  isItemInGrocery?: boolean;
   glycemic?: number;
 }
 
@@ -79,6 +82,8 @@ export default function ExpandableRow({
   onRename,
   onReplace,
   onAddPairing,
+  onToggleGrocery,
+  isItemInGrocery,
   glycemic,
 }: ExpandableRowProps) {
   const reduceMotion = useReducedMotion();
@@ -90,6 +95,7 @@ export default function ExpandableRow({
   const [ripple, setRipple] = useState<{ x: number; y: number } | null>(null);
   const [pulseHalo, setPulseHalo] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
+  const [isTogglingGrocery, setIsTogglingGrocery] = useState(false);
   const longPressTimerRef = useRef<number>(0);
 
   const openRename = () => setRenameOpen(true);
@@ -712,6 +718,64 @@ export default function ExpandableRow({
                 >
                   <Trash2 size={11} /> {isBn ? 'মুছে ফেলুন' : 'Remove'}
                 </motion.button>
+
+                {onToggleGrocery && (
+                  <motion.button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setIsTogglingGrocery(true);
+                      triggerHaptic('light');
+                      try {
+                        await onToggleGrocery(item.name);
+                        triggerHaptic('success');
+                      } finally {
+                        setIsTogglingGrocery(false);
+                      }
+                    }}
+                    disabled={isTogglingGrocery}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                    aria-label={
+                      isItemInGrocery
+                        ? (isBn ? `${displayName} ইতিমধ্যে বাজারে আছে` : `${displayName} is in Grocery`)
+                        : (isBn ? `${displayName} বাজারে যোগ করুন` : `Add ${displayName} to Grocery`)
+                    }
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '6px 10px',
+                      borderRadius: 10,
+                      background: isItemInGrocery ? 'rgba(46, 125, 50, 0.12)' : 'rgba(74, 58, 52, 0.07)',
+                      border: isItemInGrocery ? '1px solid rgba(46, 125, 50, 0.35)' : '1px solid rgba(74, 58, 52, 0.16)',
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: isItemInGrocery ? '#2E7D32' : T.ink,
+                      cursor: isTogglingGrocery ? 'wait' : 'pointer',
+                      minHeight: 32,
+                    }}
+                  >
+                    {isTogglingGrocery ? (
+                      <>
+                        <Loader2 size={11} className="animate-spin" />
+                        <span>{isBn ? 'যোগ হচ্ছে...' : 'Adding...'}</span>
+                      </>
+                    ) : isItemInGrocery ? (
+                      <>
+                        <Check size={11} strokeWidth={2.5} />
+                        <span>{isBn ? 'বাজারে আছে' : 'In Grocery'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingBag size={11} color={T.primary} />
+                        <span>{isBn ? 'বাজারে যোগ' : 'Add to Grocery'}</span>
+                      </>
+                    )}
+                  </motion.button>
+                )}
 
                 {badge.tier === 'low' && !isConfirmed && (
                   <motion.button

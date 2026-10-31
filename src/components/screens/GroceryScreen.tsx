@@ -19,6 +19,7 @@ import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 import { toBengaliDigits } from '../../lib/format';
 import { resolveMarketPrice } from '../../lib/marketPrices';
 import { fetchLivePrice } from '../../lib/priceScraper';
+import { triggerHaptic } from '../../lib/haptics';
 
 const container = {
   hidden: {},
@@ -156,6 +157,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
   };
 
   const toggle = async (gid: string) => {
+    triggerHaptic('toggle');
     setGroups((gs) =>
       gs.map((g) => ({
         ...g,
@@ -168,6 +170,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
   };
 
   const remove = async (gid: string) => {
+    triggerHaptic('warning');
     setGroups((gs) =>
       gs.map((g) => ({ ...g, items: g.items.filter((i) => i.id !== gid) })),
     );
@@ -187,6 +190,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
   };
 
   const addItem = async (gi: number, name: string, price: number) => {
+    triggerHaptic('success');
     const localId = `custom-${nextIdRef.current++}`;
     const optimistic: GroceryItem = { id: localId, name, price, checked: false };
     // Capture the category name from the SAME render state we just updated,

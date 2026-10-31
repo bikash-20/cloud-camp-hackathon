@@ -98,6 +98,63 @@ curl -X POST http://localhost:8000/api/grocery/items \
 
 ---
 
+## `POST /api/grocery/batch`
+
+Atomically adds multiple items to the grocery list in a single HTTP transaction.
+
+### Request
+
+```http
+POST /api/grocery/batch HTTP/1.1
+Content-Type: application/json
+
+[
+  {
+    "name": "Boiled Egg",
+    "price": 15,
+    "category": "Dairy & eggs"
+  },
+  {
+    "name": "Tomato",
+    "price": 40,
+    "category": "Produce"
+  }
+]
+```
+
+### Response
+
+```http
+HTTP/1.1 201 Created
+Content-Type: application/json
+
+[
+  {
+    "id": "g-new-1",
+    "name": "Boiled Egg",
+    "price": 15,
+    "checked": false
+  },
+  {
+    "id": "g-new-2",
+    "name": "Tomato",
+    "price": 40,
+    "checked": false
+  }
+]
+```
+
+### Example
+
+```bash
+curl -X POST http://localhost:8000/api/grocery/batch \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '[{"name":"Boiled Egg","price":15,"category":"Dairy & eggs"},{"name":"Tomato","price":40,"category":"Produce"}]'
+```
+
+---
+
 ## `PUT /api/grocery/items/{id}`
 
 Update an existing item (rename, change price, check/uncheck).

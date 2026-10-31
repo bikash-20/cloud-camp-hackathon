@@ -97,6 +97,21 @@ def add_grocery_item(
     return state.add_user_grocery(current_user.email, body.name, body.price)
 
 
+@router.post(
+    "/batch",
+    response_model=list[GroceryItem],
+    status_code=status.HTTP_201_CREATED,
+)
+def add_grocery_items_batch(
+    items: list[AddGroceryRequest],
+    current_user: AuthSession = Depends(require_current_user),
+    state: State = Depends(get_state),
+) -> list[GroceryItem]:
+    """Add multiple grocery items in a single atomic transaction for the authenticated user."""
+    items_to_add = [(i.name, i.price) for i in items]
+    return state.add_user_grocery_bulk(current_user.email, items_to_add)
+
+
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_grocery_item(
     item_id: str,

@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Check, Eye, Plus, X } from 'lucide-react';
 import { T } from '../data';
 import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
+import { triggerHaptic } from '../lib/haptics';
 
 interface BulkActionBarProps {
   count: number;
@@ -65,7 +66,10 @@ export default function BulkActionBar({
         {hasHighConf && (
           <motion.button
             type="button"
-            onClick={onConfirmAll}
+            onClick={() => {
+              triggerHaptic('success');
+              onConfirmAll?.();
+            }}
             whileHover={{ y: -1, scale: 1.04 }}
             whileTap={{ scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
@@ -93,7 +97,10 @@ export default function BulkActionBar({
 
         <motion.button
           type="button"
-          onClick={onReviewAll}
+          onClick={() => {
+            triggerHaptic('light');
+            onReviewAll?.();
+          }}
           whileHover={{ y: -1, scale: 1.04 }}
           whileTap={{ scale: 0.95 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
@@ -119,7 +126,10 @@ export default function BulkActionBar({
 
         <motion.button
           type="button"
-          onClick={onAddCustom}
+          onClick={() => {
+            triggerHaptic('light');
+            onAddCustom?.();
+          }}
           whileHover={{ scale: 1.08, rotate: 90 }}
           whileTap={{ scale: 0.92 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
@@ -143,7 +153,10 @@ export default function BulkActionBar({
 
         <motion.button
           type="button"
-          onClick={onCancel}
+          onClick={() => {
+            triggerHaptic('light');
+            onCancel?.();
+          }}
           whileHover={{ scale: 1.1, rotate: 90 }}
           whileTap={{ scale: 0.9 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}

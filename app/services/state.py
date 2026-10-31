@@ -865,6 +865,33 @@ class State:
 
         return self._mutate(op)  # type: ignore[return-value]
 
+    def add_user_grocery_bulk(self, email: str, items: list[tuple[str, float]]) -> list[GroceryItem]:
+        clean_email = email.lower().strip()
+
+        def op() -> list[GroceryItem]:
+            user = self.users.get(clean_email)
+            if not user:
+                user = UserData(email=clean_email)
+                self.users[clean_email] = user
+            created_items: list[GroceryItem] = []
+            max_n = max(
+                (int("".join(c for c in g.id if c.isdigit()) or 0) for g in user.grocery.items),
+                default=0,
+            )
+            for name, price in items:
+                max_n += 1
+                item = GroceryItem(
+                    id=f"g-new-{max_n}",
+                    name=name,
+                    price=max(0.0, price),
+                    checked=False,
+                )
+                user.grocery.upsert(item)
+                created_items.append(item.model_copy(deep=True))
+            return created_items
+
+        return self._mutate(op)  # type: ignore[return-value]
+
     def remove_user_grocery(self, email: str, item_id: str) -> None:
         clean_email = email.lower().strip()
 

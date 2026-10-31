@@ -210,6 +210,37 @@ export async function addGroceryItem(
   return item;
 }
 
+/**
+ * Add multiple grocery items in a single atomic batch request.
+ * Falls back to parallel individual additions if the batch endpoint is unreachable.
+ */
+export async function addGroceryItemsBatch(
+  items: Array<{ category?: string; name: string; price: number }>,
+): Promise<GroceryItem[]> {
+  if (items.length === 0) return [];
+
+  try {
+    const payload = items.map((i) => ({
+      category: i.category || 'Produce',
+      name: i.name,
+      price: i.price,
+    }));
+    const created = await apiFetch<GroceryItem[]>('/api/grocery/batch', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('grocery-updated', { detail: created }));
+    }
+    return created;
+  } catch {
+    const fallbackResults = await Promise.all(
+      items.map((i) => addGroceryItem(i.category || 'Produce', i.name, i.price)),
+    );
+    return fallbackResults;
+  }
+}
+
 export async function removeGroceryItem(itemId: string): Promise<void> {
   await apiFetch<void>(`/api/grocery/items/${encodeURIComponent(itemId)}`, {
     method: 'DELETE',
