@@ -1,4 +1,5 @@
 import { T } from '../data';
+import { useTokens } from '../theme/useTokens';
 import { LocalizedContent } from '../i18n/LanguageContext';
 
 interface SectionLabelProps {
@@ -9,6 +10,9 @@ interface SectionLabelProps {
 
 /** Small uppercase label used above sections in ProfileScreen and GroceryScreen. */
 export default function SectionLabel({ children, action, onAction }: SectionLabelProps) {
+  const { theme } = useTokens();
+  const isDark = theme === 'dark';
+
   return (
     <LocalizedContent>
       <div
@@ -40,8 +44,8 @@ export default function SectionLabel({ children, action, onAction }: SectionLabe
               display: 'inline-flex',
               alignItems: 'center',
               gap: 4,
-              background: 'rgba(74, 58, 52, 0.08)',
-              border: '1px solid rgba(74, 58, 52, 0.18)',
+              background: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)',
+              border: isDark ? '1px solid rgba(255, 255, 255, 0.14)' : '1px solid rgba(74, 58, 52, 0.18)',
               padding: '5px 10px',
               borderRadius: 999,
               fontFamily: 'Inter',
@@ -53,10 +57,10 @@ export default function SectionLabel({ children, action, onAction }: SectionLabe
               transition: 'background 160ms ease, transform 160ms ease, box-shadow 160ms ease',
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = 'rgba(74, 58, 52, 0.14)';
+              (e.currentTarget as HTMLButtonElement).style.background = isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(74, 58, 52, 0.14)';
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = 'rgba(74, 58, 52, 0.08)';
+              (e.currentTarget as HTMLButtonElement).style.background = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)';
             }}
           >
             {action}

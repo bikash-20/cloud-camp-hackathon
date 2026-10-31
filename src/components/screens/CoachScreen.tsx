@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import katex from 'katex';
 import { T } from '../../data';
+import { useTokens } from '../../theme/useTokens';
 import { sendCoachChat } from '../../lib/api';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 import type {
@@ -211,6 +212,7 @@ function FormattedMessage({ content, isUser }: { content: string; isUser: boolea
 }
 
 export default function CoachScreen({ profile }: CoachScreenProps) {
+  useTokens();
   const { language } = useLanguage();
   const isBn = language === 'bn';
 
@@ -355,8 +357,8 @@ export default function CoachScreen({ profile }: CoachScreenProps) {
 
   return (
     <LocalizedContent>
-      {/* Root Layout Container with guaranteed 130px bottom dock clearance */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 130 }}>
+      {/* Root Layout Container with guaranteed 160px bottom dock clearance */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 160 }}>
         {/* Header Title & Persona Switcher */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

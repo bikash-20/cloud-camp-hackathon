@@ -3,6 +3,7 @@ import {
   Camera, ScanLine, Activity, User, ShoppingBag, Bot,
 } from 'lucide-react';
 import { T, TABS } from '../data';
+import { useTokens } from '../theme/useTokens';
 import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
 
 const ICONS: Record<string, typeof Camera> = { Camera, ScanLine, Activity, User, ShoppingBag, Bot };
@@ -16,6 +17,8 @@ interface BottomNavProps {
  * Floating bottom navigation dock per spec §4D.
  */
 export default function BottomNav({ active, onChange }: BottomNavProps) {
+  const { theme } = useTokens();
+  const isDark = theme === 'dark';
   const { language } = useLanguage();
   const isBn = language === 'bn';
 
@@ -76,8 +79,9 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
           height: 72,
           borderRadius: 28,
           padding: '6px 8px',
-          boxShadow:
-            '0 8px 32px rgba(46, 37, 34, 0.10), inset 0 1px 0 rgba(255,255,255,0.55)',
+          boxShadow: isDark
+            ? '0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255,255,255,0.08)'
+            : '0 8px 32px rgba(46, 37, 34, 0.10), inset 0 1px 0 rgba(255,255,255,0.55)',
         }}
       >
         {TABS.map((t, i) => {
@@ -166,7 +170,7 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
                       width: 42,
                       height: 42,
                       borderRadius: '50%',
-                      background: 'rgba(74, 58, 52, 0.08)',
+                      background: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)',
                       opacity: 0,
                       transform: 'scale(0.85)',
                       transition: 'opacity 180ms ease, transform 180ms ease',

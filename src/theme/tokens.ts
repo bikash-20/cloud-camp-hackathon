@@ -116,23 +116,23 @@ export const darkTokens: TokenShape = {
 
   primary:        '#D0AE92',
   primaryLight:   '#E8C49A',
-  primaryDeep:    '#EBD7BE',
+  primaryDeep:    '#F2EAE1',
 
-  // Admin card surface: faint white wash on dark glass.
-  cardBg:        'rgba(255, 255, 255, 0.04)',
-  cardBorder:    'rgba(255, 255, 255, 0.08)',
-  cardBorderSoft:'rgba(255, 255, 255, 0.06)',
+  // Dark card surface: warm dark-earth glass card with contrast border
+  cardBg:        'rgba(42, 32, 27, 0.92)',
+  cardBorder:    'rgba(255, 255, 255, 0.12)',
+  cardBorderSoft:'rgba(255, 255, 255, 0.08)',
 
-  // Admin text ramp: cream primary, 65% cream secondary, 55% cream tertiary.
+  // High-contrast text ramp: crisp cream primary, 78% cream secondary, 60% cream tertiary
   ink:            '#F9F2E4',
-  inkSoft:        'rgba(249, 242, 228, 0.65)',
-  inkMuted:       'rgba(249, 242, 228, 0.55)',
+  inkSoft:        'rgba(249, 242, 228, 0.78)',
+  inkMuted:       'rgba(249, 242, 228, 0.60)',
 
   accentWarn:     '#F0B79A',
   accentAmber:    '#E8C49A',
   accentGood:     '#B8C68A',
 
-  surface:        'rgba(20, 14, 11, 0.85)',
+  surface:        'rgba(34, 26, 22, 0.95)',
   surface2:       '#3D302A',
   delight:        '#E8C49A',
   warning:        '#F0B79A',
@@ -156,8 +156,12 @@ export const darkTokens: TokenShape = {
 // reference flips every existing `T.foo` site on the next render with
 // zero call-site changes.
 
+const initialDocTheme = typeof document !== 'undefined'
+  ? document.documentElement.getAttribute('data-theme')
+  : null;
+
 /** Mutable pointer to the active token set. Updated by ThemeProvider. */
-let _active: TokenShape = lightTokens;
+let _active: TokenShape = initialDocTheme === 'dark' ? darkTokens : lightTokens;
 
 /** Set the active token set. Called by ThemeProvider on every change. */
 export function setActiveTokens(tokens: TokenShape): void {

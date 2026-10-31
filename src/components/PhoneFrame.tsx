@@ -101,7 +101,7 @@ export default function PhoneFrame({ children, headerRight, footer }: PhoneFrame
             overflowY: 'auto',
             overscrollBehavior: 'contain',
             paddingTop: 8,
-            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 120px)',
           }}
         >
           {children}

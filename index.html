@@ -8,12 +8,14 @@
       (function() {
         try {
           var stored = localStorage.getItem('nv_theme');
-          var theme = null;
+          var theme = 'light';
           if (stored) {
-            try { theme = JSON.parse(stored); } catch(e) { theme = stored; }
-          }
-          if (theme !== 'dark' && theme !== 'light') {
-            theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            try {
+              var parsed = JSON.parse(stored);
+              if (parsed === 'dark') theme = 'dark';
+            } catch(e) {
+              if (stored === 'dark') theme = 'dark';
+            }
           }
           document.documentElement.setAttribute('data-theme', theme);
         } catch(e) {}

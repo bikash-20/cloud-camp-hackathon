@@ -43,25 +43,21 @@ interface ThemeProviderProps {
  */
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<ThemeName>(() => {
-    if (typeof document !== 'undefined') {
-      const docTheme = document.documentElement.getAttribute('data-theme') as ThemeName | null;
-      if (docTheme === 'dark' || docTheme === 'light') {
-        setActiveTokens(docTheme === 'dark' ? darkTokens : lightTokens);
-        return docTheme;
-      }
-    }
+    // 1. Check stored preference first
     const stored = storage.load<ThemeName>(THEME_KEY);
-    if (stored === 'dark' || stored === 'light') {
-      setActiveTokens(stored === 'dark' ? darkTokens : lightTokens);
-      return stored;
+    if (stored === 'dark') {
+      setActiveTokens(darkTokens);
+      if (typeof document !== 'undefined') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+      return 'dark';
     }
-    const prefersDark =
-      typeof window !== 'undefined' &&
-      window.matchMedia &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const initial: ThemeName = prefersDark ? 'dark' : 'light';
-    setActiveTokens(initial === 'dark' ? darkTokens : lightTokens);
-    return initial;
+    // 2. Explicit default is ALWAYS light mode
+    setActiveTokens(lightTokens);
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+    return 'light';
   });
 
   // Apply the active token set to the module-level pointer the T Proxy

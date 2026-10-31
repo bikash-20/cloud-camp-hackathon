@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Edit3, LogOut, Minus, Plus, RotateCcw, Zap } from 'lucide-react';
 import { T } from '../../data';
+import { useTokens } from '../../theme/useTokens';
 import type {
   ActivityLevel,
   Allergen,
@@ -160,6 +161,8 @@ interface ProfileScreenProps {
 }
 
 export default function ProfileScreen({ profile, onProfileChange, session, onSignOut }: ProfileScreenProps) {
+  const { theme } = useTokens();
+  const isDark = theme === 'dark';
   const { language } = useLanguage();
   const isBn = language === 'bn';
 
@@ -472,7 +475,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
 
   return (
     <LocalizedContent>
-      <div style={{ padding: '20px var(--screen-gutter, 24px) 40px' }}>
+      <div style={{ padding: '20px var(--screen-gutter, 24px) 160px' }}>
         {session && (
           <motion.div
             initial={{ opacity: 0, y: 4 }}
@@ -543,8 +546,8 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                 gap: 4,
                 padding: '6px 10px',
                 borderRadius: 10,
-                background: 'rgba(74, 58, 52, 0.08)',
-                border: '1px solid rgba(74, 58, 52, 0.18)',
+                background: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)',
+                border: isDark ? '1px solid rgba(255, 255, 255, 0.16)' : '1px solid rgba(74, 58, 52, 0.18)',
                 fontFamily: 'Inter',
                 fontSize: 11,
                 fontWeight: 700,
@@ -854,7 +857,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                   borderRadius: 8,
                   border: 'none',
                   cursor: 'pointer',
-                  background: heightUnit === 'cm' ? T.primary : 'rgba(74, 58, 52, 0.08)',
+                  background: heightUnit === 'cm' ? T.primary : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)'),
                   color: heightUnit === 'cm' ? '#FFFFFF' : T.inkSoft,
                 }}
               >
@@ -871,7 +874,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                   borderRadius: 8,
                   border: 'none',
                   cursor: 'pointer',
-                  background: heightUnit === 'ft_in' ? T.primary : 'rgba(74, 58, 52, 0.08)',
+                  background: heightUnit === 'ft_in' ? T.primary : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)'),
                   color: heightUnit === 'ft_in' ? '#FFFFFF' : T.inkSoft,
                 }}
               >
@@ -905,7 +908,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                   borderRadius: 8,
                   border: 'none',
                   cursor: 'pointer',
-                  background: weightUnit === 'kg' ? T.primary : 'rgba(74, 58, 52, 0.08)',
+                  background: weightUnit === 'kg' ? T.primary : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)'),
                   color: weightUnit === 'kg' ? '#FFFFFF' : T.inkSoft,
                 }}
               >
@@ -922,7 +925,7 @@ export default function ProfileScreen({ profile, onProfileChange, session, onSig
                   borderRadius: 8,
                   border: 'none',
                   cursor: 'pointer',
-                  background: weightUnit === 'lb' ? T.primary : 'rgba(74, 58, 52, 0.08)',
+                  background: weightUnit === 'lb' ? T.primary : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)'),
                   color: weightUnit === 'lb' ? '#FFFFFF' : T.inkSoft,
                 }}
               >

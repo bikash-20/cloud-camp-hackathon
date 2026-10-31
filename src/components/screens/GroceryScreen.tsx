@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Plus, Share2, Trash2, X, ShoppingBag, Trash, Sparkles } from 'lucide-react';
 import { T, MOCK_NUTRITION_DB } from '../../data';
+import { useTokens } from '../../theme/useTokens';
 import type { GroceryItem, GroceryList, UserProfile } from '../../types/schemas';
 import {
   addGroceryItem as apiAddItem,
@@ -39,6 +40,7 @@ interface GroceryScreenProps {
 }
 
 export default function GroceryScreen({ profile }: GroceryScreenProps) {
+  useTokens();
   const { foodName, language } = useLanguage();
   const isBn = language === 'bn';
   const [groups, setGroups] = useState<DisplayGroup[]>([]);
@@ -214,7 +216,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
 
   return (
     <LocalizedContent>
-    <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
+    <div style={{ padding: '20px var(--screen-gutter, 24px) 160px' }}>
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}

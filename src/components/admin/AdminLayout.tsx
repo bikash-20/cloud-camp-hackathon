@@ -6,6 +6,7 @@ import { logout } from '../../lib/auth';
 import { getStorageHealth, type StorageHealthInfo } from '../../lib/api';
 import LanguageToggle from '../../i18n/LanguageToggle';
 import ThemeToggle from '../ThemeToggle';
+import { useTokens } from '../../theme/useTokens';
 import { LocalizedContent, useLanguage } from '../../i18n/LanguageContext';
 import AdminOverview from './AdminOverview';
 import AdminUsersView from './AdminUsersView';
@@ -25,6 +26,7 @@ interface AdminLayoutProps {
  * Dark mode and light mode are seamlessly supported with earth-tone palettes.
  */
 export default function AdminLayout({ session }: AdminLayoutProps) {
+  useTokens();
   const { language } = useLanguage();
   const isBn = language === 'bn';
   const reduceMotion = useReducedMotion();

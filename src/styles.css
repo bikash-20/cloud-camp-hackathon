@@ -267,7 +267,7 @@ p { margin: 0; }
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 8px clamp(24px, 4vw, 64px) 132px;
+  padding: 8px clamp(24px, 4vw, 64px) 160px;
 }
 
 .app-desktop-content > [role='tabpanel'] {
@@ -833,18 +833,38 @@ p { margin: 0; }
   color: #F9F2E4 !important;
 }
 
-/* Dark theme global contrast guarantees — prevents invisible text on hardcoded cream/light cards */
-[data-theme="dark"] [style*="rgba(249, 242, 228"] {
-  background: rgba(255, 255, 255, 0.05) !important;
+/* Dark theme background replacements for legacy hardcoded cream/white cards */
+[data-theme="dark"] [style*="background: rgba(249, 242, 228"],
+[data-theme="dark"] [style*="background:rgba(249, 242, 228"],
+[data-theme="dark"] [style*="background-color: rgba(249, 242, 228"],
+[data-theme="dark"] [style*="background-color:rgba(249, 242, 228"] {
+  background: rgba(42, 32, 27, 0.92) !important;
   color: #F9F2E4 !important;
   border-color: rgba(255, 255, 255, 0.10) !important;
 }
 
-[data-theme="dark"] [style*="rgba(255, 255, 255, 0.85)"],
-[data-theme="dark"] [style*="rgba(255, 255, 255, 0.65)"] {
-  background: rgba(255, 255, 255, 0.06) !important;
+[data-theme="dark"] [style*="background: rgba(255, 255, 255"],
+[data-theme="dark"] [style*="background:rgba(255, 255, 255"],
+[data-theme="dark"] [style*="background-color: rgba(255, 255, 255"],
+[data-theme="dark"] [style*="background-color:rgba(255, 255, 255"] {
+  background: rgba(42, 32, 27, 0.92) !important;
   color: #F9F2E4 !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+[data-theme="dark"] .glass-card {
+  background: rgba(42, 32, 27, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #F9F2E4 !important;
+}
+
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] h4,
+[data-theme="dark"] h5,
+[data-theme="dark"] h6 {
+  color: #F9F2E4;
 }
 
 /* Theme toggle button styling & hover */

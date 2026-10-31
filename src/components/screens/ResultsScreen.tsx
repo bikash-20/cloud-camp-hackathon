@@ -15,6 +15,7 @@ import {
 import {
   T, NUTRITION_DB,
 } from '../../data';
+import { useTokens } from '../../theme/useTokens';
 import { getEffectiveNutrition } from '../../lib/personalize';
 import { getContextAwarePairings } from '../../lib/foodAliases';
 import { addGroceryItem } from '../../lib/api';
@@ -81,6 +82,8 @@ export default function ResultsScreen({
   analysisResult,
   onRetake,
 }: ResultsScreenProps) {
+  const { theme } = useTokens();
+  const isDark = theme === 'dark';
   const { foodName, language } = useLanguage();
   const isBn = language === 'bn';
   const [detected, setDetected] = useState(detectedProp ?? []);
@@ -337,7 +340,7 @@ export default function ResultsScreen({
 
   return (
     <LocalizedContent>
-    <div style={{ padding: '12px 16px 0', position: 'relative' }}>
+    <div style={{ padding: '12px 16px 160px', position: 'relative' }}>
       <div
         style={{
           position: 'sticky',
@@ -345,7 +348,9 @@ export default function ResultsScreen({
           zIndex: 10,
           paddingTop: 6,
           paddingBottom: 8,
-          background: 'linear-gradient(180deg, var(--bg-gradient-end) 0%, rgba(249,242,228,0.96) 88%, rgba(249,242,228,0) 100%)',
+          background: isDark
+            ? 'linear-gradient(180deg, var(--bg-gradient-end) 0%, rgba(27,20,17,0.96) 88%, rgba(27,20,17,0) 100%)'
+            : 'linear-gradient(180deg, var(--bg-gradient-end) 0%, rgba(249,242,228,0.96) 88%, rgba(249,242,228,0) 100%)',
           marginInline: -16,
           paddingInline: 16,
           display: 'flex',

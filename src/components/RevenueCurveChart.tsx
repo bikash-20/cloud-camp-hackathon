@@ -2,6 +2,7 @@ import { useState, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp } from 'lucide-react';
 import { T } from '../data';
+import { useTokens } from '../theme/useTokens';
 import { useLanguage, LocalizedContent } from '../i18n/LanguageContext';
 import { toBengaliDigits } from '../lib/format';
 
@@ -70,6 +71,8 @@ export default function RevenueCurveChart({
   onCardClick,
 }: RevenueCurveChartProps) {
   const { language } = useLanguage();
+  const { theme } = useTokens();
+  const isDark = theme === 'dark';
   const isBn = language === 'bn';
   const gradientId = useId();
   const [activeTooltip, setActiveTooltip] = useState<Point | null>(null);
@@ -230,8 +233,8 @@ export default function RevenueCurveChart({
         style={{
           borderRadius: 20,
           padding: '16px 18px',
-          background: 'rgba(255, 255, 255, 0.88)',
-          border: '1px solid rgba(74, 58, 52, 0.12)',
+          background: T.cardBg,
+          border: `1px solid ${T.cardBorderSoft}`,
           boxShadow: '0 8px 30px rgba(46, 37, 34, 0.08)',
           cursor: onCardClick ? 'pointer' : 'default',
           position: 'relative',
@@ -339,8 +342,9 @@ export default function RevenueCurveChart({
                   fontFamily: 'Inter',
                   fontSize: 11,
                   fontWeight: 700,
-                  color: '#166534',
-                  background: '#DCFCE7',
+                  color: isDark ? '#86EFAC' : '#166534',
+                  background: isDark ? 'rgba(34, 197, 94, 0.16)' : '#DCFCE7',
+                  border: isDark ? '1px solid rgba(34, 197, 94, 0.35)' : 'none',
                   padding: '2px 6px',
                   borderRadius: 6,
                 }}
@@ -386,7 +390,7 @@ export default function RevenueCurveChart({
                     y1={yPos}
                     x2={VIEW_WIDTH - MARGIN_RIGHT}
                     y2={yPos}
-                    stroke="rgba(74, 58, 52, 0.08)"
+                    stroke={isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)'}
                     strokeWidth={1}
                     strokeDasharray={yVal === 0 ? undefined : '3,3'}
                   />
@@ -412,7 +416,7 @@ export default function RevenueCurveChart({
               y1={targetY}
               x2={VIEW_WIDTH - MARGIN_RIGHT}
               y2={targetY}
-              stroke="#2E7D32"
+              stroke={isDark ? '#4ADE80' : '#2E7D32'}
               strokeWidth={1.8}
               strokeDasharray="5,4"
               opacity={0.85}
@@ -424,15 +428,15 @@ export default function RevenueCurveChart({
                 width={106}
                 height={20}
                 rx={10}
-                fill="#DCFCE7"
-                stroke="#166534"
+                fill={isDark ? 'rgba(34, 197, 94, 0.20)' : '#DCFCE7'}
+                stroke={isDark ? '#4ADE80' : '#166534'}
                 strokeWidth={1}
               />
               <text
                 x={53}
                 y={13.5}
                 textAnchor="middle"
-                fill="#166534"
+                fill={isDark ? '#86EFAC' : '#166534'}
                 fontSize={9.5}
                 fontWeight={700}
                 fontFamily="Inter, sans-serif"
@@ -492,7 +496,7 @@ export default function RevenueCurveChart({
                   cx={pt.x}
                   cy={pt.y}
                   r={i === actualPoints.length - 1 ? 5.5 : 4}
-                  fill="#FFFFFF"
+                  fill={isDark ? '#2A201B' : '#FFFFFF'}
                   stroke={T.primary}
                   strokeWidth={2.5}
                 />
@@ -515,7 +519,7 @@ export default function RevenueCurveChart({
                   cx={pt.x}
                   cy={pt.y}
                   r={3.5}
-                  fill="#FFFFFF"
+                  fill={isDark ? '#2A201B' : '#FFFFFF'}
                   stroke={T.accentAmber}
                   strokeWidth={2}
                 />
@@ -531,7 +535,7 @@ export default function RevenueCurveChart({
                 animate={{ scale: [1, 1.45, 1], opacity: [0.35, 0.05, 0.35] }}
                 transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
               />
-              <circle r={5.5} fill="#FFFFFF" stroke={T.primary} strokeWidth={3} />
+              <circle r={5.5} fill={isDark ? '#2A201B' : '#FFFFFF'} stroke={T.primary} strokeWidth={3} />
             </g>
 
             {/* X-Axis Horizontal Base Line */}
@@ -540,7 +544,7 @@ export default function RevenueCurveChart({
               y1={yBaseline}
               x2={VIEW_WIDTH - MARGIN_RIGHT}
               y2={yBaseline}
-              stroke="rgba(74, 58, 52, 0.18)"
+              stroke={isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(74, 58, 52, 0.18)'}
               strokeWidth={1.5}
             />
 
@@ -554,7 +558,7 @@ export default function RevenueCurveChart({
                     y1={yBaseline}
                     x2={xPos}
                     y2={yBaseline + 5}
-                    stroke="rgba(74, 58, 52, 0.25)"
+                    stroke={isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(74, 58, 52, 0.25)'}
                     strokeWidth={1.2}
                   />
                   <text
@@ -626,8 +630,8 @@ export default function RevenueCurveChart({
               style={{
                 padding: '8px 10px',
                 borderRadius: 12,
-                background: 'rgba(249, 242, 228, 0.65)',
-                border: '1px solid rgba(74, 58, 52, 0.08)',
+                background: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(249, 242, 228, 0.65)',
+                border: `1px solid ${T.cardBorderSoft}`,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -653,8 +657,8 @@ export default function RevenueCurveChart({
               style={{
                 padding: '8px 10px',
                 borderRadius: 12,
-                background: 'rgba(249, 242, 228, 0.65)',
-                border: '1px solid rgba(74, 58, 52, 0.08)',
+                background: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(249, 242, 228, 0.65)',
+                border: `1px solid ${T.cardBorderSoft}`,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -680,15 +684,15 @@ export default function RevenueCurveChart({
               style={{
                 padding: '8px 10px',
                 borderRadius: 12,
-                background: 'rgba(249, 242, 228, 0.65)',
-                border: '1px solid rgba(74, 58, 52, 0.08)',
+                background: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(249, 242, 228, 0.65)',
+                border: `1px solid ${T.cardBorderSoft}`,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: T.ink }}>
                   {isBn ? 'চর্বি' : 'Fat'}
                 </span>
-                <span className="tnum" style={{ fontSize: 11, fontWeight: 700, color: '#166534' }}>
+                <span className="tnum" style={{ fontSize: 11, fontWeight: 700, color: isDark ? '#86EFAC' : '#166534' }}>
                   {isBn ? toBengaliDigits(macros.fat) : macros.fat}g
                 </span>
               </div>
@@ -697,7 +701,7 @@ export default function RevenueCurveChart({
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, Math.round((macros.fat / 65) * 100))}%` }}
                   transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
-                  style={{ height: '100%', background: '#2E7D32', borderRadius: 2 }}
+                  style={{ height: '100%', background: isDark ? '#4ADE80' : '#2E7D32', borderRadius: 2 }}
                 />
               </div>
             </div>

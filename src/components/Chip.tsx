@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { T } from '../data';
+import { useTokens } from '../theme/useTokens';
 import { LocalizedContent } from '../i18n/LanguageContext';
 
 interface ChipProps {
@@ -25,6 +26,8 @@ const Chip = memo(function Chip({
   ariaLabel,
   size = 'md',
 }: ChipProps) {
+  const { theme } = useTokens();
+  const isDark = theme === 'dark';
   const padding = size === 'sm' ? '6px 10px' : '8px 14px';
   const fontSize = size === 'sm' ? 11.5 : 12.5;
 
@@ -45,9 +48,11 @@ const Chip = memo(function Chip({
           gap: 6,
           padding,
           borderRadius: 18,
-          background: active ? T.primary : 'rgba(249, 242, 228, 0.7)',
+          background: active ? T.primary : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(249, 242, 228, 0.7)'),
           border: active
             ? `1px solid ${T.primary}`
+            : isDark
+            ? '1px solid rgba(255, 255, 255, 0.14)'
             : '1px solid rgba(74, 58, 52, 0.15)',
           boxShadow: active
             ? `0 6px 14px -4px ${T.primary}66, inset 0 1px 0 rgba(255,255,255,0.30)`

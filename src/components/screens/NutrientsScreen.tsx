@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { AlertTriangle, ChevronLeft, Info, Share2, Sparkles, ShoppingBag, CheckCircle, ArrowRight } from 'lucide-react';
 import { T, NUTRITION_DB } from '../../data';
+import { useTokens } from '../../theme/useTokens';
 import { resolveNutrition, addGroceryItem, getTodaySummary, updateLatestMeal } from '../../lib/api';
 import { focusedNutrients, unitForNutrient, getEffectiveNutrition, getDynamicTargets } from '../../lib/personalize';
 import { checkDietConflicts, CLINICAL_DISCLAIMER_BN, CLINICAL_DISCLAIMER_EN } from '../../lib/dietConflict';
@@ -157,6 +158,8 @@ interface ExplainabilityStripProps {
 
 /** SHAP-style "Why these flags?" panel — shows contributing items per flagged nutrient. */
 function ExplainabilityStrip({ contributions, flaggedNutrients }: ExplainabilityStripProps) {
+  const { theme } = useTokens();
+  const isDark = theme === 'dark';
   const { foodName, language } = useLanguage();
   const isBn = language === 'bn';
   const flagged = flaggedNutrients
@@ -223,7 +226,7 @@ function ExplainabilityStrip({ contributions, flaggedNutrients }: Explainability
             color: T.inkSoft,
             textTransform: 'uppercase',
             letterSpacing: '0.06em',
-            background: 'rgba(74, 58, 52, 0.08)',
+            background: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)',
             padding: '3px 6px',
             borderRadius: 6,
           }}
@@ -471,6 +474,8 @@ interface ExplainabilityVerdictsProps {
 }
 
 function ExplainabilityVerdicts({ contributions, profile }: ExplainabilityVerdictsProps) {
+  const { theme } = useTokens();
+  const isDark = theme === 'dark';
   const { language, foodName } = useLanguage();
   const verdicts = useMemo(() => buildItemVerdicts(contributions), [contributions]);
   if (verdicts.length === 0) return null;
@@ -534,7 +539,7 @@ function ExplainabilityVerdicts({ contributions, profile }: ExplainabilityVerdic
             color: T.inkSoft,
             textTransform: 'uppercase',
             letterSpacing: '0.06em',
-            background: 'rgba(74, 58, 52, 0.08)',
+            background: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)',
             padding: '3px 6px',
             borderRadius: 6,
           }}
@@ -654,6 +659,8 @@ interface NutrientsScreenProps {
  * animates count-up, and recomputes when grams change.
  */
 export default function NutrientsScreen({ detected = [], profile, onBack, onNavigateToGrocery }: NutrientsScreenProps) {
+  const { theme } = useTokens();
+  const isDark = theme === 'dark';
   const { foodName, language } = useLanguage();
   const [resolvedNutritionMap, setResolvedNutritionMap] = useState<Record<string, NutritionFacts>>({});
   const [contributions, setContributions] = useState<NutrientContribution[]>([]);
@@ -831,7 +838,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
 
   return (
     <LocalizedContent>
-    <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
+    <div style={{ padding: '20px var(--screen-gutter, 24px) 160px' }}>
       {detected.length === 0 && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -849,7 +856,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
             width: 56,
             height: 56,
             borderRadius: '50%',
-            background: 'rgba(74, 58, 52, 0.08)',
+            background: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1258,7 +1265,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
             fontWeight: 600,
             padding: '2px 8px',
             borderRadius: 6,
-            background: 'rgba(74, 58, 52, 0.08)',
+            background: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)',
             color: T.ink,
           }}
         >
@@ -1270,7 +1277,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
             fontWeight: 600,
             padding: '2px 8px',
             borderRadius: 6,
-            background: 'rgba(74, 58, 52, 0.08)',
+            background: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)',
             color: T.ink,
           }}
         >
@@ -1282,7 +1289,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
             fontWeight: 600,
             padding: '2px 8px',
             borderRadius: 6,
-            background: 'rgba(74, 58, 52, 0.08)',
+            background: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(74, 58, 52, 0.08)',
             color: T.ink,
           }}
         >

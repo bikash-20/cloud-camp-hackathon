@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Camera, Sparkles, ScanLine, RotateCcw, X, Upload, UtensilsCrossed, History, ShoppingBag } from 'lucide-react';
 import { T, getGreeting, NUTRITION_DB } from '../../data';
+import { useTokens } from '../../theme/useTokens';
 import { getTodaySummary, getMealHistory } from '../../lib/api';
 import { formatRelative, pickThumbnailStyle, toBengaliDigits } from '../../lib/format';
 import RevenueCurveChart from '../../components/RevenueCurveChart';
@@ -78,6 +79,7 @@ export default function CaptureScreen({
   onNavigateTab,
   userName,
 }: CaptureScreenProps) {
+  useTokens();
   const { foodName, language } = useLanguage();
   const isBn = language === 'bn';
   const displayName = userName?.trim() || (isBn ? 'বন্ধু' : 'Friend');
@@ -322,7 +324,7 @@ export default function CaptureScreen({
 
   return (
     <LocalizedContent>
-    <div style={{ padding: '20px var(--screen-gutter, 24px) 0' }}>
+    <div style={{ padding: '20px var(--screen-gutter, 24px) 160px' }}>
       {/* Hidden elements */}
       <canvas ref={canvasRef} style={{ display: 'none' }} aria-hidden="true" />
       <input

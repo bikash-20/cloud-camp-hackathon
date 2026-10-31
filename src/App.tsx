@@ -5,6 +5,7 @@ import { getProfile, saveMeal, updateLatestMeal, analyzeMeal, resolveNutrition }
 import { getEffectiveNutrition } from './lib/personalize';
 import { getSession, logout } from './lib/auth';
 import { ThemeProvider } from './theme/ThemeContext';
+import { useTokens } from './theme/useTokens';
 import type { AuthSession, DetectedItem, PipelineTrace, UserProfile } from './types/schemas';
 import PhoneFrame from './components/PhoneFrame';
 import BottomNav from './components/BottomNav';
@@ -37,6 +38,7 @@ export default function App() {
  * can stay at the top of the tree.
  */
 function AppShell() {
+  useTokens();
   const [session, setSession] = useState<AuthSession | null>(null);
   // Tracks whether we've finished reading localStorage so we don't flash
   // the login screen on every page reload while restoring a session.
@@ -106,6 +108,7 @@ function AppShell() {
  * styling — just wrapped in a typed component now.
  */
 function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () => void }) {
+  useTokens();
   const { translate } = useLanguage();
   const [tab, setTab] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -288,7 +291,7 @@ function UserApp({ session, onSignOut }: { session: AuthSession; onSignOut: () =
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
           style={{
-            paddingBottom: 110,
+            paddingBottom: 160,
             position: 'relative',
             zIndex: 1,
           }}

@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { T } from '../data';
+import { useTokens } from '../theme/useTokens';
 import { LocalizedContent } from '../i18n/LanguageContext';
 
 interface PillProps {
@@ -25,6 +26,8 @@ const Pill = memo(function Pill({
   tone = 'accent',
   ariaLabel,
 }: PillProps) {
+  const { theme } = useTokens();
+  const isDark = theme === 'dark';
   const activeBg = tone === 'warning' ? T.accentWarn : T.primary;
   const activeColor = '#FFFFFF';
 
@@ -40,10 +43,12 @@ const Pill = memo(function Pill({
         transition={{ type: 'spring', stiffness: 380, damping: 22 }}
         style={{
           position: 'relative',
-          background: active ? activeBg : 'rgba(249, 242, 228, 0.7)',
+          background: active ? activeBg : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(249, 242, 228, 0.7)'),
           color: active ? activeColor : T.ink,
           border: active
             ? `1px solid ${activeBg}`
+            : isDark
+            ? '1px solid rgba(255, 255, 255, 0.14)'
             : '1px solid rgba(74, 58, 52, 0.18)',
           borderRadius: 20,
           padding: '8px 14px',
