@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { T, STEP_LABELS } from '../data';
 import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
+import { toBengaliDigits } from '../lib/format';
 
 interface StepIndicatorProps {
   step: number;
@@ -79,7 +80,7 @@ export default function StepIndicator({ step, onStep }: StepIndicatorProps) {
                     color: current ? '#FFFFFF' : T.inkSoft,
                   }}
                 >
-                  {i + 1}
+                  {isBn ? toBengaliDigits(i + 1) : i + 1}
                 </span>
               )}
             </motion.button>

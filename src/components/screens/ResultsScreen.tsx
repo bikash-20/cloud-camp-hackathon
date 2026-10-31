@@ -683,7 +683,7 @@ export default function ResultsScreen({
                 color: T.primary,
               }}
             >
-              {ing}
+              {foodName(ing)}
             </span>
           ))}
         </div>
@@ -761,7 +761,7 @@ export default function ResultsScreen({
                           color: '#2E7D32',
                         }}
                       >
-                        ✓ {m}
+                        ✓ {foodName(m)}
                       </span>
                     ))}
                     {recipe.missing_ingredients.map((miss, missIdx) => (
@@ -776,7 +776,7 @@ export default function ResultsScreen({
                           color: T.primary,
                         }}
                       >
-                        + {miss}
+                        + {foodName(miss)}
                       </span>
                     ))}
                   </div>
@@ -1121,7 +1121,7 @@ export default function ResultsScreen({
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: T.inkSoft }}>
-                    ~{isBn ? toBengaliDigits(it.grams) : it.grams}g
+                    ~{isBn ? `${toBengaliDigits(it.grams)} গ্রাম` : `${it.grams}g`}
                   </span>
                   <span
                     style={{
@@ -1158,7 +1158,7 @@ export default function ResultsScreen({
                 {isBn ? 'ক্যালরি' : 'Calories'}
               </div>
               <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>
-                {isBn ? toBengaliDigits(Math.round(totals.kcal)) : Math.round(totals.kcal)} kcal
+                {isBn ? `${toBengaliDigits(Math.round(totals.kcal))} কিলোক্যালরি` : `${Math.round(totals.kcal)} kcal`}
               </div>
             </div>
             <div>
@@ -1166,15 +1166,15 @@ export default function ResultsScreen({
                 {isBn ? 'প্রোটিন' : 'Protein'}
               </div>
               <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>
-                {isBn ? toBengaliDigits(Math.round(totals.protein)) : Math.round(totals.protein)}g
+                {isBn ? `${toBengaliDigits(Math.round(totals.protein))} গ্রাম` : `${Math.round(totals.protein)}g`}
               </div>
             </div>
             <div>
               <div style={{ fontSize: 10, color: T.inkSoft, fontWeight: 600, textTransform: 'uppercase' }}>
-                {isBn ? 'শর্করা' : 'Carbs'}
+                {isBn ? 'কার্বোহাইড্রেট' : 'Carbs'}
               </div>
               <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>
-                {isBn ? toBengaliDigits(Math.round(totals.carbs)) : Math.round(totals.carbs)}g
+                {isBn ? `${toBengaliDigits(Math.round(totals.carbs))} গ্রাম` : `${Math.round(totals.carbs)}g`}
               </div>
             </div>
             <div>
@@ -1182,7 +1182,7 @@ export default function ResultsScreen({
                 {isBn ? 'চর্বি' : 'Fat'}
               </div>
               <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>
-                {isBn ? toBengaliDigits(Math.round(totals.fat)) : Math.round(totals.fat)}g
+                {isBn ? `${toBengaliDigits(Math.round(totals.fat))} গ্রাম` : `${Math.round(totals.fat)}g`}
               </div>
             </div>
           </div>

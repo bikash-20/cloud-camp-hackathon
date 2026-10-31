@@ -94,14 +94,22 @@ export default function AddCustomModal({
   const submit = () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      setError(mode === 'rename' ? 'Name cannot be empty' : 'Please enter an item name');
+      setError(
+        mode === 'rename'
+          ? (isBn ? 'নাম খালি রাখা যাবে না' : 'Name cannot be empty')
+          : (isBn ? 'অনুগ্রহ করে উপাদানের নাম লিখুন' : 'Please enter an item name'),
+      );
       setShake((n) => n + 1);
       nameRef.current?.focus();
       return;
     }
     // In rename mode, allow same name (no-op rename is fine; it's the user's call)
     if (mode === 'add' && existingNames.some((n) => n.toLowerCase() === trimmed.toLowerCase())) {
-      setError(`${trimmed} is already in the list`);
+      setError(
+        isBn
+          ? `${trimmed} ইতিমধ্যেই তালিকায় রয়েছে`
+          : `${trimmed} is already in the list`,
+      );
       setShake((n) => n + 1);
       nameRef.current?.focus();
       return;

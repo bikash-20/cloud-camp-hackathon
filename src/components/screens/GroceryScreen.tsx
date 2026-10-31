@@ -137,11 +137,15 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
 
   useEffect(() => {
     if (overBudget) {
-      setToast(`Over weekly budget by ৳${totalSpent - weeklyCap}`);
+      setToast(
+        isBn
+          ? `সাপ্তাহিক বাজেটের চেয়ে ৳${toBengaliDigits(totalSpent - weeklyCap)} বেশি খরচ হয়েছে`
+          : `Over weekly budget by ৳${totalSpent - weeklyCap}`,
+      );
       const t = setTimeout(() => setToast(null), 1800);
       return () => clearTimeout(t);
     }
-  }, [overBudget, totalSpent, weeklyCap]);
+  }, [overBudget, totalSpent, weeklyCap, isBn]);
 
   // Clear All uses a two-tap confirm — first tap arms, second tap fires.
   // Auto-cancels after 3 s so the destructive state can't get stuck.
@@ -205,17 +209,17 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
       );
     });
     setAddingAt(null);
-    triggerToast(`Added ${name}`);
+    triggerToast(isBn ? `${foodName(name)} তালিকায় যোগ করা হয়েছে` : `Added ${name}`);
     // Backend reconciliation (mocked)
     await apiAddItem(category, name, price);
   };
 
   const shareList = () => {
     const lines = groups
-      .flatMap((g) => g.items.map((i) => `${i.checked ? '✓' : '○'} ${i.name} — ৳${i.price}`))
+      .flatMap((g) => g.items.map((i) => `${i.checked ? '✓' : '○'} ${foodName(i.name)} — ৳${isBn ? toBengaliDigits(i.price) : i.price}`))
       .join('\n');
     if (navigator?.clipboard) navigator.clipboard.writeText(lines).catch(() => {});
-    triggerToast('List copied to clipboard');
+    triggerToast(isBn ? 'তালিকা ক্লিপবোর্ডে কপি করা হয়েছে' : 'List copied to clipboard');
   };
 
   return (
@@ -255,7 +259,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
             className="tnum"
             style={{ fontSize: 9, fontFamily: 'Inter', fontWeight: 700 }}
           >
-            {pct}%
+            {isBn ? toBengaliDigits(pct) : pct}%
           </span>
         </ConfidenceRing>
       </motion.div>
@@ -561,8 +565,8 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                         transition={{ type: 'spring', stiffness: 400, damping: 18 }}
                         aria-label={
                           item.checked
-                            ? `Mark ${foodName(item.name)} as needed`
-                            : `Mark ${foodName(item.name)} as bought`
+                            ? (isBn ? `${foodName(item.name)} প্রয়োজন হিসেবে চিহ্নিত করুন` : `Mark ${foodName(item.name)} as needed`)
+                            : (isBn ? `${foodName(item.name)} কেনা হয়েছে হিসেবে চিহ্নিত করুন` : `Mark ${foodName(item.name)} as bought`)
                         }
                         aria-pressed={item.checked}
                         style={{
@@ -631,7 +635,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === 'Escape') setEditingId(null);
                           }}
-                          aria-label={`Edit price for ${foodName(item.name)}`}
+                          aria-label={isBn ? `${foodName(item.name)}-এর দাম পরিবর্তন করুন` : `Edit price for ${foodName(item.name)}`}
                           style={{
                             width: 64,
                             fontFamily: "'Inter', sans-serif",
@@ -653,7 +657,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.94 }}
                           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                          aria-label={`Edit price of ${foodName(item.name)}, currently ৳${item.price}`}
+                          aria-label={isBn ? `${foodName(item.name)}-এর দাম পরিবর্তন করুন, বর্তমান দাম ৳${toBengaliDigits(item.price)}` : `Edit price of ${foodName(item.name)}, currently ৳${item.price}`}
                           className="tnum"
                           style={{
                             background: 'none',
@@ -670,7 +674,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                             gap: 4,
                           }}
                         >
-                          <span>৳{item.price}</span>
+                          <span>৳{isBn ? toBengaliDigits(item.price) : item.price}</span>
                           {livePriceMap[item.id] && (
                             <span
                               title={isBn ? 'লাইভ বাজারদর (Chaldal)' : 'Live Market Price (Chaldal)'}
@@ -707,7 +711,7 @@ export default function GroceryScreen({ profile }: GroceryScreenProps) {
                         whileHover={{ scale: 1.15, rotate: 90 }}
                         whileTap={{ scale: 0.9 }}
                         transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                        aria-label={`Remove ${foodName(item.name)}`}
+                        aria-label={isBn ? `${foodName(item.name)} মুছে ফেলুন` : `Remove ${foodName(item.name)}`}
                         style={{
                           width: 24,
                           height: 24,
@@ -796,7 +800,7 @@ function AddItemForm({ onSubmit, onCancel }: AddItemFormProps) {
 
   const submit = () => {
     if (!name.trim()) {
-      setError('Please enter an item name');
+      setError(isBn ? 'অনুগ্রহ করে উপাদানের নাম লিখুন' : 'Please enter an item name');
       setShake((n) => n + 1);
       inputRef.current?.focus();
       return;

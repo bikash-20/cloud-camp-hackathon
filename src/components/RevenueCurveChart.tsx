@@ -441,7 +441,7 @@ export default function RevenueCurveChart({
                 fontWeight={700}
                 fontFamily="Inter, sans-serif"
               >
-                {isBn ? `🎯 লক্ষ্য: ${toBengaliDigits(targetKcal)} kcal` : `🎯 Goal: ${targetKcal} kcal`}
+                {isBn ? `🎯 লক্ষ্য: ${toBengaliDigits(targetKcal)} কিলোক্যালরি` : `🎯 Goal: ${targetKcal} kcal`}
               </text>
             </g>
 
@@ -639,7 +639,7 @@ export default function RevenueCurveChart({
                   {isBn ? 'প্রোটিন' : 'Protein'}
                 </span>
                 <span className="tnum" style={{ fontSize: 11, fontWeight: 700, color: T.primary }}>
-                  {isBn ? toBengaliDigits(macros.protein) : macros.protein}g
+                  {isBn ? `${toBengaliDigits(macros.protein)} গ্রাম` : `${macros.protein}g`}
                 </span>
               </div>
               <div style={{ height: 4, borderRadius: 2, background: 'rgba(74, 58, 52, 0.1)', overflow: 'hidden' }}>
@@ -666,7 +666,7 @@ export default function RevenueCurveChart({
                   {isBn ? 'কার্বস' : 'Carbs'}
                 </span>
                 <span className="tnum" style={{ fontSize: 11, fontWeight: 700, color: T.accentAmber }}>
-                  {isBn ? toBengaliDigits(macros.carbs) : macros.carbs}g
+                  {isBn ? `${toBengaliDigits(macros.carbs)} গ্রাম` : `${macros.carbs}g`}
                 </span>
               </div>
               <div style={{ height: 4, borderRadius: 2, background: 'rgba(74, 58, 52, 0.1)', overflow: 'hidden' }}>
@@ -693,7 +693,7 @@ export default function RevenueCurveChart({
                   {isBn ? 'চর্বি' : 'Fat'}
                 </span>
                 <span className="tnum" style={{ fontSize: 11, fontWeight: 700, color: isDark ? '#86EFAC' : '#166534' }}>
-                  {isBn ? toBengaliDigits(macros.fat) : macros.fat}g
+                  {isBn ? `${toBengaliDigits(macros.fat)} গ্রাম` : `${macros.fat}g`}
                 </span>
               </div>
               <div style={{ height: 4, borderRadius: 2, background: 'rgba(74, 58, 52, 0.1)', overflow: 'hidden' }}>

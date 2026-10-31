@@ -16,6 +16,19 @@
 
 import type { DetectedItem, NutritionFacts, UserProfile } from '../types/schemas';
 import { getEffectiveNutrition } from './personalize';
+import { resolveFoodName } from './foodAliases';
+
+const ALLERGEN_LABELS_BN: Record<string, string> = {
+  Peanuts: 'চীনাবাদাম',
+  'Tree nuts': 'বাদাম',
+  Shellfish: 'শেলফিশ',
+  'Shell shellfish': 'শেলফিশ',
+  Dairy: 'দুগ্ধজাত উপাদান',
+  Gluten: 'গ্লুটেন',
+  Soy: 'সয়াবিন',
+  Eggs: 'ডিম',
+  Sesame: 'তিল',
+};
 
 export type ConflictType =
   | 'halal'
@@ -192,8 +205,8 @@ export function checkDietConflicts(
         severity: 'critical',
         title_en: 'Halal Restriction Violation',
         title_bn: 'হারাম বা নিষিদ্ধ উপাদান সতর্কতা',
-        detail_en: `Detected non-Halal items: ${offending.map((i) => i.name).join(', ')}. Not permissible under Halal dietary guidelines.`,
-        detail_bn: `হারাম/নিষিদ্ধ উপাদান শনাক্ত হয়েছে: ${offending.map((i) => i.name_bn || i.name).join(', ')}। হালাল খাদ্যাভ্যাস অনুযায়ী এটি বর্জনীয়।`,
+        detail_en: `Detected non-Halal items: ${offending.map((i) => resolveFoodName(i.name, 'en') || i.name).join(', ')}. Not permissible under Halal dietary guidelines.`,
+        detail_bn: `হারাম/নিষিদ্ধ উপাদান শনাক্ত হয়েছে: ${offending.map((i) => i.name_bn || resolveFoodName(i.name, 'bn') || i.name).join(', ')}। হালাল খাদ্যাভ্যাস অনুযায়ী এটি বর্জনীয়।`,
         offending_items: offending.map((i) => i.name),
         recommendation_en: 'Substitute with certified Halal beef, chicken, mutton, or plant-based proteins.',
         recommendation_bn: 'হালাল সার্টিফাইড মাংস বা উদ্ভিদজাত প্রোটিন দিয়ে প্রতিস্থাপন করুন।',
@@ -218,8 +231,8 @@ export function checkDietConflicts(
         severity: 'critical',
         title_en: 'Vegetarian Dietary Conflict',
         title_bn: 'নিরামিষ খাদ্যাভ্যাস সতর্কতা',
-        detail_en: `Contains meat or seafood: ${meatOffenders.map((i) => i.name).join(', ')}.`,
-        detail_bn: `আমিষ/মাংস বা মাছ জাতীয় উপাদান শনাক্ত হয়েছে: ${meatOffenders.map((i) => i.name_bn || i.name).join(', ')}।`,
+        detail_en: `Contains meat or seafood: ${meatOffenders.map((i) => resolveFoodName(i.name, 'en') || i.name).join(', ')}.`,
+        detail_bn: `আমিষ/মাংস বা মাছ জাতীয় উপাদান শনাক্ত হয়েছে: ${meatOffenders.map((i) => i.name_bn || resolveFoodName(i.name, 'bn') || i.name).join(', ')}।`,
         offending_items: meatOffenders.map((i) => i.name),
         recommendation_en: 'Swap with lentils (dal), chickpeas (chola), tofu, or mixed vegetable curries.',
         recommendation_bn: 'মুসুর বা মুগ ডাল, ছোলা, পনির বা সবজি তরকারি দিয়ে প্রতিস্থাপন করুন।',
@@ -237,8 +250,8 @@ export function checkDietConflicts(
           severity: 'critical',
           title_en: 'Vegan Dietary Conflict',
           title_bn: 'ভেগান খাদ্যাভ্যাস সতর্কতা',
-          detail_en: `Contains animal-derived ingredients: ${dairyOffenders.map((i) => i.name).join(', ')}.`,
-          detail_bn: `প্রাণিজ উপাদান (দুধ/ডিম/ঘি) শনাক্ত হয়েছে: ${dairyOffenders.map((i) => i.name_bn || i.name).join(', ')}।`,
+          detail_en: `Contains animal-derived ingredients: ${dairyOffenders.map((i) => resolveFoodName(i.name, 'en') || i.name).join(', ')}.`,
+          detail_bn: `প্রাণিজ উপাদান (দুধ/ডিম/ঘি) শনাক্ত হয়েছে: ${dairyOffenders.map((i) => i.name_bn || resolveFoodName(i.name, 'bn') || i.name).join(', ')}।`,
           offending_items: dairyOffenders.map((i) => i.name),
           recommendation_en: 'Use plant milk, mustard oil instead of ghee, and tofu instead of paneer.',
           recommendation_bn: 'ঘি এর বদলে সরিষার তেল এবং পনিরের বদলে সয়াবিন বা টোফু ব্যবহার করুন।',
@@ -256,14 +269,15 @@ export function checkDietConflicts(
       matchesKeywords(it.name + ' ' + (it.name_bn || ''), keywords),
     );
     if (matched.length > 0) {
+      const allergenBn = ALLERGEN_LABELS_BN[allergen] || allergen;
       conflicts.push({
         id: `conflict-allergen-${allergen.toLowerCase().replace(/\s+/g, '-')}`,
         type: 'allergen',
         severity: 'critical',
         title_en: `Allergen Detected: ${allergen}`,
-        title_bn: `অ্যালার্জি সতর্কতা: ${allergen}`,
-        detail_en: `Your profile lists an allergy to ${allergen}, and this meal contains: ${matched.map((i) => i.name).join(', ')}.`,
-        detail_bn: `আপনার প্রোফাইলে ${allergen} অ্যালার্জি রয়েছে এবং এই খাবারে রয়েছে: ${matched.map((i) => i.name_bn || i.name).join(', ')}।`,
+        title_bn: `অ্যালার্জি সতর্কতা: ${allergenBn}`,
+        detail_en: `Your profile lists an allergy to ${allergen}, and this meal contains: ${matched.map((i) => resolveFoodName(i.name, 'en') || i.name).join(', ')}.`,
+        detail_bn: `আপনার প্রোফাইলে ${allergenBn} অ্যালার্জি রয়েছে এবং এই খাবারে রয়েছে: ${matched.map((i) => i.name_bn || resolveFoodName(i.name, 'bn') || i.name).join(', ')}।`,
         offending_items: matched.map((i) => i.name),
         recommendation_en: 'Do not consume if you have severe reactions. Request allergen-free preparation.',
         recommendation_bn: 'তীব্র অ্যালার্জি থাকলে এই খাবার বর্জন করুন।',

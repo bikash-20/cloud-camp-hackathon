@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Check, Eye, Plus, X } from 'lucide-react';
 import { T } from '../data';
 import { LocalizedContent, useLanguage } from '../i18n/LanguageContext';
+import { toBengaliDigits } from '../lib/format';
 import { triggerHaptic } from '../lib/haptics';
 
 interface BulkActionBarProps {
@@ -59,7 +60,7 @@ export default function BulkActionBar({
           whiteSpace: 'nowrap',
         }}
       >
-        {count} {isBn ? 'টি নির্বাচিত' : 'selected'}
+        {isBn ? toBengaliDigits(count) : count} {isBn ? 'টি নির্বাচিত' : 'selected'}
       </div>
 
       <div style={{ display: 'flex', gap: 6, flex: 1, justifyContent: 'flex-end' }}>

@@ -287,8 +287,8 @@ export default function ExpandableRow({
                 {displayName}
               </span>
               {meta && (
-                <span className="kcal-chip" aria-label={`${Math.round(meta.kcal)} calories`}>
-                  <Flame size={10} /> {Math.round(meta.kcal)}
+                <span className="kcal-chip" aria-label={isBn ? `${toBengaliDigits(Math.round(meta.kcal))} ক্যালরি` : `${Math.round(meta.kcal)} calories`}>
+                  <Flame size={10} /> {isBn ? toBengaliDigits(Math.round(meta.kcal)) : Math.round(meta.kcal)}
                 </span>
               )}
             </div>
@@ -366,7 +366,7 @@ export default function ExpandableRow({
           style={{ cursor: badge.tier === 'low' && !isConfirmed ? 'pointer' : 'default' }}
         >
           <span aria-hidden="true">{badge.dot}</span>
-          {badge.label}
+          {isBn ? `${toBengaliDigits(item.confidence)}%` : badge.label}
         </motion.span>
 
         {!editMode && (
@@ -624,7 +624,7 @@ export default function ExpandableRow({
                       step={5}
                       value={item.grams}
                       onChange={(e) => onGramsChange?.(item.name, Number(e.target.value) - item.grams, true)}
-                      aria-label={`Portion size in grams for ${displayName}`}
+                      aria-label={isBn ? `${displayName}-এর জন্য গ্রাম হিসেবে পরিমাণ` : `Portion size in grams for ${displayName}`}
                       style={{ width: '100%', accentColor: T.primary }}
                     />
                   </motion.div>
@@ -654,7 +654,7 @@ export default function ExpandableRow({
                       return (
                         <Chip
                           key={alt}
-                          label={`${altMeta.emoji} ${foodName(alt)} · ${altConf}%`}
+                          label={`${altMeta.emoji} ${foodName(alt)} · ${isBn ? toBengaliDigits(altConf) : altConf}%`}
                           size="sm"
                           onClick={() => onReplace?.(item.name, alt)}
                         />

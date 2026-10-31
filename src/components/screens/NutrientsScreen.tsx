@@ -1462,7 +1462,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
                           color: '#166534',
                         }}
                       >
-                        {language === 'bn' ? `গ্লাইসেমিক লোড -${pivot.glycemic_reduction_pct}%` : `-${pivot.glycemic_reduction_pct}% Glycemic`}
+                        {language === 'bn' ? `গ্লাইসেমিক লোড -${toBengaliDigits(pivot.glycemic_reduction_pct)}%` : `-${pivot.glycemic_reduction_pct}% Glycemic`}
                       </span>
                     </div>
                   </div>
@@ -1483,7 +1483,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
                         color: pivot.delta.kcal < 0 ? '#166534' : '#92400E',
                       }}
                     >
-                      Δ {pivot.delta.kcal > 0 ? '+' : ''}{pivot.delta.kcal} {language === 'bn' ? 'ক্যালরি' : 'kcal'}
+                      Δ {pivot.delta.kcal > 0 ? '+' : ''}{language === 'bn' ? toBengaliDigits(pivot.delta.kcal) : pivot.delta.kcal} {language === 'bn' ? 'ক্যালরি' : 'kcal'}
                     </span>
                     <span
                       style={{
@@ -1495,7 +1495,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
                         color: pivot.delta.carbs < 0 ? '#166534' : '#92400E',
                       }}
                     >
-                      Δ {pivot.delta.carbs > 0 ? '+' : ''}{pivot.delta.carbs}g {language === 'bn' ? 'কার্বস' : 'carbs'}
+                      Δ {pivot.delta.carbs > 0 ? '+' : ''}{language === 'bn' ? toBengaliDigits(pivot.delta.carbs) : pivot.delta.carbs} {language === 'bn' ? 'গ্রাম কার্বস' : 'g carbs'}
                     </span>
                     {pivot.delta.fiber !== 0 && (
                       <span
@@ -1508,7 +1508,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
                           color: '#166534',
                         }}
                       >
-                        +{pivot.delta.fiber}g {language === 'bn' ? 'আঁশ' : 'fiber'}
+                        +{language === 'bn' ? toBengaliDigits(pivot.delta.fiber) : pivot.delta.fiber} {language === 'bn' ? 'গ্রাম আঁশ' : 'g fiber'}
                       </span>
                     )}
                     {pivot.delta.sodium !== 0 && (
@@ -1522,7 +1522,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
                           color: pivot.delta.sodium < 0 ? '#166534' : '#991B1B',
                         }}
                       >
-                        Δ {pivot.delta.sodium > 0 ? '+' : ''}{pivot.delta.sodium}mg {language === 'bn' ? 'সোডিয়াম' : 'sodium'}
+                        Δ {pivot.delta.sodium > 0 ? '+' : ''}{language === 'bn' ? toBengaliDigits(pivot.delta.sodium) : pivot.delta.sodium} {language === 'bn' ? 'মিগ্রা সোডিয়াম' : 'mg sodium'}
                       </span>
                     )}
                     <span
@@ -1539,7 +1539,7 @@ export default function NutrientsScreen({ detected = [], profile, onBack, onNavi
                       }}
                     >
                       {pivot.is_live_price && <span style={{ fontSize: 9 }}>⚡</span>}
-                      Δ ৳{pivot.delta.cost_bdt > 0 ? '+' : ''}{pivot.delta.cost_bdt} {language === 'bn' ? 'খরচ' : 'cost'}
+                      Δ ৳{pivot.delta.cost_bdt > 0 ? '+' : ''}{language === 'bn' ? toBengaliDigits(pivot.delta.cost_bdt) : pivot.delta.cost_bdt} {language === 'bn' ? 'খরচ' : 'cost'}
                     </span>
                   </div>
 

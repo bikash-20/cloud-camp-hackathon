@@ -562,11 +562,112 @@ const bnPhrases: Record<string, string> = {
   'Eggs (6)': 'ডিম (৬টি)',
   'Chicken breast': 'মুরগির বুকের মাংস',
   'Whole wheat atta': 'আটা',
+
+  // Culinary items, cooking media, seasonings & ingredients
+  'Salt': 'লবণ',
+  'Table salt': 'খাবার লবণ',
+  'Black pepper': 'গোলমরিচ',
+  'White pepper': 'সাদা গোলমরিচ',
+  'Pepper': 'গোলমরিচ',
+  'Garlic': 'রসুন',
+  'Ginger': 'আদা',
+  'Onion': 'পেঁয়াজ',
+  'Mustard oil': 'সরিষার তেল',
+  'Soybean oil': 'সয়াবিন তেল',
+  'Vegetable oil': 'উদ্ভিজ্জ তেল',
+  'Sunflower oil': 'সূর্যমুখী তেল',
+  'Canola oil': 'ক্যানোলা তেল',
+  'Coconut oil': 'নারকেল তেল',
+  'Ghee': 'ঘি',
+  'Butter': 'মাখন',
+  'Turmeric': 'হলুদ',
+  'Turmeric powder': 'হলুদ গুঁড়ো',
+  'Chili': 'মরিচ',
+  'Red chili': 'লাল মরিচ',
+  'Green chili': 'কাঁচা মরিচ',
+  'Chili powder': 'মরিচের গুঁড়ো',
+  'Cumin': 'জিরা',
+  'Cumin powder': 'জিরার গুঁড়ো',
+  'Coriander': 'ধনে',
+  'Coriander leaves': 'ধনেপাতা',
+  'Cardamom': 'এলাচ',
+  'Cinnamon': 'দারুচিনি',
+  'Cloves': 'লবঙ্গ',
+  'Bay leaf': 'তেজপাতা',
+  'Vinegar': 'ভিনেগার',
+  'Soy sauce': 'সয়া সস',
+  'Cornstarch': 'কর্নস্টার্চ',
+  'Baking powder': 'বেকিং পাউডার',
+  'Yeast': 'ইস্ট',
+  'Oregano': 'ওরেগানো',
+  'Basil': 'তুলসী / ব্যাসিল',
+  'Rosemary': 'রোজমেরি',
+  'Thyme': 'থাইম',
+  'Parsley': 'পার্সলে পাতা',
+  'Mint': 'পুদিনা',
+  'Garam masala': 'গরম মসলা',
+  'Curry powder': 'কারি পাউডার',
+  'Penne pasta': 'পেনে পাস্তা',
+  'Penne': 'পেনে পাস্তা',
+  'Pasta': 'পাস্তা',
+  'Spaghetti': 'স্প্যাগেটি',
+  'Macaroni': 'ম্যাকারনি',
+  'Noodles': 'নুডলস',
+  'Grilled Tofu': 'গ্রিলড টোফু',
+  'Tofu': 'টোফু',
+  'Edamame': 'এডামামে',
+  'Sweet Yogurt': 'মিষ্টি দই',
+  'Lemon Wedge': 'লেবুর টুকরা',
+  'Lemon slice': 'লেবুর টুকরা',
+  'Inferred Cooking Media:': 'অনুমানকৃত রান্নার উপাদান:',
+  'Inferred Cooking Media': 'অনুমানকৃত রান্নার উপাদান',
+  'Inferred cooking media': 'অনুমানকৃত রান্নার উপাদান',
 };
 
 const phraseLookup = new Map(
   Object.entries(bnPhrases).map(([english, bengali]) => [english.toLowerCase(), bengali]),
 );
+
+const phraseLookupBnToEn = new Map<string, string>();
+for (const [english, bengali] of Object.entries(bnPhrases)) {
+  const cleanBn = bengali.trim().toLowerCase();
+  if (cleanBn && !phraseLookupBnToEn.has(cleanBn)) {
+    phraseLookupBnToEn.set(cleanBn, english);
+  }
+}
+// Robust manual canonical aliases for Bengali -> English
+phraseLookupBnToEn.set('অলিভ অয়েল', 'Olive Oil');
+phraseLookupBnToEn.set('অলিভ অয়েল', 'Olive Oil');
+phraseLookupBnToEn.set('লবণ', 'Salt');
+phraseLookupBnToEn.set('গোলমরিচ', 'Black Pepper');
+phraseLookupBnToEn.set('রসুন', 'Garlic');
+phraseLookupBnToEn.set('আদা', 'Ginger');
+phraseLookupBnToEn.set('পেঁয়াজ', 'Onion');
+phraseLookupBnToEn.set('সরিষার তেল', 'Mustard Oil');
+phraseLookupBnToEn.set('সয়াবিন তেল', 'Soybean Oil');
+phraseLookupBnToEn.set('ঘি', 'Ghee');
+phraseLookupBnToEn.set('মাখন', 'Butter');
+phraseLookupBnToEn.set('চিনি', 'Sugar');
+phraseLookupBnToEn.set('হলুদ', 'Turmeric');
+phraseLookupBnToEn.set('পেনে পাস্তা', 'Penne Pasta');
+phraseLookupBnToEn.set('সিদ্ধ ডিম', 'Boiled Egg');
+phraseLookupBnToEn.set('মিষ্টি দই', 'Sweet Yogurt');
+phraseLookupBnToEn.set('এডামামে', 'Edamame');
+phraseLookupBnToEn.set('গ্রিলড টোফু', 'Grilled Tofu');
+phraseLookupBnToEn.set('টোফু', 'Tofu');
+phraseLookupBnToEn.set('টমেটো', 'Tomato');
+phraseLookupBnToEn.set('শসা', 'Cucumber');
+phraseLookupBnToEn.set('লেবুর টুকরা', 'Lemon Wedge');
+phraseLookupBnToEn.set('ভাত', 'White Rice');
+phraseLookupBnToEn.set('মসুর ডাল', 'Red Lentil Dal');
+phraseLookupBnToEn.set('খিচুড়ি', 'Khichuri');
+phraseLookupBnToEn.set('চিকেন বিরিয়ানি', 'Chicken Biryani');
+phraseLookupBnToEn.set('কাঁচা বাজার', 'Produce');
+phraseLookupBnToEn.set('শস্য ও চাল', 'Grains');
+phraseLookupBnToEn.set('দুধ ও দুগ্ধজাত', 'Dairy');
+phraseLookupBnToEn.set('প্রোটিন ও আমিষ', 'Protein');
+phraseLookupBnToEn.set('রান্নার উপাদান ও মসলা', 'Pantry');
+phraseLookupBnToEn.set('অন্যান্য', 'Other');
 
 const phrasePattern = new RegExp(
   `(^|[^A-Za-z])(${Object.keys(bnPhrases)
@@ -588,6 +689,18 @@ function translateText(value: string): string {
   return value.replace(phrasePattern, (_match, prefix: string, phrase: string) =>
     `${prefix}${phraseLookup.get(phrase.toLowerCase()) ?? phrase}`,
   );
+}
+
+function translateToEnglish(value: string): string {
+  if (!value) return value;
+  const trimmed = value.trim();
+  const direct = phraseLookupBnToEn.get(trimmed.toLowerCase());
+  if (direct) {
+    const leading = value.match(/^\s*/)?.[0] ?? '';
+    const trailing = value.match(/\s*$/)?.[0] ?? '';
+    return `${leading}${direct}${trailing}`;
+  }
+  return value;
 }
 
 export function translateBengali(value: string): string {
@@ -634,16 +747,28 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     () => ({
       language,
       setLanguage,
-      translate: language === 'bn' ? translateText : (text) => text,
+      translate: language === 'bn' ? translateText : translateToEnglish,
       foodName: (name, bengaliName) => {
         if (!name) return '';
+        const trimmed = name.trim();
         if (language === 'bn') {
           if (bengaliName && bengaliName.trim()) return bengaliName.trim();
-          const canonicalBn = resolveFoodName(name, 'bn');
-          if (canonicalBn && canonicalBn !== name) return canonicalBn;
-          return translateText(name);
+          const canonicalBn = resolveFoodName(trimmed, 'bn');
+          if (canonicalBn && canonicalBn.toLowerCase() !== trimmed.toLowerCase()) return canonicalBn;
+          const directBn = phraseLookup.get(trimmed.toLowerCase());
+          if (directBn) return directBn;
+          return translateText(trimmed);
+        } else {
+          // English mode
+          const canonicalEn = resolveFoodName(trimmed, 'en');
+          if (canonicalEn && canonicalEn.toLowerCase() !== trimmed.toLowerCase() && !/[\u0980-\u09FF]/.test(canonicalEn)) {
+            return canonicalEn;
+          }
+          const directEn = phraseLookupBnToEn.get(trimmed.toLowerCase());
+          if (directEn) return directEn;
+          if (!/[\u0980-\u09FF]/.test(trimmed)) return trimmed;
+          return canonicalEn || trimmed;
         }
-        return resolveFoodName(name, 'en') || name;
       },
     }),
     [language],
@@ -662,17 +787,23 @@ const LOCALIZED_ATTRIBUTES = ['aria-label', 'title', 'placeholder', 'alt'] as co
 
 export function LocalizedContent({ children }: { children: ReactNode }) {
   const { language, translate } = useLanguage();
-  if (language === 'en') return <>{children}</>;
 
   const localize = (node: ReactNode): ReactNode => {
-    if (typeof node === 'string') return translate(node);
+    if (typeof node === 'string') {
+      if (language === 'bn') return translate(node);
+      if (language === 'en' && /[\u0980-\u09FF]/.test(node)) return translate(node);
+      return node;
+    }
     if (Array.isArray(node)) return Children.toArray(node).map(localize);
     if (!isValidElement<{ children?: ReactNode }>(node)) return node;
 
     const props: Record<string, unknown> = { ...node.props };
     for (const attribute of LOCALIZED_ATTRIBUTES) {
       const value = props[attribute];
-      if (typeof value === 'string') props[attribute] = translate(value);
+      if (typeof value === 'string') {
+        if (language === 'bn') props[attribute] = translate(value);
+        else if (language === 'en' && /[\u0980-\u09FF]/.test(value)) props[attribute] = translate(value);
+      }
     }
     if (node.props.children !== undefined) props.children = localize(node.props.children);
     return cloneElement(node, props);
